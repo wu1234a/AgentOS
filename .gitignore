@@ -1,0 +1,67 @@
+# ==== .NET / ASP.NET Core ====
+bin/
+obj/
+artifacts/
+publish/
+TestResults/
+coverage/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.nupkg
+*.snupkg
+project.lock.json
+project.assets.json
+*.dbmdl
+*.jfm
+*.tmp
+*.bak
+.vs/
+.vscode/
+.idea/
+*.sln.iml
+
+# ==== Node / Vue / Vite ====
+node_modules/
+dist/
+dist-ssr/
+.vite/
+.nyc_output/
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm/
+.pnpm-store/
+*.local
+*.tsbuildinfo
+
+# ==== 环境变量与密钥 ====
+.env
+.env.*
+!.env.example
+secrets/
+*.pfx
+*.snk
+*.p12
+*.pem
+appsettings.*.local.json
+appsettings.Local.json
+
+# ==== 本地工具状态 ====
+.dsh/
+.worktree-space/
+.worktrees/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# ==== 本地数据库文件 ====
+*.mdf
+*.ldf
+
+# ==== 运行日志 ====
+logs/
+*.log
