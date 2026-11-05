@@ -17,7 +17,8 @@ builder.Host.UseSerilog((context, services, configuration) => configuration
 builder.Services.AddProblemDetails();
 
 var connectionString = builder.Configuration.GetConnectionString("AgentOS")
-    ?? throw new InvalidOperationException("ConnectionStrings:AgentOS is not configured.");
+    ?? throw new InvalidOperationException(
+        "ConnectionStrings:AgentOS is not configured. Set ConnectionStrings__AgentOS or provide it in appsettings.Development.json.");
 
 builder.Services.AddDbContext<AgentOSDbContext>(options => options.UseSqlServer(connectionString));
 
@@ -33,6 +34,11 @@ var app = builder.Build();
 
 app.UseExceptionHandler();
 app.UseStatusCodePages();
+
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 
 if (app.Environment.IsDevelopment())
 {

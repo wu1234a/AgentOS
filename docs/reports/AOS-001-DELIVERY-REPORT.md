@@ -81,7 +81,7 @@ AOS-001 不包含业务 API 和认证；API Client / 身份验证从 AOS-002 开
 | 检查 | 命令 | 结果 |
 |---|---|---|
 | 后端构建 | `dotnet build backend/AgentOS.slnx --nologo` | ✅ 0 警告 / 0 错误 |
-| 后端测试 | `dotnet test backend/AgentOS.slnx --no-build --nologo` | ✅ 4 通过 / 0 失败 / 0 跳过 |
+| 后端测试 | `dotnet test backend/AgentOS.slnx --no-build --nologo` | ✅ 6 通过 / 0 失败 / 0 跳过 |
 | 数据库迁移 | `dotnet ef database update ...` | ✅ `AgentOS_Dev` 创建，迁移历史 1 条 |
 | 健康检查（真实 SQL） | `GET /health/live`、`GET /health/ready` | ✅ 均 200，`sqlserver` Healthy（175ms） |
 | 前端 lint | `npm run lint` | ✅ 0 问题 |
@@ -94,6 +94,16 @@ AOS-001 不包含业务 API 和认证；API Client / 身份验证从 AOS-002 开
 SQL Server 命名管道会被拒绝；上述测试/API 验收在提权（或普通 Medium 完整性）终端中完成，
 这是本地 DSH 环境限制，不是项目代码要求。独立 `Microsoft.Data.SqlClient` 连接测试在
 Medium 进程中全部通过。
+
+## 5.1 独立代码审查与复审
+
+- 审查对象：commit `a6fe2d6`（AOS-001 初始交付）。
+- 审查方式：`dsh_code_review`（Codex 审查 rubric 的 DSH 原生实现，独立子 Agent，只读）。
+- 结论：无 Blocker / High；2 个 Medium、4 个 Low。
+- 处理：Medium 两项与 Low 四项已修复，详见 `docs/reports/AOS-001-CODE-REVIEW.md`。
+- 复审：`dotnet build` 0 警告 0 错误；`dotnet test` 6 通过 / 0 失败；
+  `/health/live`、`/health/ready` 均 200（SQL Healthy 180ms）；
+  `dotnet ef migrations list --no-connect` 正常返回 `20261105184054_InitialCreate`。
 
 ## 6. 安全检查
 
@@ -154,6 +164,7 @@ AOS-001 验收范围内无未完成项。以下内容按任务边界推迟：
 | `frontend/agentos-web/` | Vue 3 JS + Vite + Pinia + Router + Element Plus |
 | `docs/DEVELOPMENT.md` | 本地开发说明 |
 | `docs/reports/AOS-001-DELIVERY-REPORT.md` | 本报告 |
+| `docs/reports/AOS-001-CODE-REVIEW.md` | 独立审查记录与修复处理 |
 | `.editorconfig`、`.env.example` | 工程规范与配置样例 |
 | `.github/workflows/ci.yml` | 后端/前端 CI 与 TS 门禁 |
 | `tasks/AOS-001-project-foundation.md` | 状态更新为 Completed |

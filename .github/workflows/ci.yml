@@ -41,9 +41,10 @@ jobs:
       - name: Forbid TypeScript
         shell: bash
         run: |
-          if git ls-files '*.ts' '*.tsx' | grep -q .; then
+          ts_files="$(git ls-files '*.ts' '*.tsx')"
+          if [ -n "$ts_files" ]; then
             echo "TypeScript files are not allowed:"
-            git ls-files '*.ts' '*.tsx'
+            echo "$ts_files"
             exit 1
           fi
           if grep -RIn --include='*.vue' 'lang="ts"' .; then

@@ -25,7 +25,10 @@ Server=lpc:localhost;Database=AgentOS_Dev;Trusted_Connection=True;TrustServerCer
 
 - 本机 SQL Server 的 TCP 1433 与命名管道当前是关闭的，只开放共享内存；`lpc:localhost` 显式走共享内存。
 - 如果换到 TCP 已开放的实例，把 `Server` 改成 `localhost,1433` 即可。
+- 该连接串位于 `backend/AgentOS.Api/appsettings.Development.json`；基础 `appsettings.json`
+  不再内置连接串，非 Development 环境缺少 `ConnectionStrings__AgentOS` 时会在启动时快速失败。
 - 不要在代码或提交里写 SQL 密码；本地开发使用 Windows 身份或 User Secrets / 环境变量。
+- 本地开发使用 HTTP；非 Development 环境启用 HTTPS 重定向，生产环境建议由反向代理终止 TLS。
 
 创建/更新数据库：
 

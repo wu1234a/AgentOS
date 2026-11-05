@@ -57,4 +57,32 @@ public sealed class HealthEndpointTests
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
     }
+
+    [Fact]
+    public async Task Live_returns_200_when_ready_is_unhealthy()
+    {
+        using var factory = new AgentOSApiFactory(HealthStatus.Unhealthy);
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/health/live");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Healthy", payload.GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public async Task Ready_failure_response_does_not_leak_configuration()
+    {
+        using var factory = new AgentOSApiFactory(HealthStatus.Unhealthy);
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/health/ready");
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.False(body.Contains("Server=", StringComparison.OrdinalIgnoreCase));
+        Assert.False(body.Contains("Password", StringComparison.OrdinalIgnoreCase));
+        Assert.False(body.Contains("Exception", StringComparison.OrdinalIgnoreCase));
+    }
 }
