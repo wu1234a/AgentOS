@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "1.0",
+  "rules": [
+    {
+      "code": "3derp-dev-plan",
+      "name": "3DERP development task planning",
+      "when": {
+        "source": "3derp",
+        "eventTypes": [
+          "development.task.created"
+        ],
+        "project": "3derp"
+      },
+      "dispatch": {
+        "agentCode": "planner",
+        "modelProfileCode": "strong-reasoning",
+        "skillCode": "3derp-plan-development",
+        "workspaceMode": "read-only"
+      },
+      "limits": {
+        "maxParallel": 1,
+        "maxAttempts": 2,
+        "timeoutSeconds": 1800
+      },
+      "notificationPolicy": "failure-or-approval",
+      "enabled": false
+    }
+  ]
+}

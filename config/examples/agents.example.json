@@ -1,0 +1,37 @@
+{
+  "schemaVersion": "1.0",
+  "agents": [
+    {
+      "code": "planner",
+      "displayName": "Planner Agent",
+      "role": "planning",
+      "description": "分析任务并生成可验收的实施计划。",
+      "defaultModelProfileCode": "strong-reasoning",
+      "permissionProfile": "read-only"
+    },
+    {
+      "code": "coder",
+      "displayName": "Coding Agent",
+      "role": "implementation",
+      "description": "在隔离工作区中完成指定代码任务。",
+      "defaultModelProfileCode": "codex-local",
+      "permissionProfile": "workspace-write"
+    },
+    {
+      "code": "reviewer",
+      "displayName": "Review Agent",
+      "role": "review",
+      "description": "只读审查代码变更并报告可复现问题。",
+      "defaultModelProfileCode": "independent-review",
+      "permissionProfile": "read-only"
+    },
+    {
+      "code": "qa",
+      "displayName": "QA Agent",
+      "role": "testing",
+      "description": "执行确定性测试并分析测试结果。",
+      "defaultModelProfileCode": "codex-local",
+      "permissionProfile": "workspace-read-test"
+    }
+  ]
+}
