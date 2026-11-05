@@ -1,6 +1,6 @@
 # AOS-001：Project Foundation
 
-状态：Not Started  
+状态：Completed  
 优先级：P0  
 依赖：无  
 预计范围：工程骨架和基础运行验证

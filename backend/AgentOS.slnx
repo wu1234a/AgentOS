@@ -1,0 +1,10 @@
+<Solution>
+  <Project Path="../tests/AgentOS.Api.Tests/AgentOS.Api.Tests.csproj" />
+  <Project Path="AgentOS.AgentAdapters/AgentOS.AgentAdapters.csproj" />
+  <Project Path="AgentOS.Api/AgentOS.Api.csproj" />
+  <Project Path="AgentOS.Application/AgentOS.Application.csproj" />
+  <Project Path="AgentOS.Domain/AgentOS.Domain.csproj" />
+  <Project Path="AgentOS.Infrastructure/AgentOS.Infrastructure.csproj" />
+  <Project Path="AgentOS.Runner/AgentOS.Runner.csproj" />
+  <Project Path="AgentOS.Worker/AgentOS.Worker.csproj" />
+</Solution>

@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build
+        run: dotnet build backend/AgentOS.slnx --nologo
+      - name: Test
+        run: dotnet test backend/AgentOS.slnx --no-build --nologo
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend/agentos-web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/agentos-web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  typescript-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Forbid TypeScript
+        shell: bash
+        run: |
+          if git ls-files '*.ts' '*.tsx' | grep -q .; then
+            echo "TypeScript files are not allowed:"
+            git ls-files '*.ts' '*.tsx'
+            exit 1
+          fi
+          if grep -RIn --include='*.vue' 'lang="ts"' .; then
+            echo "TypeScript SFC blocks are not allowed."
+            exit 1
+          fi
