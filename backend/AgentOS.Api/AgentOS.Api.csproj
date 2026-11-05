@@ -17,6 +17,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>AgentOS.Api-6f2b0a48-4d4e-4f1b-a9f4-3f5f1f4c2a11</UserSecretsId>
   </PropertyGroup>
 
 </Project>

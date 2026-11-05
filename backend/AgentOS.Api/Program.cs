@@ -1,8 +1,13 @@
+using AgentOS.Api.Endpoints;
+using AgentOS.Api.Filters;
 using AgentOS.Api.Health;
+using AgentOS.Api.Security;
+using AgentOS.Application.Events;
+using AgentOS.Application.Security;
+using AgentOS.Infrastructure;
 using AgentOS.Infrastructure.Health;
-using AgentOS.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
-using Microsoft.EntityFrameworkCore;
 using Serilog;
 using Serilog.Formatting.Compact;
 
@@ -15,12 +20,20 @@ builder.Host.UseSerilog((context, services, configuration) => configuration
     .WriteTo.Console(new CompactJsonFormatter()));
 
 builder.Services.AddProblemDetails();
+builder.Services.AddAgentOSInfrastructure(builder.Configuration);
 
-var connectionString = builder.Configuration.GetConnectionString("AgentOS")
-    ?? throw new InvalidOperationException(
-        "ConnectionStrings:AgentOS is not configured. Set ConnectionStrings__AgentOS or provide it in appsettings.Development.json.");
+builder.Services.AddSingleton<CreateEventValidator>();
+builder.Services.AddScoped<EventService>();
+builder.Services.AddScoped<ApiClientAuthenticationFilter>();
 
-builder.Services.AddDbContext<AgentOSDbContext>(options => options.UseSqlServer(connectionString));
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddSingleton<IApiClientAuthenticator, DevelopmentApiKeyAuthenticator>();
+}
+else
+{
+    builder.Services.AddSingleton<IApiClientAuthenticator, UnconfiguredApiClientAuthenticator>();
+}
 
 builder.Services.AddHealthChecks()
     .AddCheck<SqlServerHealthCheck>("sqlserver", tags: ["ready"]);
@@ -30,9 +43,17 @@ builder.Services.AddCors(options => options.AddPolicy("web-dev", policy => polic
     .AllowAnyHeader()
     .AllowAnyMethod()));
 
+var maxRequestBodyBytes = builder.Configuration.GetValue("Events:MaxRequestBodyBytes", 256 * 1024);
+builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = maxRequestBodyBytes);
+
 var app = builder.Build();
 
-app.UseExceptionHandler();
+app.UseExceptionHandler(new ExceptionHandlerOptions
+{
+    StatusCodeSelector = exception => exception is BadHttpRequestException badRequest
+        ? badRequest.StatusCode
+        : StatusCodes.Status500InternalServerError
+});
 app.UseStatusCodePages();
 
 if (!app.Environment.IsDevelopment())
@@ -58,6 +79,8 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
     Predicate = check => check.Tags.Contains("ready"),
     ResponseWriter = HealthResponseWriter.WriteAsync
 });
+
+app.MapEventEndpoints();
 
 app.MapGet("/", () => Results.Ok(new
 {

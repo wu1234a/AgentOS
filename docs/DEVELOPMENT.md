@@ -89,7 +89,9 @@ npm run build
 
 ## 6. 配置
 
-- 后端：`backend/AgentOS.Api/appsettings.json`（无密码），可用环境变量 `ConnectionStrings__AgentOS` 覆盖。
+- 后端：连接串在 `backend/AgentOS.Api/appsettings.Development.json`（无密码），可用环境变量
+  `ConnectionStrings__AgentOS` 覆盖。
+- 开发 API Key 不提交到 Git；通过 User Secrets 或环境变量配置（见第 8 节）。
 - 前端：`frontend/agentos-web/.env.example` 中的 `VITE_API_BASE_URL`，默认留空走 Vite 代理。
 - 根目录 `.env.example` 只列非敏感变量；不要提交真实密钥、连接密码或 PAT。
 
@@ -102,3 +104,72 @@ npm run build
 - 禁 TypeScript 门禁：拒绝 `.ts`、`.tsx` 和 `lang="ts"`。
 
 CI 中的测试使用替身健康检查，不依赖 SQL Server；真实数据库的 `/health/ready` 验收在本地完成。
+SQL 仓储集成测试默认跳过（`SkippableFact`），需要设置 `AGENTOS_SQL_TEST_CONNECTION` 才执行；
+CI 的 SQL Server service container 尚未加入，作为后续补强项。
+
+## 8. AOS-002 Event Hub
+
+### 8.1 端点
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| POST | `/api/v1/events` | 接收标准 Envelope，成功返回 202 |
+| GET | `/api/v1/events/{eventId}` | 查询事件详情（含 Payload） |
+| GET | `/api/v1/events` | 分页/过滤：`page`、`pageSize`（最大 100）、`source`、`type`、`status`、`project` |
+
+状态码：成功 202/200；校验失败 400（ProblemDetails）；未授权 401；不存在 404；请求体超限 413。
+
+### 8.2 开发认证
+
+开发环境使用标头 `X-AgentOS-Dev-Key`。密钥不提交到 Git，二选一配置：
+
+```powershell
+# 方式一：User Secrets
+dotnet user-secrets --project backend/AgentOS.Api set "Authentication:DevelopmentApiKey" "your-local-key"
+
+# 方式二：当前 shell 环境变量
+$env:Authentication__DevelopmentApiKey = "your-local-key"
+```
+
+然后请求：
+
+```powershell
+curl.exe -X POST http://localhost:5000/api/v1/events `
+  -H "Content-Type: application/json" `
+  -H "X-AgentOS-Dev-Key: your-local-key" `
+  --data-binary "@event.json"
+```
+
+未配置密钥时开发认证 fail-closed（401）；非 Development 环境统一返回 401，直到 AOS-006 实现
+真正的 API Client 凭证。
+
+### 8.3 Projects 初始化
+
+带 `project` 的事件要求 `Projects` 表中存在且启用的项目。AOS-002 还没有项目管理 API，本地开发
+可直接插入：
+
+```sql
+IF NOT EXISTS (SELECT 1 FROM Projects WHERE Slug = '3derp')
+    INSERT INTO Projects (Id, Name, Slug, IsEnabled, CreatedAtUtc, UpdatedAtUtc)
+    VALUES (NEWID(), '3DERP', '3derp', 1, SYSUTCDATETIME(), SYSUTCDATETIME());
+
+IF NOT EXISTS (SELECT 1 FROM Projects WHERE Slug = 'disabled-demo')
+    INSERT INTO Projects (Id, Name, Slug, IsEnabled, CreatedAtUtc, UpdatedAtUtc)
+    VALUES (NEWID(), 'Disabled Demo', 'disabled-demo', 0, SYSUTCDATETIME(), SYSUTCDATETIME());
+```
+
+### 8.4 请求体限制
+
+`Events:MaxRequestBodyBytes` 默认 `262144`（256 KB），可用配置或环境变量
+`Events__MaxRequestBodyBytes` 覆盖；Kestrel 与端点过滤器共用该值。
+
+### 8.5 SQL 集成测试
+
+SQL 仓储测试默认跳过。设置一次性测试库连接后执行：
+
+```powershell
+$env:AGENTOS_SQL_TEST_CONNECTION = "Server=lpc:localhost;Database=AgentOS_Test;Trusted_Connection=True;TrustServerCertificate=True;Connect Timeout=3"
+dotnet test backend/AgentOS.slnx --filter FullyQualifiedName~SqlEventRepositoryTests
+```
+
+该测试会执行 `Database.MigrateAsync()`，验证迁移、`ISJSON` 约束、仓储读写和分页过滤。
