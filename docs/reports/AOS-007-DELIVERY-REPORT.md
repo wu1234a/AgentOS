@@ -69,12 +69,12 @@ codex exec --sandbox <read-only|workspace-write> -C <validated-workspace>
 | 检查 | 结果 |
 |---|---|
 | 后端构建 | ✅ 0 错误 |
-| 全量测试 | ✅ **234 通过 / 3 跳过 / 0 失败** |
-| AOS-007 单元测试 | ✅ 22（Prompt、参数、超时/取消、退出码、缺失 CLI、脱敏、Handler 映射、Skill 读取） |
+| 全量测试 | ✅ **237 通过 / 4 跳过 / 0 失败** |
+| AOS-007 单元测试 | ✅ 25（Prompt、参数、超时/取消/stdin 阻塞、退出码、缺失 CLI、行级脱敏、artifact 脱敏、Handler 映射、Skill 读取/符号链接） |
 | 真实 Codex 冒烟 | ✅ 手动 `AGENTOS_CODEX_SMOKE=1` 通过（CI 默认跳过，避免依赖外网/凭证） |
 | 进程树终止 | ✅ `ExternalProcessRunnerTests` 超时/取消用例 |
 
-## 5. 已知限制
+### 4.1 独立代码审查\n\nCodex CLI 审查 commit `5ee364d`：3 个 P1（流式日志跨块泄漏凭证、`-o` 保留未脱敏文件、Skill 符号链接逃逸）与 1 个 P2（stdin 写入不受超时/取消控制），全部修复并新增回归测试，详见 `docs/reports/AOS-007-CODE-REVIEW.md`。\n\n## 5. 已知限制
 
 1. Artifact（stdout/stderr/last-message）只保存在 Runner 本地 tmp，尚未上传控制面（AOS-008）。
 2. `workspace-write` 直接写入配置的项目路径，未做 copy-on-write 隔离副本；清理/未提交变更检查

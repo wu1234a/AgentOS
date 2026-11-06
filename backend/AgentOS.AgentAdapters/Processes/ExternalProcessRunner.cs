@@ -99,6 +99,12 @@ public sealed class ExternalProcessRunner(TimeProvider timeProvider) : IProcessR
         var stdout = new StringBuilder();
         var stderr = new StringBuilder();
 
+        using var timeoutCts = new CancellationTokenSource(request.Timeout);
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+
+        var timedOut = false;
+        var cancelled = false;
+
         var stdoutTask = PumpAsync(
             process.StandardOutput,
             stdout,
@@ -118,27 +124,52 @@ public sealed class ExternalProcessRunner(TimeProvider timeProvider) : IProcessR
 
         if (!string.IsNullOrEmpty(request.StandardInput))
         {
-            await process.StandardInput.WriteAsync(request.StandardInput);
+            // A CLI that never reads stdin can block the write once the pipe buffer fills, so the
+            // timeout/cancellation watchdog must cover the write itself.
+            var stdinWrite = process.StandardInput.WriteAsync(request.StandardInput);
+            var watchdog = Task.Delay(Timeout.InfiniteTimeSpan, linkedCts.Token);
+            var completed = await Task.WhenAny(stdinWrite, watchdog);
+
+            if (completed != stdinWrite)
+            {
+                timedOut = timeoutCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested;
+                cancelled = cancellationToken.IsCancellationRequested;
+                KillTree(process);
+            }
+            else
+            {
+                try
+                {
+                    await stdinWrite;
+                }
+                catch (Exception exception) when (exception is IOException or ObjectDisposedException)
+                {
+                    // The process exited before consuming all input; the exit code still matters.
+                }
+            }
         }
-
-        process.StandardInput.Close();
-
-        var timedOut = false;
-        var cancelled = false;
-
-        using var timeoutCts = new CancellationTokenSource(request.Timeout);
-        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
 
         try
         {
-            await process.WaitForExitAsync(linkedCts.Token);
+            process.StandardInput.Close();
         }
-        catch (OperationCanceledException)
+        catch (Exception exception) when (exception is IOException or ObjectDisposedException)
         {
-            timedOut = timeoutCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested;
-            cancelled = cancellationToken.IsCancellationRequested;
-            KillTree(process);
-            await WaitForExitQuietlyAsync(process);
+            // Already closed with the process.
+        }
+
+        if (!timedOut && !cancelled)
+        {
+            try
+            {
+                await process.WaitForExitAsync(linkedCts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                timedOut = timeoutCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested;
+                cancelled = cancellationToken.IsCancellationRequested;
+                KillTree(process);
+            }
         }
 
         // The streams end when the process (and its children) close them; bound the wait so a
@@ -178,12 +209,20 @@ public sealed class ExternalProcessRunner(TimeProvider timeProvider) : IProcessR
         Action<string, string>? onOutput)
     {
         var chunk = new char[4096];
+        var line = new LineBuffer();
 
         while (true)
         {
             var read = await reader.ReadAsync(chunk);
+
             if (read == 0)
             {
+                // Emit the unterminated tail once EOF is reached.
+                if (onOutput is not null && line.HasPartialLine)
+                {
+                    onOutput(streamName, line.TakeCompletedLine());
+                }
+
                 return;
             }
 
@@ -193,12 +232,24 @@ public sealed class ExternalProcessRunner(TimeProvider timeProvider) : IProcessR
                 buffer.Append(chunk, 0, take);
             }
 
-            if (onOutput is not null)
+            if (onOutput is null)
             {
-                var text = new string(chunk, 0, read).TrimEnd('\r', '\n');
-                if (text.Length > 0)
+                continue;
+            }
+
+            for (var index = 0; index < read; index++)
+            {
+                var character = chunk[index];
+
+                if (character == '\n')
                 {
-                    onOutput(streamName, text);
+                    // Complete lines are the redaction unit; emitting raw read chunks could split
+                    // a credential across two log lines.
+                    onOutput(streamName, line.TakeCompletedLine());
+                }
+                else
+                {
+                    line.Append(character);
                 }
             }
         }

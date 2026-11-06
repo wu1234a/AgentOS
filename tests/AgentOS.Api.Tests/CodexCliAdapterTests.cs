@@ -145,6 +145,26 @@ public sealed class CodexCliAdapterTests
     }
 
     [Fact]
+    public async Task Last_message_artifact_is_rewritten_with_redacted_text()
+    {
+        string? artifactPath = null;
+
+        _runner.Handler = request =>
+        {
+            var index = request.Arguments.ToList().IndexOf("-o");
+            artifactPath = request.Arguments[index + 1];
+            File.WriteAllText(artifactPath, "token sk-abcdefghijklmnop");
+            return Completed(exitCode: 0);
+        };
+
+        var result = await CreateAdapter().ExecuteAsync(Request(), CancellationToken.None);
+
+        Assert.NotNull(artifactPath);
+        Assert.DoesNotContain("sk-abcdefghijklmnop", result.Summary);
+        Assert.DoesNotContain("sk-abcdefghijklmnop", await File.ReadAllTextAsync(artifactPath!));
+    }
+
+    [Fact]
     public async Task Streamed_output_is_redacted_before_logging()
     {
         var logged = new List<string>();

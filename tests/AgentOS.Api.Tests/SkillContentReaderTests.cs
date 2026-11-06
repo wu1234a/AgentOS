@@ -47,6 +47,27 @@ public sealed class SkillContentReaderTests : IDisposable
         Assert.Null(await reader.ReadAsync("big.md", CancellationToken.None));
     }
 
+    [SkippableFact]
+    public async Task Symlinked_skill_file_is_rejected()
+    {
+        var outside = Path.Combine(Path.GetTempPath(), "agentos-skills-outside", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(outside);
+        var target = Path.Combine(outside, "secret.md");
+        await File.WriteAllTextAsync(target, "secret");
+        var link = Path.Combine(_root, "link.md");
+
+        try
+        {
+            File.CreateSymbolicLink(link, target);
+        }
+        catch (Exception exception) when (exception is UnauthorizedAccessException or IOException)
+        {
+            Skip.If(true, "Creating symlinks is not permitted in this environment.");
+        }
+
+        Assert.Null(await CreateReader().ReadAsync("link.md", CancellationToken.None));
+    }
+
     [Fact]
     public async Task Missing_root_or_file_returns_null()
     {

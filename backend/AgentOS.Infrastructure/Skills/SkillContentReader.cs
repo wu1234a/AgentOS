@@ -26,10 +26,11 @@ public sealed class SkillContentReader(
         }
 
         string fullPath;
+        string root;
 
         try
         {
-            var root = Path.GetFullPath(rootPath)
+            root = Path.GetFullPath(rootPath)
                 .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
             var candidate = Path.GetFullPath(Path.Combine(root, relativePath));
 
@@ -48,6 +49,12 @@ public sealed class SkillContentReader(
             return null;
         }
 
+        if (HasReparsePoint(root, fullPath))
+        {
+            logger.LogWarning("Skill file '{Path}' or one of its parents is a symbolic link and was ignored.", fullPath);
+            return null;
+        }
+
         var info = new FileInfo(fullPath);
         if (!info.Exists)
         {
@@ -62,5 +69,37 @@ public sealed class SkillContentReader(
         }
 
         return await File.ReadAllTextAsync(fullPath, cancellationToken);
+    }
+
+    private static bool HasReparsePoint(string root, string target)
+    {
+        var file = new FileInfo(target);
+
+        if (file.Exists && file.Attributes.HasFlag(FileAttributes.ReparsePoint))
+        {
+            return true;
+        }
+
+        var directory = file.Directory;
+
+        while (directory is not null)
+        {
+            if (directory.Attributes.HasFlag(FileAttributes.ReparsePoint))
+            {
+                return true;
+            }
+
+            if (string.Equals(
+                    directory.FullName.TrimEnd(Path.DirectorySeparatorChar),
+                    root.TrimEnd(Path.DirectorySeparatorChar),
+                    StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            directory = directory.Parent;
+        }
+
+        return true;
     }
 }

@@ -203,6 +203,20 @@ public sealed class CodexCliAdapter(
         var sessionId = ExtractSessionId(run.Stdout);
         var summary = ReadSummary(lastMessagePath, run.Stdout, redactions);
 
+        if (summary is not null && File.Exists(lastMessagePath))
+        {
+            // Codex writes -o verbatim; replace the artifact with the redacted summary so the
+            // raw file cannot retain a credential.
+            try
+            {
+                await File.WriteAllTextAsync(lastMessagePath, summary);
+            }
+            catch (IOException exception)
+            {
+                logger.LogWarning(exception, "Could not rewrite the redacted Codex summary artifact.");
+            }
+        }
+
         if (run.TimedOut)
         {
             return Result(
