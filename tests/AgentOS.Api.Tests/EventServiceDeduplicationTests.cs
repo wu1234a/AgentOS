@@ -53,6 +53,50 @@ public sealed class EventServiceDeduplicationTests
     }
 
     [Fact]
+    public async Task Ordinary_retry_is_resolved_by_the_read_fast_path_without_an_insert()
+    {
+        var service = CreateService();
+
+        await service.CreateAsync(Request(), CancellationToken.None);
+        var duplicate = await service.CreateAsync(Request(), CancellationToken.None);
+
+        Assert.Equal(CreateEventOutcome.Duplicate, duplicate.Outcome);
+
+        // The retry is answered from the lookup: no INSERT is attempted, so EF Core does not
+        // log an "expected" SaveChanges failure that would bypass the log sampler.
+        Assert.Equal(1, _repository.InsertAttempts);
+    }
+
+    [Fact]
+    public async Task Concurrent_winner_that_races_past_the_read_is_still_reported_as_duplicate()
+    {
+        var winnerId = Guid.CreateVersion7();
+        var payloadHash = new EventPayloadHasher().CanonicalizeJson("""{"description":"x"}""").Sha256;
+        _repository.ConcurrentWinner = new Event
+        {
+            Id = winnerId,
+            Source = "3derp",
+            EventType = "development.task.created",
+            SchemaVersion = "1.0",
+            DedupeKey = "3derp:DEV-1",
+            Summary = "winner",
+            PayloadJson = """{"description":"x"}""",
+            PayloadHash = payloadHash,
+            Priority = "normal",
+            Status = EventStatus.Received,
+            OccurredAtUtc = new DateTime(2026, 11, 5, 0, 0, 0, DateTimeKind.Utc),
+            ReceivedAtUtc = new DateTime(2026, 11, 5, 0, 0, 0, DateTimeKind.Utc)
+        };
+
+        var service = CreateService();
+        var result = await service.CreateAsync(Request(), CancellationToken.None);
+
+        Assert.Equal(CreateEventOutcome.Duplicate, result.Outcome);
+        Assert.Equal(winnerId, result.EventId);
+        Assert.Equal(1, _repository.InsertAttempts);
+    }
+
+    [Fact]
     public async Task Same_dedupe_key_with_different_payload_is_a_conflict_and_keeps_the_original()
     {
         var service = CreateService();

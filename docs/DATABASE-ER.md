@@ -283,9 +283,10 @@ JSON - `IsEnabled` bit - `CreatedAtUtc`、`UpdatedAtUtc`
 数据库兜底去重；比较遵循库排序规则，默认不区分大小写。 - `ReceivedAtUtc`。 -
 `ProjectId + EventType + ReceivedAtUtc`。 - `Source + ReceivedAtUtc`。
 
-历史数据迁移规则：不删除行；空 `DedupeKey` 改为 `legacy-{Id}`；同一
-`Source + DedupeKey` 的重复行中最早一行保留原键，其余改为
-`{原键}~legacy-dup-{Id}`（一次性、不可逆）。
+历史数据迁移规则：不删除行；空 `DedupeKey` 按存储长度判断（避免 emoji 等无排序权重的字符
+被误判为空）并改为 `legacy-{Id}`；同一 `Source + DedupeKey` 的重复行中最早一行保留原键，
+其余改为 `{原键}~legacy-dup-{Id}`；原键超过 176 个 UTF-16 单元时改为 `legacy-dup-{Id}`，
+改名后仍冲突的再加 8 位随机后缀（一次性、不可逆）。
 
 ### 3.7 Tasks
 

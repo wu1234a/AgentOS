@@ -13,6 +13,15 @@ public sealed class FakeEventRepository : IEventRepository
     private readonly List<Event> _events = [];
     private readonly Lock _sync = new();
 
+    /// <summary>Number of insert attempts; lets tests prove the duplicate path skips the insert.</summary>
+    public int InsertAttempts { get; private set; }
+
+    /// <summary>
+    /// Simulates a concurrent submission that wins between the service's read and insert:
+    /// the next insert reports this event as the existing owner of the key.
+    /// </summary>
+    public Event? ConcurrentWinner { get; set; }
+
     public void Seed(params Event[] events)
     {
         lock (_sync)
@@ -25,6 +34,13 @@ public sealed class FakeEventRepository : IEventRepository
     {
         lock (_sync)
         {
+            InsertAttempts++;
+
+            if (ConcurrentWinner is not null)
+            {
+                return Task.FromResult(EventWriteResult.DuplicateKey(ConcurrentWinner));
+            }
+
             var existing = FindLocked(entity.Source, entity.DedupeKey);
             if (existing is not null)
             {

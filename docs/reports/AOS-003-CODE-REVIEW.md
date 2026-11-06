@@ -25,3 +25,25 @@ SQL 2601/2627 捕获、失败后 `Detach`、二次查询取获胜行与 SQL Serv
 
 - 审查为只读，未运行 `dotnet build` / `dotnet test`；构建与测试由交付流程单独执行。
 - 审查给出的“验收标准核对”表格中，除交付报告一项外均为满足；本次交付已补齐报告并附执行结果。
+
+## 4. 第二轮审查（Codex CLI）
+
+**方式：** `codex exec review --commit f48f811 --title "AOS-003 …"`
+（codex-cli 0.166.0-alpha.6，模型 `gpt-6.1-sol`，经本机代理访问）
+
+**环境说明：** Codex 的本地命令执行被工作区沙箱拦截（`CreateProcessAsUserW` 失败，Win32 5），
+它改用 GitHub MCP 读取公开仓库中的提交与文件完成审查，因此本轮未能独立运行测试。
+
+**结论：** 无 Blocker；3 个 P2。
+
+| # | 级别 | 问题 | 处理 |
+|---|---|---|---|
+| 1 | P2 | 期望的重复提交仍会先触发 `SaveChanges` 失败，EF Core 的 Error 日志绕过采样器 | **已修复**：`EventService` 增加按键读取的快速路径，普通重试不再触发 INSERT；竞态仍由唯一索引兜底。新增 `Ordinary_retry_is_resolved_by_the_read_fast_path_without_an_insert` 与 `Concurrent_winner_that_races_past_the_read_is_still_reported_as_duplicate` |
+| 2 | P2 | 迁移用 `LEFT(...,351)` 按字符截断，SC 排序规则下 surrogate 字符可能使结果超过 `nvarchar(400)` | **已修复**：改为按 `DATALENGTH`（UTF-16 单元）判断；超过 176 单元时使用合成键 `legacy-dup-{Id}` 而非截断。新增 400 单元 emoji 键的升级测试 |
+| 3 | P2 | 改名后的键可能与既有字面量键相同，导致唯一索引创建失败 | **已修复**：增加第三段残余冲突消解（随机后缀）；新增“改名恰好等于既有键”的升级测试 |
+
+**额外发现（测试过程中暴露）：** 该库的 Windows 排序规则把 emoji 等字符视为无权重，
+迁移原有 `LTRIM(RTRIM(key)) = N''` 会把纯 emoji 键误判为空键并改名。已改为按存储长度判空，
+并在 `docs/EVENT-SPECIFICATION.md` §5.1 记录该排序规则行为。
+
+**本轮修复后结果：** 本机非 SQL 用例 73/73、SQL 用例 7/7 通过；CI（GitHub Actions）全量通过。

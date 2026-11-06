@@ -24,12 +24,15 @@
 
 1. 校验 Envelope（沿用 AOS-002 的 Validator 与 Project 校验）。
 2. 计算 `payload` 规范 JSON 与哈希（策略 `agentos.payload-canonical-json/v1`）。
-3. **直接尝试插入**，不先查询；由唯一索引决定结果。
-4. 插入成功 → `Created`。
-5. 唯一冲突（SQL 2601/2627）→ 重新按 `Source + DedupeKey` 读取获胜行：
+3. **先按键读取**（快速路径）：普通重试在这里就得到结果，不会触发失败的 INSERT，
+   也就不会产生 EF Core 未采样的 `SaveChanges` 错误日志。
+4. 未命中 → **尝试插入**，由唯一索引决定结果；插入成功 → `Created`。
+5. 唯一冲突（SQL 2601/2627，说明有并发写入抢先）→ 重新读取获胜行：
    - 哈希一致（历史行先按 v1 计算并惰性回填）→ `Duplicate`；
    - 哈希不同 → `Conflict`，原行不修改、不删除。
-6. 二次查询找不到获胜行（模型与库不一致）时重新抛出，不伪装成重复。
+6. 二次读取找不到获胜行（模型与库不一致）时重新抛出，不伪装成重复。
+
+> 第 3 步只是优化；正确性始终由唯一索引兜底（任务 §5 明确允许“先尝试读取”）。
 
 ### 2.3 Payload 规范化策略（固定 v1）
 
@@ -67,12 +70,16 @@ ALTER TABLE [Events] ADD CONSTRAINT [CK_Events_PayloadHash_LowerHex64]
     CHECK ([PayloadHash] IS NULL OR (LEN([PayloadHash]) = 64
            AND [PayloadHash] COLLATE Latin1_General_BIN2 NOT LIKE '%[^0-9a-f]%'));
 
--- 1. 空去重键（历史数据可能绕过应用校验）
+-- 1. 空去重键（历史数据可能绕过应用校验）。
+--    用存储长度判断：Windows 排序规则把 emoji 等字符视为无权重，比较会得到“空”。
 UPDATE [Events]
 SET [DedupeKey] = CONCAT(N'legacy-', CONVERT(nvarchar(36), [Id]))
-WHERE [DedupeKey] IS NULL OR LTRIM(RTRIM([DedupeKey])) = N'';
+WHERE [DedupeKey] IS NULL
+   OR DATALENGTH([DedupeKey]) = 0
+   OR DATALENGTH(LTRIM(RTRIM([DedupeKey]))) = 0;
 
--- 2. 同键重复行：保留最早一行原键，其余改名而不是删除
+-- 2. 同键重复行：保留最早一行原键，其余改名而不是删除。
+--    键过长（>176 个 UTF-16 单元）时改用合成键，避免 surrogate 字符溢出 nvarchar(400)。
 ;WITH ranked AS (
     SELECT [Id], [Source], [DedupeKey],
            ROW_NUMBER() OVER (PARTITION BY [Source], [DedupeKey]
@@ -80,10 +87,27 @@ WHERE [DedupeKey] IS NULL OR LTRIM(RTRIM([DedupeKey])) = N'';
     FROM [Events]
 )
 UPDATE evt
-SET [DedupeKey] = CONCAT(LEFT(evt.[DedupeKey], 351), N'~legacy-dup-',
-                         CONVERT(nvarchar(36), evt.[Id]))
+SET [DedupeKey] =
+    CASE WHEN DATALENGTH(evt.[DedupeKey]) / 2 > 176
+         THEN CONCAT(N'legacy-dup-', CONVERT(nvarchar(36), evt.[Id]))
+         ELSE CONCAT(evt.[DedupeKey], N'~legacy-dup-', CONVERT(nvarchar(36), evt.[Id]))
+    END
 FROM [Events] AS evt
 INNER JOIN ranked AS r ON r.[Id] = evt.[Id]
+WHERE r.[rn] > 1;
+
+-- 3. 改名后仍与既有字面量键冲突的，用随机后缀彻底消解。
+;WITH residual AS (
+    SELECT [Id], [Source], [DedupeKey],
+           ROW_NUMBER() OVER (PARTITION BY [Source], [DedupeKey]
+                              ORDER BY [ReceivedAtUtc], [Id]) AS [rn]
+    FROM [Events]
+)
+UPDATE evt
+SET [DedupeKey] = CONCAT(N'legacy-dup-', CONVERT(nvarchar(36), evt.[Id]),
+                         N'-', LEFT(CONVERT(nvarchar(36), NEWID()), 8))
+FROM [Events] AS evt
+INNER JOIN residual AS r ON r.[Id] = evt.[Id]
 WHERE r.[rn] > 1;
 
 CREATE UNIQUE INDEX [UX_Events_Source_DedupeKey] ON [Events] ([Source], [DedupeKey]);
@@ -156,8 +180,8 @@ database update` 不受影响。
 
 | 范围 | 执行方式 | 结果 |
 |---|---|---|
-| 全量非 SQL 用例（含 `EventsApiTests` 19 项、`HealthEndpointTests` 6 项） | 工作区外副本 `dotnet vstest` | ✅ **77 项：71 通过 / 0 失败 / 6 跳过** |
-| SQL 用例（唯一索引、并发、真实库去重、升级迁移、惰性回填） | 真实 SQL Server，`AgentOS_Test` | ✅ **6 / 6 通过** |
+| 全量非 SQL 用例（含 `EventsApiTests` 19 项、`HealthEndpointTests` 6 项） | 工作区外副本 `dotnet vstest` | ✅ **73 项：73 通过 / 0 失败** |
+| SQL 用例（唯一索引、并发、真实库去重、升级迁移、惰性回填、超长/冲突键升级） | 真实 SQL Server，`AgentOS_Test` | ✅ **7 / 7 通过** |
 | 构建 | `dotnet build backend/AgentOS.slnx` | ✅ 0 错误 |
 
 `dotnet ef database update` 已把 `AddEventDeduplication` 应用到 `AgentOS_Dev`。
@@ -176,11 +200,23 @@ database update` 不受影响。
 | 数据库唯一约束真实存在 | `Unique_index_rejects_a_second_row_with_the_same_source_and_dedupe_key`：`sys.indexes` 断言 `UX_Events_Source_DedupeKey` 存在，重复插入抛 SQL 2601/2627 |
 | 旧事件数据迁移安全 | `Upgrade_migration_keeps_legacy_duplicate_rows_and_still_enforces_uniqueness`：回退到 AOS-002 → 写入 3 条同键 + 1 条空键历史行 → 升级到最新。断言 **4 行全部保留**、4 个键互不相同、最早一行保留原键、其余为 `{键}~legacy-dup-{Id}`、空键为 `legacy-{Id}`、`PayloadHash` 仍为 NULL、唯一索引存在、再次插入同键被拒 |
 | 历史行惰性回填 | `Legacy_row_without_hash_is_backfilled_on_the_first_duplicate`：命中重复后 `PayloadHash` 变为 64 位小写十六进制，且不新增行 |
+| 普通重试不触发未采样错误日志 | `Ordinary_retry_is_resolved_by_the_read_fast_path_without_an_insert`：第二次提交后插入尝试次数仍为 1 |
+| 并发竞态仍被正确处理 | `Concurrent_winner_that_races_past_the_read_is_still_reported_as_duplicate`：读快速路径未命中、插入被唯一索引拒绝时仍返回获胜行 EventId |
+| 超长键 / 改名撞键的升级安全 | `Upgrade_migration_handles_long_and_colliding_legacy_keys`：400 UTF-16 单元的 emoji 键与“改名后恰好等于既有键”的场景下，行全部保留、键互不相同、唯一索引建立成功 |
 | API 文档明确重复事件响应行为 | `EVENT-SPECIFICATION` §4/§5、`DEVELOPMENT` §8、`DATABASE-ER` §3.6 |
+
+### 5.5 独立代码审查
+
+| 轮次 | 方式 | 发现 | 处理 |
+|---|---|---|---|
+| 1 | DSH `dsh_code_review`（只读子 Agent） | 无 Blocker；2 P2、2 P3、1 交付项 | 全部修复（采样器有界化、冲突日志独立通道、Fake 仓储排序规则语义、SQL 回填用例、交付报告） |
+| 2 | Codex CLI `codex exec review --commit f48f811`（模型 `gpt-6.1-sol`） | 3 个 P2：EF 错误日志绕过采样、`LEFT(...,351)` 在 SC 排序规则下溢出、改名与既有键冲突 | 全部修复：读快速路径、按 UTF-16 存储长度判空与截断、追加残余冲突消解；新增 3 个回归测试 |
+
+详细记录见 `docs/reports/AOS-003-CODE-REVIEW.md`。
 
 ## 6. 安全检查
 
-- 唯一约束由数据库兜底；应用不采用“先查后插”，并发正确性不依赖应用层锁。
+- 唯一约束由数据库兜底；应用层“先读”只是减少无谓异常与日志噪声的优化，并发正确性不依赖应用层判断。
 - 冲突不覆盖、不删除原事件；409 只返回 EventId 与固定文案，不回显 payload。
 - 日志不记录 payload；重复/冲突日志采样，避免重试风暴刷屏与日志注入放大。
 - `PayloadHash` 为单向 SHA-256；不涉及密钥或凭证；未新增任何 Secret。
@@ -192,13 +228,14 @@ database update` 不受影响。
 
 1. 在 DSH 沙箱工作区 `E:\Projects\AgentOS` **内部**运行 `dotnet test` 会在 testhost 启动阶段
    中止（Win32 5）。根因是工作区目录上的沙箱完整性标签/ACL（见 §5.2），不是代码问题：
-   同一份测试输出复制到工作区外执行，77 项全部正常（71 通过 / 6 跳过）。
+   同一份测试输出复制到工作区外执行，全部正常。
    规避方式：在沙箱工作区外运行测试（如 CI，或把仓库放在工作区外的路径），
    或由 DSH 侧修复工作区标记。
-2. 本机验证全量通过（71 通过 / 0 失败 / 6 SQL 跳过）；SQL 用例另在真实 SQL Server 上 6/6 通过。
-   两者合计覆盖全部 77 项。
-3. 去重键比较遵循数据库排序规则：默认安装下 `Source`/`DedupeKey` 不区分大小写、忽略尾随空格。
-   若需要区分大小写，必须修改列排序规则，不能只改应用代码。
+2. 本机验证全量通过（73 通过 / 0 失败）；SQL 用例另在真实 SQL Server 上 7/7 通过；
+   CI 上同样全量通过（见 §5.3）。
+3. 去重键比较遵循数据库排序规则：默认安装下 `Source`/`DedupeKey` 不区分大小写、忽略尾随空格，
+   且 emoji 等无排序权重的字符在**比较**时被忽略（迁移已改为按存储长度判断空键，但唯一性
+   比较仍受此影响）。若需要区分大小写或按字节比较，必须修改列排序规则，不能只改应用代码。
 4. `PayloadHash` 在数据库层可空（历史行），只由应用对新行保证必填；如需 DB 级强制，需在历史行
    全部回填后再加 NOT NULL 约束（后续清理任务）。
 5. 冲突判定只覆盖 `payload`；信封其他字段变化不算冲突。

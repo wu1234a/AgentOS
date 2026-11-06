@@ -235,6 +235,92 @@ public sealed class SqlEventDeduplicationTests
         }
     }
 
+    [SkippableFact]
+    public async Task Upgrade_migration_handles_long_and_colliding_legacy_keys()
+    {
+        var connectionString = RequireConnectionString();
+        await using var dbContext = new AgentOSDbContext(Options(connectionString));
+
+        var migrator = dbContext.GetService<IMigrator>();
+        await migrator.MigrateAsync(PreviousMigration, CancellationToken.None);
+
+        var longSource = UniqueSource();
+        var collisionSource = UniqueSource();
+
+        // 200 emoji = 400 UTF-16 code units: the whole nvarchar(400) column. A character-based
+        // LEFT(...,351) would keep 351 characters (702 units) and overflow the suffix.
+        var longKey = string.Concat(Enumerable.Repeat("😀", 200));
+        const string collisionKey = "collide-key";
+
+        var baseTime = new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc);
+        var longFirstId = Guid.CreateVersion7();
+        var longSecondId = Guid.CreateVersion7();
+        var collideFirstId = Guid.CreateVersion7();
+        var collideSecondId = Guid.CreateVersion7();
+        var collideLiteralId = Guid.CreateVersion7();
+
+        await using (var connection = new SqlConnection(connectionString))
+        {
+            await connection.OpenAsync();
+
+            await InsertLegacyEventAsync(connection, longFirstId, longSource, longKey, baseTime);
+            await InsertLegacyEventAsync(connection, longSecondId, longSource, longKey, baseTime.AddSeconds(1));
+
+            await InsertLegacyEventAsync(connection, collideFirstId, collisionSource, collisionKey, baseTime);
+            await InsertLegacyEventAsync(connection, collideSecondId, collisionSource, collisionKey, baseTime.AddSeconds(1));
+
+            // A row that already uses the exact key the first rename pass would choose.
+            await InsertLegacyEventAsync(
+                connection,
+                collideLiteralId,
+                collisionSource,
+                $"{collisionKey}~legacy-dup-{collideSecondId:D}",
+                baseTime.AddSeconds(2));
+        }
+
+        await migrator.MigrateAsync();
+
+        await using (var connection = new SqlConnection(connectionString))
+        {
+            await connection.OpenAsync();
+
+            var longRows = await ReadDedupeKeysAsync(connection, longSource);
+            Assert.Equal(2, longRows.Count);
+            Assert.Equal(2, longRows.Select(row => row.DedupeKey).Distinct(StringComparer.Ordinal).Count());
+            Assert.Equal(longKey, longRows.Single(row => row.Id == longFirstId).DedupeKey);
+            Assert.Equal(
+                $"legacy-dup-{longSecondId:D}",
+                longRows.Single(row => row.Id == longSecondId).DedupeKey,
+                ignoreCase: true);
+
+            var collideRows = await ReadDedupeKeysAsync(connection, collisionSource);
+            Assert.Equal(3, collideRows.Count);
+            Assert.Equal(3, collideRows.Select(row => row.DedupeKey).Distinct(StringComparer.Ordinal).Count());
+            Assert.Equal(collisionKey, collideRows.Single(row => row.Id == collideFirstId).DedupeKey);
+
+            Assert.Equal(1, await CountUniqueIndexAsync(connection));
+        }
+    }
+
+    private static async Task<List<(Guid Id, string DedupeKey)>> ReadDedupeKeysAsync(
+        SqlConnection connection,
+        string source)
+    {
+        await using var command = new SqlCommand(
+            "SELECT [Id], [DedupeKey] FROM [Events] WHERE [Source] = @source ORDER BY [Id];",
+            connection);
+        command.Parameters.AddWithValue("@source", source);
+
+        var rows = new List<(Guid Id, string DedupeKey)>();
+        await using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            rows.Add((reader.GetGuid(0), reader.GetString(1)));
+        }
+
+        return rows;
+    }
+
     private static async Task<EventWriteResult> InsertAsync(
         string connectionString,
         string source,

@@ -79,6 +79,17 @@ public sealed class EventService(
             CorrelationId = TrimToNull(request.CorrelationId)
         };
 
+        // Fast path: an ordinary retry finds the existing row here and never reaches the
+        // failing INSERT, so EF Core does not emit an unsampled "SaveChanges failed" error
+        // for an expected duplicate. The unique index below is still the authoritative
+        // guard, and a concurrent winner that races past this read is handled by the
+        // duplicate-key branch. A read is therefore an optimisation, never the defence.
+        var existingByKey = await repository.FindByDedupeKeyAsync(entity.Source, entity.DedupeKey, cancellationToken);
+        if (existingByKey is not null)
+        {
+            return await ResolveExistingAsync(existingByKey, canonicalPayload.Sha256, entity, cancellationToken);
+        }
+
         var writeResult = await repository.TryAddAsync(entity, cancellationToken);
         if (writeResult.Outcome == EventWriteOutcome.Inserted)
         {
@@ -89,15 +100,25 @@ public sealed class EventService(
             ?? throw new InvalidOperationException(
                 "The deduplication unique index rejected the insert but the existing event could not be loaded.");
 
+        return await ResolveExistingAsync(existing, canonicalPayload.Sha256, entity, cancellationToken);
+    }
+
+    /// <summary>Compares an already stored event with the submitted payload.</summary>
+    private async Task<CreateEventResult> ResolveExistingAsync(
+        Event existing,
+        string submittedHash,
+        Event attempted,
+        CancellationToken cancellationToken)
+    {
         var existingHash = await ResolveExistingHashAsync(existing, cancellationToken);
-        if (string.Equals(existingHash, canonicalPayload.Sha256, StringComparison.Ordinal))
+        if (string.Equals(existingHash, submittedHash, StringComparison.Ordinal))
         {
-            LogDuplicate(existing, entity);
+            LogDuplicate(existing, attempted);
             return CreateEventResult.Duplicate(existing.Id, existing.Status);
         }
 
-        LogConflict(existing, entity);
-        return CreateEventResult.Conflict(entity.Id, existing.Id);
+        LogConflict(existing, attempted);
+        return CreateEventResult.Conflict(attempted.Id, existing.Id);
     }
 
     public async Task<EventDetail?> GetAsync(Guid id, CancellationToken cancellationToken)

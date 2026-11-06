@@ -92,11 +92,17 @@ GitHub：`github:{repo}:{eventType}:{deliveryId}`。 -
 
 - `Events` 上存在唯一索引 `UX_Events_Source_DedupeKey (Source, DedupeKey)`。
 - 比较语义遵循数据库排序规则：默认安装下 `Source`、`DedupeKey` 按**不区分大小写**
-  比较，因此 `3derp` 与 `3DERP` 视为同一来源。需要区分大小写时必须显式修改列排序规则，
+  比较，因此 `3derp` 与 `3DERP` 视为同一来源；某些字符（如 emoji）在 Windows 排序规则中
+  没有权重，比较时会被忽略。需要区分大小写或按字节比较时必须显式修改列排序规则，
   不能只改应用代码。
-- 迁移前已存在的历史数据：不删除任何行。空去重键改写为 `legacy-{EventId}`；同一
-  `Source + DedupeKey` 的多行中，最早一行保留原键，其余改写为
-  `{原键}~legacy-dup-{EventId}`。改写后旧键不会自动恢复。
+- 迁移前已存在的历史数据：不删除任何行。空去重键按**存储长度**判断（避免 emoji 被排序规则
+  当作“可忽略”而误判为空），改写为 `legacy-{EventId}`；同一 `Source + DedupeKey` 的多行中，
+  最早一行保留原键，其余按以下规则改名：
+  - 原键长度（UTF-16 单元）不超过 176：`{原键}~legacy-dup-{EventId}`；
+  - 原键更长（塞不下后缀）：`legacy-dup-{EventId}`；
+  - 改名后仍与既有字面量键冲突：`legacy-dup-{EventId}-{8 位随机十六进制}`。
+
+  改写后旧键不会自动恢复。
 
 ### 5.2 PayloadHash 策略（固定，v1）
 

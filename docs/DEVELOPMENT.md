@@ -202,8 +202,9 @@ CI 的后端 job 已提供 SQL Server 容器并自动设置该变量，因此上
   同键不同 payload：409，原事件不被覆盖。
 - `PayloadHash` 使用固定策略 `agentos.payload-canonical-json/v1`（对象键排序、数组保序、
   数字保留字面形式、UTF-8 最小转义），详见 `docs/EVENT-SPECIFICATION.md` §5.2。
-- 历史数据：空 DedupeKey 改写为 `legacy-{Id}`；同键重复行最早一条保留原键，其余改写为
-  `{原键}~legacy-dup-{Id}`；`PayloadHash` 在首次命中时惰性回填。
+- 历史数据：空 DedupeKey（按存储长度判断）改写为 `legacy-{Id}`；同键重复行最早一条保留原键，
+  其余改写为 `{原键}~legacy-dup-{Id}`；原键过长（>176 个 UTF-16 单元）改用
+  `legacy-dup-{Id}`，改名后仍与既有键冲突的再加 8 位随机后缀。`PayloadHash` 在首次命中时惰性回填。
 - 重复/冲突日志按“去重键 + 类别”分别采样（60 秒窗口，首条必记，其余每 100 条记一条，
   最多跟踪 4096 个键）；冲突有独立计数，窗口内第一条 409 必定记录。日志不记录 payload 内容。
 - 任务幂等键预留：`EventId + RuleId + RuleVersion + DispatchKey`，由
