@@ -135,6 +135,12 @@ public sealed class ExternalProcessRunner(TimeProvider timeProvider) : IProcessR
                 timedOut = timeoutCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested;
                 cancelled = cancellationToken.IsCancellationRequested;
                 KillTree(process);
+
+                // The write is still pending; observe its eventual fault instead of leaving an
+                // unobserved task behind.
+                _ = stdinWrite.ContinueWith(
+                    task => _ = task.Exception,
+                    TaskContinuationOptions.OnlyOnFaulted);
             }
             else
             {
@@ -153,9 +159,9 @@ public sealed class ExternalProcessRunner(TimeProvider timeProvider) : IProcessR
         {
             process.StandardInput.Close();
         }
-        catch (Exception exception) when (exception is IOException or ObjectDisposedException)
+        catch (Exception exception) when (exception is IOException or ObjectDisposedException or InvalidOperationException)
         {
-            // Already closed with the process.
+            // Already closed, or a stdin write is still pending after the process was killed.
         }
 
         if (!timedOut && !cancelled)
