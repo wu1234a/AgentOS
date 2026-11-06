@@ -46,6 +46,7 @@ public sealed class SqlCodingRunTests
 
         var task = await context.Tasks.SingleAsync(candidate => candidate.Id == result.Run.TaskId);
         Assert.Equal(TaskStatus.Queued, task.Status);
+        Assert.Null(task.ModelProfileId);
         Assert.Contains(draft.Id.ToString(), task.InputJson);
         Assert.Contains(result.Run.Id.ToString(), task.InputJson);
 
@@ -60,6 +61,53 @@ public sealed class SqlCodingRunTests
             new CreateCodingRunRequest { DraftId = draft.Id, ProjectId = project.Id, AgentId = agent.Id },
             CancellationToken.None);
         Assert.Equal(CodingRunOutcome.Conflict, duplicate.Outcome);
+    }
+
+    [SkippableFact]
+    public async Task Project_mismatch_is_rejected()
+    {
+        var connectionString = RequireConnectionString();
+        await MigrateAsync(connectionString);
+
+        await using var context = NewContext(connectionString);
+        var (draft, _, _) = await SeedAsync(context, PlanningDraftStatus.Approved);
+
+        var otherProject = new Project
+        {
+            Id = Guid.CreateVersion7(),
+            Name = "Other",
+            Slug = $"other-{Guid.NewGuid():N}"[..16],
+            IsEnabled = true,
+            CreatedAtUtc = Now,
+            UpdatedAtUtc = Now
+        };
+        context.Projects.Add(otherProject);
+        var otherAgent = new Agent
+        {
+            Id = Guid.CreateVersion7(),
+            ProjectId = otherProject.Id,
+            Code = $"coder-{Guid.NewGuid():N}"[..14],
+            DisplayName = "Other Coder",
+            Role = "coder",
+            PermissionProfile = "workspace-write",
+            IsEnabled = true,
+            CreatedAtUtc = Now,
+            UpdatedAtUtc = Now
+        };
+        context.Agents.Add(otherAgent);
+        await context.SaveChangesAsync();
+
+        var result = await CreateService(context).CreateAsync(
+            new CreateCodingRunRequest
+            {
+                DraftId = draft.Id,
+                ProjectId = otherProject.Id,
+                AgentId = otherAgent.Id
+            },
+            CancellationToken.None);
+
+        Assert.Equal(CodingRunOutcome.ValidationFailed, result.Outcome);
+        Assert.Equal("project-mismatch", result.ErrorCode);
     }
 
     [SkippableFact]

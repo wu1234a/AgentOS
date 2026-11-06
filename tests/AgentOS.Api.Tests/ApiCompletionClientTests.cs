@@ -109,6 +109,25 @@ public sealed class ApiCompletionClientTests
     }
 
     [Fact]
+    public async Task Provider_error_echo_of_the_key_is_redacted()
+    {
+        var handler = new StubHandler((_, _) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.Unauthorized)
+            {
+                Content = new StringContent(
+                    """{"error":{"message":"bad key test-key"}}""",
+                    Encoding.UTF8,
+                    "application/json")
+            }));
+
+        var result = await CreateClient(handler).CompleteAsync(Request(), CancellationToken.None);
+
+        Assert.Equal("planner-provider-http", result.ErrorCode);
+        Assert.DoesNotContain("test-key", result.ErrorMessage);
+        Assert.Contains("[REDACTED]", result.ErrorMessage);
+    }
+
+    [Fact]
     public async Task Timeout_is_reported_as_a_timeout()
     {
         var handler = new StubHandler(async (_, cancellationToken) =>

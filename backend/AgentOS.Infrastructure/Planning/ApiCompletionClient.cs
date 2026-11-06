@@ -79,7 +79,7 @@ public sealed class ApiCompletionClient(
             if (!response.IsSuccessStatusCode)
             {
                 var errorBody = await response.Content.ReadAsStringAsync(linked.Token);
-                var snippet = Sanitize(errorBody);
+                var snippet = Sanitize(errorBody, request.ApiKey);
                 logger.LogWarning(
                     "Planner provider {Provider} returned HTTP {Status}: {Detail}",
                     request.Provider,
@@ -131,9 +131,15 @@ public sealed class ApiCompletionClient(
         }
     }
 
-    private static string Sanitize(string body)
+    private static string Sanitize(string body, string apiKey)
     {
         var text = body.Length > 500 ? body[..500] : body;
+
+        if (!string.IsNullOrWhiteSpace(apiKey))
+        {
+            text = text.Replace(apiKey, "[REDACTED]", StringComparison.Ordinal);
+        }
+
         text = Regex.Replace(text, "sk-[A-Za-z0-9_\\-]{8,}", "[REDACTED]");
         return text.Replace("\r", " ").Replace("\n", " ").Trim();
     }

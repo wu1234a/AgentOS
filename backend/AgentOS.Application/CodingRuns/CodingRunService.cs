@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -22,13 +23,29 @@ public sealed class CodingRunService(
     ILogger<CodingRunService> logger)
 {
     private const int MaxTitleLength = 200;
+    private static readonly ConcurrentDictionary<Guid, SemaphoreSlim> SyncLocks = new();
 
     public async Task<(IReadOnlyList<CodingRunView> Items, int Total)> ListAsync(
         string? status,
         int limit,
         int offset,
         CancellationToken cancellationToken)
-        => await repository.ListAsync(status, limit, offset, cancellationToken);
+    {
+        // Project pending runs before filtering so list state is not stale after a Runner update.
+        foreach (var pending in await repository.ListRunsForSyncAsync(500, cancellationToken))
+        {
+            try
+            {
+                await SyncAsync(pending, cancellationToken);
+            }
+            catch (Exception exception)
+            {
+                logger.LogWarning(exception, "Could not project coding run {RunId} while listing.", pending.Id);
+            }
+        }
+
+        return await repository.ListAsync(status, limit, offset, cancellationToken);
+    }
 
     public async Task<CodingRunDetail?> GetAsync(Guid runId, CancellationToken cancellationToken)
     {
@@ -38,7 +55,16 @@ public sealed class CodingRunService(
             return null;
         }
 
-        await SyncAsync(run, cancellationToken);
+        try
+        {
+            await SyncAsync(run, cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            // Reads must not fail because another request committed the same projection first.
+            logger.LogWarning(exception, "Could not project coding run {RunId} while reading.", run.Id);
+        }
+
         var view = await GetViewAsync(run, cancellationToken);
         var events = await repository.ListEventsAsync(runId, cancellationToken);
         return new CodingRunDetail(view!, events);
@@ -52,6 +78,16 @@ public sealed class CodingRunService(
         if (draft is null)
         {
             return CodingRunResult.NotFound();
+        }
+
+        if (draft.ProjectId is { } draftProjectId && draftProjectId != request.ProjectId)
+        {
+            return CodingRunResult.Invalid(
+                "project-mismatch",
+                new Dictionary<string, string[]>
+                {
+                    ["projectId"] = ["Project does not match the approved draft."]
+                });
         }
 
         if (draft.Status != PlanningDraftStatus.Approved)
@@ -169,9 +205,23 @@ public sealed class CodingRunService(
             return CodingRunResult.NotFound();
         }
 
+        try
+        {
+            await SyncAsync(run, cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception, "Could not project coding run {RunId} before retry.", run.Id);
+        }
+
         if (run.Status is not (CodingRunStatus.Failed or CodingRunStatus.Canceled))
         {
             return CodingRunResult.Conflict("coding-run-not-retryable");
+        }
+
+        if (!await repository.AgentEnabledAsync(run.AgentId, run.ProjectId, cancellationToken))
+        {
+            return CodingRunResult.Conflict("agent-unavailable");
         }
 
         var draft = await repository.GetDraftAsync(run.DraftId, cancellationToken);
@@ -182,11 +232,17 @@ public sealed class CodingRunService(
 
         var now = timeProvider.GetUtcNow().UtcDateTime;
         var attempt = run.AttemptCount + 1;
+        var previousTask = run.TaskId is { } previousTaskId
+            ? await repository.GetTaskAsync(previousTaskId, cancellationToken)
+            : null;
+
         var request = new CreateCodingRunRequest
         {
             DraftId = run.DraftId,
             ProjectId = run.ProjectId,
-            AgentId = run.AgentId
+            AgentId = run.AgentId,
+            Priority = previousTask?.Priority,
+            TimeoutSeconds = previousTask?.TimeoutSeconds
         };
 
         var task = CreateTask(run, draft, request, run.SnapshotJson, now, attempt);
@@ -225,7 +281,9 @@ public sealed class CodingRunService(
             TaskCode = $"TASK-{taskId:N}".ToUpperInvariant(),
             ProjectId = request.ProjectId,
             AgentId = request.AgentId,
-            ModelProfileId = draft.ModelProfileId,
+            // Keep the Planner API profile only in the snapshot; execution resolves the coding
+            // agent/rule profile through AOS-010b and must not inherit an API-mode profile.
+            ModelProfileId = null,
             LogicalTaskKey = $"coding-run:{run.Id}:{attempt}",
             Status = TaskStatus.Queued,
             Priority = string.IsNullOrWhiteSpace(request.Priority) ? "normal" : request.Priority,
@@ -242,6 +300,21 @@ public sealed class CodingRunService(
     }
 
     private async Task SyncAsync(CodingRun run, CancellationToken cancellationToken)
+    {
+        var gate = SyncLocks.GetOrAdd(run.Id, _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(cancellationToken);
+
+        try
+        {
+            await SyncCoreAsync(run, cancellationToken);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    private async Task SyncCoreAsync(CodingRun run, CancellationToken cancellationToken)
     {
         if (run.TaskId is not { } taskId)
         {

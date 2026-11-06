@@ -86,6 +86,8 @@ public interface ICodingRunRepository
 
     Task<AutomationTask?> GetTaskAsync(Guid taskId, CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<CodingRun>> ListRunsForSyncAsync(int limit, CancellationToken cancellationToken);
+
     Task<(IReadOnlyList<CodingRunView> Items, int Total)> ListAsync(
         string? status,
         int limit,

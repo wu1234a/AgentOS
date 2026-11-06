@@ -41,6 +41,18 @@ public sealed class CodingRunRepository(AgentOSDbContext dbContext) : ICodingRun
     public Task<AutomationTask?> GetTaskAsync(Guid taskId, CancellationToken cancellationToken)
         => dbContext.Tasks.FirstOrDefaultAsync(task => task.Id == taskId, cancellationToken);
 
+    public async Task<IReadOnlyList<CodingRun>> ListRunsForSyncAsync(
+        int limit,
+        CancellationToken cancellationToken)
+        => await dbContext.CodingRuns
+            .Where(run => run.TaskId != null
+                && run.Status != CodingRunStatus.Succeeded
+                && run.Status != CodingRunStatus.Failed
+                && run.Status != CodingRunStatus.Canceled)
+            .OrderBy(run => run.UpdatedAtUtc)
+            .Take(limit)
+            .ToListAsync(cancellationToken);
+
     public async Task<(IReadOnlyList<CodingRunView> Items, int Total)> ListAsync(
         string? status,
         int limit,
