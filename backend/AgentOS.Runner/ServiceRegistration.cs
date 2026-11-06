@@ -19,6 +19,7 @@ public static class RunnerServiceRegistration
         services.AddOptions<CodexCliOptions>();
         services.AddSingleton<IProcessRunner, ExternalProcessRunner>();
         services.AddSingleton<IAgentAdapter, CodexCliAdapter>();
+        services.AddSingleton<IValidationCommandRunner, ValidationCommandRunner>();
         services.AddSingleton<DemoTaskHandler>();
         services.AddSingleton<ITaskHandler>(provider =>
         {
@@ -28,6 +29,7 @@ public static class RunnerServiceRegistration
             {
                 return new CodexTaskHandler(
                     provider.GetRequiredService<IAgentAdapter>(),
+                    provider.GetRequiredService<IValidationCommandRunner>(),
                     provider.GetRequiredService<IOptions<CodexCliOptions>>(),
                     provider.GetRequiredService<ILogger<CodexTaskHandler>>());
             }

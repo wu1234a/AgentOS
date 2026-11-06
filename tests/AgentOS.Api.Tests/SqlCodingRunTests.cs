@@ -35,7 +35,8 @@ public sealed class SqlCodingRunTests
             {
                 DraftId = draft.Id,
                 ProjectId = project.Id,
-                AgentId = agent.Id
+                AgentId = agent.Id,
+                ValidationCommands = ["dotnet test"]
             },
             CancellationToken.None);
 
@@ -49,6 +50,8 @@ public sealed class SqlCodingRunTests
         Assert.Null(task.ModelProfileId);
         Assert.Contains(draft.Id.ToString(), task.InputJson);
         Assert.Contains(result.Run.Id.ToString(), task.InputJson);
+        Assert.Contains("\"validationCommands\"", task.InputJson);
+        Assert.Contains("dotnet test", task.InputJson);
 
         var detail = await service.GetAsync(result.Run.Id, CancellationToken.None);
         Assert.NotNull(detail);

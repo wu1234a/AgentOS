@@ -1,0 +1,165 @@
+using System.Diagnostics;
+using System.Text;
+
+namespace AgentOS.Runner;
+
+/// <summary>
+/// Runs an approved validation command in the task workspace with a minimal environment, a
+/// per-command timeout and bounded output. Secrets from the Runner environment are never passed.
+/// </summary>
+public sealed class ValidationCommandRunner : IValidationCommandRunner
+{
+    private const int MaxOutputChars = 4000;
+    private const int MaxLoggedLines = 50;
+
+    private static readonly string[] AllowedEnvironmentVariables = OperatingSystem.IsWindows()
+        ? ["PATH", "SystemRoot", "WINDIR", "TEMP", "TMP", "USERPROFILE", "COMSPEC", "PATHEXT", "HOME"]
+        : ["PATH", "HOME", "TMPDIR", "LANG", "LC_ALL"];
+
+    public async Task<ValidationCommandResult> RunAsync(
+        string workspacePath,
+        ValidationCommand command,
+        Action<string, string> log,
+        CancellationToken cancellationToken)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            WorkingDirectory = workspacePath,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        if (OperatingSystem.IsWindows())
+        {
+            startInfo.FileName = "cmd.exe";
+            startInfo.ArgumentList.Add("/d");
+            startInfo.ArgumentList.Add("/s");
+            startInfo.ArgumentList.Add("/c");
+            startInfo.ArgumentList.Add(command.Command);
+        }
+        else
+        {
+            startInfo.FileName = "/bin/sh";
+            startInfo.ArgumentList.Add("-c");
+            startInfo.ArgumentList.Add(command.Command);
+        }
+
+        startInfo.Environment.Clear();
+        foreach (var name in AllowedEnvironmentVariables)
+        {
+            var value = Environment.GetEnvironmentVariable(name);
+            if (!string.IsNullOrEmpty(value))
+            {
+                startInfo.Environment[name] = value;
+            }
+        }
+
+        using var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
+
+        try
+        {
+            if (!process.Start())
+            {
+                return Failure("validation-error", "Validation process did not start.");
+            }
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            return Failure("validation-error", $"Validation process could not start: {exception.Message}");
+        }
+
+        var stdout = process.StandardOutput.ReadToEndAsync(cancellationToken);
+        var stderr = process.StandardError.ReadToEndAsync(cancellationToken);
+
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(command.TimeoutSeconds));
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
+
+        try
+        {
+            await process.WaitForExitAsync(linked.Token);
+        }
+        catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+        {
+            TryKill(process);
+            return Failure("validation-timeout", $"Validation command exceeded {command.TimeoutSeconds}s.");
+        }
+        catch (OperationCanceledException)
+        {
+            TryKill(process);
+            throw;
+        }
+
+        var output = Combine(await SafeReadAsync(stdout), await SafeReadAsync(stderr));
+        var exitCode = process.ExitCode;
+
+        if (output.Length > 0)
+        {
+            var lines = output.Split('\n');
+            foreach (var line in lines.Take(MaxLoggedLines))
+            {
+                log("info", $"validation: {line.TrimEnd()}");
+            }
+
+            if (lines.Length > MaxLoggedLines)
+            {
+                log("info", $"validation: ... {lines.Length - MaxLoggedLines} more line(s)");
+            }
+        }
+
+        if (exitCode == 0)
+        {
+            return new ValidationCommandResult(true, 0, output, null, null);
+        }
+
+        return new ValidationCommandResult(
+            false,
+            exitCode,
+            output,
+            "validation-failed",
+            $"Validation command failed with exit code {exitCode}.");
+    }
+
+    private static string Combine(string stdout, string stderr)
+    {
+        var builder = new StringBuilder(stdout);
+        if (stderr.Length > 0)
+        {
+            builder.AppendLine();
+            builder.Append(stderr);
+        }
+
+        return builder.Length <= MaxOutputChars ? builder.ToString() : builder.ToString(0, MaxOutputChars);
+    }
+
+    private static async Task<string> SafeReadAsync(Task<string> task)
+    {
+        try
+        {
+            return await task;
+        }
+        catch (OperationCanceledException)
+        {
+            return string.Empty;
+        }
+    }
+
+    private static void TryKill(Process process)
+    {
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            // The process exited between the check and the kill.
+        }
+    }
+
+    private static ValidationCommandResult Failure(string code, string message)
+        => new(false, null, string.Empty, code, message);
+}

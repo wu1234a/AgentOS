@@ -24,7 +24,13 @@ const drafts = ref([])
 const createVisible = ref(false)
 const detailVisible = ref(false)
 const detail = ref(null)
-const form = reactive({ draftId: '', agentId: '', priority: 'normal', timeoutSeconds: 1800 })
+const form = reactive({
+  draftId: '',
+  agentId: '',
+  priority: 'normal',
+  timeoutSeconds: 1800,
+  validationCommands: ''
+})
 
 async function load() {
   loading.value = true
@@ -59,7 +65,13 @@ async function loadOptions() {
 }
 
 function openCreate() {
-  Object.assign(form, { draftId: '', agentId: '', priority: 'normal', timeoutSeconds: 1800 })
+  Object.assign(form, {
+    draftId: '',
+    agentId: '',
+    priority: 'normal',
+    timeoutSeconds: 1800,
+    validationCommands: ''
+  })
   createVisible.value = true
 }
 
@@ -76,7 +88,11 @@ async function save() {
       agentId: form.agentId,
       projectId: agent.projectId,
       priority: form.priority,
-      timeoutSeconds: form.timeoutSeconds
+      timeoutSeconds: form.timeoutSeconds,
+      validationCommands: form.validationCommands
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
     })
     ElMessage.success('Coding Run 已创建')
     createVisible.value = false
@@ -224,6 +240,14 @@ onMounted(async () => {
         </el-form-item>
         <el-form-item label="超时(秒)">
           <el-input-number v-model="form.timeoutSeconds" :min="60" :max="7200" />
+        </el-form-item>
+        <el-form-item label="校验命令">
+          <el-input
+            v-model="form.validationCommands"
+            type="textarea"
+            :rows="3"
+            placeholder="每行一条，例如：dotnet test backend\AgentOS.slnx"
+          />
         </el-form-item>
       </el-form>
       <template #footer>

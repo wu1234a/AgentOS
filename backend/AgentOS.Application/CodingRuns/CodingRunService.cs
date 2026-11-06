@@ -80,6 +80,17 @@ public sealed class CodingRunService(
             return CodingRunResult.NotFound();
         }
 
+        var validationCommands = NormalizeCommands(request.ValidationCommands);
+        if (validationCommands is null)
+        {
+            return CodingRunResult.Invalid(
+                "validation-commands-invalid",
+                new Dictionary<string, string[]>
+                {
+                    ["validationCommands"] = ["At most 10 non-empty commands of up to 1000 characters are allowed."]
+                });
+        }
+
         if (draft.ProjectId is { } draftProjectId && draftProjectId != request.ProjectId)
         {
             return CodingRunResult.Invalid(
@@ -137,6 +148,7 @@ public sealed class CodingRunService(
             projectId = request.ProjectId,
             agentId = request.AgentId,
             modelProfileId = draft.ModelProfileId,
+            validationCommands,
             createdAtUtc = now
         });
 
@@ -422,6 +434,33 @@ public sealed class CodingRunService(
             run.StartedAtUtc,
             run.CompletedAtUtc,
             run.CancelRequestedAtUtc);
+    }
+
+    private static IReadOnlyList<object>? NormalizeCommands(string[]? commands)
+    {
+        if (commands is null || commands.Length == 0)
+        {
+            return [];
+        }
+
+        if (commands.Length > 10)
+        {
+            return null;
+        }
+
+        var normalized = new List<object>();
+        foreach (var command in commands)
+        {
+            var trimmed = command?.Trim() ?? string.Empty;
+            if (trimmed.Length is 0 or > 1000)
+            {
+                return null;
+            }
+
+            normalized.Add(new { command = trimmed, timeoutSeconds = 600 });
+        }
+
+        return normalized;
     }
 
     private static CodingRunStatus Map(TaskStatus status)

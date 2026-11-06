@@ -11,6 +11,7 @@ namespace AgentOS.Api.Tests;
 public sealed class CodexTaskHandlerTests
 {
     private readonly FakeAgentAdapter _adapter = new();
+    private readonly FakeValidationRunner _validation = new();
     private readonly List<string> _logs = [];
 
     [Fact]
@@ -106,12 +107,62 @@ public sealed class CodexTaskHandlerTests
         Assert.Equal(HandlerOutcome.Cancelled, result.Outcome);
     }
 
+    [Fact]
+    public async Task Validation_commands_run_after_a_successful_execution()
+    {
+        _adapter.Result = Result(AgentExecutionStatus.Succeeded, 0);
+
+        var result = await CreateHandler().ExecuteAsync(
+            Context(inputJson: """{"validationCommands":["dotnet test"]}"""),
+            CancellationToken.None);
+
+        Assert.Equal(HandlerOutcome.Succeeded, result.Outcome);
+        var command = Assert.Single(_validation.Commands);
+        Assert.Equal("dotnet test", command.Command);
+        Assert.Contains(_logs, line => line.Contains("validation passed"));
+    }
+
+    [Fact]
+    public async Task Validation_failure_is_not_retryable_and_prevents_success()
+    {
+        _adapter.Result = Result(AgentExecutionStatus.Succeeded, 0);
+        _validation.Result = new ValidationCommandResult(
+            false,
+            1,
+            "failed",
+            "validation-failed",
+            "Validation command failed.");
+
+        var result = await CreateHandler().ExecuteAsync(
+            Context(inputJson: """{"validationCommands":["dotnet test"]}"""),
+            CancellationToken.None);
+
+        Assert.Equal(HandlerOutcome.Failed, result.Outcome);
+        Assert.False(result.Retryable);
+        Assert.Equal("validation-failed", result.ErrorCode);
+    }
+
+    [Fact]
+    public async Task Invalid_validation_config_is_rejected()
+    {
+        _adapter.Result = Result(AgentExecutionStatus.Succeeded, 0);
+
+        var result = await CreateHandler().ExecuteAsync(
+            Context(inputJson: """{"validationCommands":"dotnet test"}"""),
+            CancellationToken.None);
+
+        Assert.Equal(HandlerOutcome.Failed, result.Outcome);
+        Assert.Equal("validation-config-invalid", result.ErrorCode);
+        Assert.Empty(_validation.Commands);
+    }
+
     private CodexTaskHandler CreateHandler() => new(
         _adapter,
+        _validation,
         Options.Create(new CodexCliOptions { SandboxMode = "read-only" }),
         NullLogger<CodexTaskHandler>.Instance);
 
-    private TaskExecutionContext Context(AgentOS.Application.ModelProfiles.ResolvedModelProfile? profile = null) => new(
+    private TaskExecutionContext Context(AgentOS.Application.ModelProfiles.ResolvedModelProfile? profile = null, string inputJson = "{}") => new(
         Guid.NewGuid(),
         Guid.NewGuid(),
         "TASK-CODEX",
@@ -123,7 +174,7 @@ public sealed class CodexTaskHandlerTests
         null,
         null,
         Path.GetTempPath(),
-        "{}",
+        inputJson,
         1,
         600,
         (_, message) => _logs.Add(message),
@@ -145,6 +196,23 @@ public sealed class CodexTaskHandlerTests
             errorCode,
             errorCode,
             null);
+}
+
+public sealed class FakeValidationRunner : IValidationCommandRunner
+{
+    public List<ValidationCommand> Commands { get; } = [];
+
+    public ValidationCommandResult Result { get; set; } = new(true, 0, "ok", null, null);
+
+    public Task<ValidationCommandResult> RunAsync(
+        string workspacePath,
+        ValidationCommand command,
+        Action<string, string> log,
+        CancellationToken cancellationToken)
+    {
+        Commands.Add(command);
+        return Task.FromResult(Result);
+    }
 }
 
 public sealed class FakeAgentAdapter : IAgentAdapter

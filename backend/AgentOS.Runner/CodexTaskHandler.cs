@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AgentOS.AgentAdapters;
 using AgentOS.AgentAdapters.Codex;
 using AgentOS.Runner.Handlers;
@@ -11,6 +12,7 @@ namespace AgentOS.Runner;
 /// </summary>
 public sealed class CodexTaskHandler(
     IAgentAdapter adapter,
+    IValidationCommandRunner validationRunner,
     IOptions<CodexCliOptions> codexOptions,
     ILogger<CodexTaskHandler> logger) : ITaskHandler
 {
@@ -99,6 +101,12 @@ public sealed class CodexTaskHandler(
                     context.Log("info", $"codex summary: {result.Summary}");
                 }
 
+                var validationFailure = await ValidateAsync(context, result, cancellationToken);
+                if (validationFailure is not null)
+                {
+                    return validationFailure;
+                }
+
                 return TaskHandlerResult.Succeeded(result.ExitCode ?? 0, result.Summary)
                     with
                     {
@@ -132,6 +140,127 @@ public sealed class CodexTaskHandler(
                     result.ErrorMessage ?? "Codex failed.",
                     retryable: true) with { Artifacts = BuildArtifacts(result) };
         }
+    }
+
+    private async Task<TaskHandlerResult?> ValidateAsync(
+        TaskExecutionContext context,
+        AgentExecutionResult result,
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyList<ValidationCommand> commands;
+        try
+        {
+            commands = ParseValidationCommands(context.InputJson);
+        }
+        catch (JsonException)
+        {
+            return TaskHandlerResult.Failed(
+                "validation-config-invalid",
+                "Coding snapshot validationCommands is not valid JSON.",
+                retryable: false);
+        }
+        catch (FormatException exception)
+        {
+            return TaskHandlerResult.Failed(
+                "validation-config-invalid",
+                exception.Message,
+                retryable: false);
+        }
+
+        for (var index = 0; index < commands.Count; index++)
+        {
+            var command = commands[index];
+            context.Log("info", $"validation {index + 1}/{commands.Count}: {command.Command}");
+
+            var validation = await validationRunner.RunAsync(
+                context.WorkspacePath,
+                command,
+                context.Log,
+                cancellationToken);
+
+            if (validation.Success)
+            {
+                continue;
+            }
+
+            context.Log(
+                "error",
+                $"validation failed: {validation.ErrorCode} (exit {validation.ExitCode?.ToString() ?? "n/a"})");
+
+            return TaskHandlerResult.Failed(
+                validation.ErrorCode ?? "validation-failed",
+                validation.ErrorMessage ?? "Validation command failed.",
+                retryable: validation.ErrorCode == "validation-error") with
+            {
+                Artifacts = BuildArtifacts(result)
+            };
+        }
+
+        if (commands.Count > 0)
+        {
+            context.Log("info", $"validation passed ({commands.Count} command(s))");
+        }
+
+        return null;
+    }
+
+    internal static IReadOnlyList<ValidationCommand> ParseValidationCommands(string inputJson)
+    {
+        using var document = JsonDocument.Parse(inputJson);
+
+        if (!document.RootElement.TryGetProperty("validationCommands", out var commands)
+            || commands.ValueKind == JsonValueKind.Null)
+        {
+            return [];
+        }
+
+        if (commands.ValueKind != JsonValueKind.Array)
+        {
+            throw new FormatException("validationCommands must be an array.");
+        }
+
+        if (commands.GetArrayLength() > 10)
+        {
+            throw new FormatException("At most 10 validation commands are allowed.");
+        }
+
+        var parsed = new List<ValidationCommand>();
+        foreach (var item in commands.EnumerateArray())
+        {
+            string? command = null;
+            var timeout = 600;
+
+            if (item.ValueKind == JsonValueKind.String)
+            {
+                command = item.GetString();
+            }
+            else if (item.ValueKind == JsonValueKind.Object
+                && item.TryGetProperty("command", out var commandValue)
+                && commandValue.ValueKind == JsonValueKind.String)
+            {
+                command = commandValue.GetString();
+                if (item.TryGetProperty("timeoutSeconds", out var timeoutValue)
+                    && timeoutValue.ValueKind == JsonValueKind.Number
+                    && timeoutValue.TryGetInt32(out var parsedTimeout))
+                {
+                    timeout = parsedTimeout;
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(command) || command.Length > 1000)
+            {
+                throw new FormatException("Each validation command must be a non-empty string up to 1000 characters.");
+            }
+
+            if (timeout is < 1 or > 1800)
+            {
+                throw new FormatException("Validation timeoutSeconds must be between 1 and 1800.");
+            }
+
+            parsed.Add(new ValidationCommand(command, timeout));
+        }
+
+        return parsed;
     }
 
     private static IReadOnlyList<TaskArtifactFile>? BuildArtifacts(AgentExecutionResult result)

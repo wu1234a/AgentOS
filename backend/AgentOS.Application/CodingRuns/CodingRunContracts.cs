@@ -15,6 +15,8 @@ public sealed class CreateCodingRunRequest
     public string? Priority { get; init; }
 
     public int? TimeoutSeconds { get; init; }
+
+    public string[]? ValidationCommands { get; init; }
 }
 
 public sealed record CodingRunView(

@@ -733,3 +733,13 @@ Model/Provider/ExecutionMode 下发到 Runner，并传给 Codex `-m`）。
 
 - 一份草案只能创建一个 Run（唯一索引）。
 - 成功/失败以任务终态为准；当前不执行草案校验命令，也不为每个 Attempt 建独立工作区。
+
+## 22. AOS-013b 校验命令
+
+- 创建 Coding Run 可传 `validationCommands: ["dotnet test ..."]`（最多 10 条）。
+- Runner 在 Codex 成功后按顺序执行；全部退出码 0 才成功。
+- 失败分类：`validation-config-invalid`/`validation-failed`/`validation-timeout` 不可重试；
+  `validation-error`（进程无法启动）可重试。
+- 每条命令默认 600s，范围 1–1800s；Runner 清空环境，只保留 PATH/SystemRoot/TEMP 等，
+  因此校验命令读不到 `KIMI_API_KEY` 等密钥。
+- 当前仍在项目工作区执行，不创建独立 worktree；worktree 属于 AOS-017。
