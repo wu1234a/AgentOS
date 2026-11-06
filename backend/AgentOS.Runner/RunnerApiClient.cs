@@ -8,8 +8,7 @@ namespace AgentOS.Runner;
 /// <summary>HTTP implementation of the runner API. Only outbound requests are made.</summary>
 public sealed class RunnerApiClient(
     HttpClient httpClient,
-    IOptions<RunnerOptions> options,
-    ILogger<RunnerApiClient> logger) : IRunnerApi
+    IOptions<RunnerOptions> options) : IRunnerApi
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 

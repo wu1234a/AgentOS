@@ -75,7 +75,7 @@ jobs:
           set +e
           dotnet test backend/AgentOS.slnx --no-build --nologo --logger "console;verbosity=normal" 2>&1 | tee test-output.log
           status=${PIPESTATUS[0]}
-          grep -E "\[FAIL\]|Failed!|FAILED" test-output.log | head -80 | sed "s/^/::error::/" || true
+          grep -E "\[FAIL\]|Failed!|FAILED|Assert\.|Exception|Expected:|Actual:|错误消息" test-output.log | head -120 | sed "s/^/::error::/" || true
           exit $status
       - name: Report failed tests
         if: failure()
