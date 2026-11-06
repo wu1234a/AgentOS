@@ -74,7 +74,7 @@ Runner。 - AOS-007 Codex CLI Adapter。 - AOS-008
 - AOS-009 Agent 注册中心与生命周期。
 - AOS-010 Model Router / Provider Profiles。
 - AOS-011 Skill 管理与版本。
-- AOS-012 Planner Agent。
+- AOS-012 Planner Agent（届时接入 Kimi 作为 Planner/任务草案模型；前置：AOS-010b 模型下发 + 通用 API Adapter；草案须人工批准后才进入实现）。
 - AOS-013 Coding Agent 工作流。
 - AOS-014 独立 Review Agent。
 - AOS-015 QA Agent 与测试结果标准化。
