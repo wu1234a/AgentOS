@@ -52,6 +52,51 @@ public sealed class CodexTaskHandlerTests
     }
 
     [Fact]
+    public async Task Model_profile_is_forwarded_to_the_adapter()
+    {
+        _adapter.Result = Result(AgentExecutionStatus.Succeeded, 0);
+        var profile = new AgentOS.Application.ModelProfiles.ResolvedModelProfile(
+            Guid.NewGuid(),
+            "codex-default",
+            "codex-cli",
+            "profile-model",
+            "cli",
+            "{}",
+            "OPENAI_API_KEY",
+            120,
+            "agent");
+
+        var result = await CreateHandler().ExecuteAsync(Context(profile), CancellationToken.None);
+
+        Assert.Equal(HandlerOutcome.Succeeded, result.Outcome);
+        Assert.Equal("profile-model", _adapter.LastRequest!.Model);
+        Assert.Equal(120, _adapter.LastRequest.TimeoutSeconds);
+    }
+
+    [Fact]
+    public async Task Unsupported_provider_is_not_retryable()
+    {
+        _adapter.Result = Result(AgentExecutionStatus.Succeeded, 0);
+        var profile = new AgentOS.Application.ModelProfiles.ResolvedModelProfile(
+            Guid.NewGuid(),
+            "kimi-planner",
+            "openai",
+            "kimi-k2",
+            "api",
+            "{}",
+            "KIMI_API_KEY",
+            120,
+            "agent");
+
+        var result = await CreateHandler().ExecuteAsync(Context(profile), CancellationToken.None);
+
+        Assert.Equal(HandlerOutcome.Failed, result.Outcome);
+        Assert.False(result.Retryable);
+        Assert.Equal("model-provider-unsupported", result.ErrorCode);
+        Assert.Null(_adapter.LastRequest);
+    }
+
+    [Fact]
     public async Task Cancellation_maps_to_cancelled()
     {
         _adapter.Result = Result(AgentExecutionStatus.Cancelled, null);
@@ -66,7 +111,7 @@ public sealed class CodexTaskHandlerTests
         Options.Create(new CodexCliOptions { SandboxMode = "read-only" }),
         NullLogger<CodexTaskHandler>.Instance);
 
-    private TaskExecutionContext Context() => new(
+    private TaskExecutionContext Context(AgentOS.Application.ModelProfiles.ResolvedModelProfile? profile = null) => new(
         Guid.NewGuid(),
         Guid.NewGuid(),
         "TASK-CODEX",
@@ -81,7 +126,8 @@ public sealed class CodexTaskHandlerTests
         "{}",
         1,
         600,
-        (_, message) => _logs.Add(message));
+        (_, message) => _logs.Add(message),
+        profile);
 
     private static AgentExecutionResult Result(
         AgentExecutionStatus status,

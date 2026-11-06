@@ -517,3 +517,9 @@ Client 是否存在。
 - 内容存放：`Skills:RootPath/<projectId|_global>/<code>/<version>.md`，路径由服务端生成；
   `ContentHash` 为内容 SHA-256（小写十六进制）。
 - 版本只增不改：Code/Version 不可变；可更新描述、启用/禁用；不删除历史版本。
+
+### 3.24 AOS-010b 模型下发
+
+- 无新增表。Claim 响应新增只读 `modelProfile` 对象（Code/Provider/Model/ExecutionMode/
+  ConfigurationJson/SecretReference/TimeoutSeconds/Source），由 AOS-010 的解析规则生成。
+- 解析失败不阻止领取；Runner 回退到 `Codex:Model`/默认超时，并在日志中记录来源。

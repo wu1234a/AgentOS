@@ -1,3 +1,5 @@
+using AgentOS.Application.ModelProfiles;
+
 namespace AgentOS.Runner.Handlers;
 
 /// <summary>Everything a handler may use. Handlers never receive credentials or arbitrary paths.</summary>
@@ -16,7 +18,8 @@ public sealed record TaskExecutionContext(
     string InputJson,
     int AttemptNumber,
     int TimeoutSeconds,
-    Action<string, string> Log);
+    Action<string, string> Log,
+    ResolvedModelProfile? ModelProfile = null);
 
 public enum HandlerOutcome
 {

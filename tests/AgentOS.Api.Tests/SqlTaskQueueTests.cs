@@ -1,6 +1,7 @@
 using AgentOS.Api.Tests.Fakes;
 using AgentOS.Application.Runners;
 using AgentOS.Application.Security;
+using AgentOS.Infrastructure.ModelProfiles;
 using AgentOS.Infrastructure.Runners;
 using AgentOS.Application.Tasks;
 using AgentOS.Domain.Agents;
@@ -461,6 +462,7 @@ public sealed class SqlTaskQueueTests
             clock ?? new ManualTimeProvider(Now),
             Options.Create(QueueOptions),
             new FakeSkillContentReader(),
+            new ModelProfileRepository(context),
             NullLogger<TaskClaimer>.Instance);
 
         return (await claimer.ClaimAsync(workerId, capacity, CancellationToken.None)).ToList();

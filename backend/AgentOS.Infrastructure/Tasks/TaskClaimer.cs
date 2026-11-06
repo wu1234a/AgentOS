@@ -1,4 +1,5 @@
 using System.Data.Common;
+using AgentOS.Application.ModelProfiles;
 using AgentOS.Application.Tasks;
 using AgentOS.Domain.Tasks;
 using AgentOS.Domain.Workers;
@@ -24,6 +25,7 @@ public sealed class TaskClaimer(
     TimeProvider timeProvider,
     IOptions<TaskQueueOptions> options,
     ISkillContentReader skillReader,
+    IModelProfileRepository modelProfiles,
     ILogger<TaskClaimer> logger) : ITaskClaimer
 {
     private const int SelectionRounds = 4;
@@ -147,6 +149,7 @@ public sealed class TaskClaimer(
                 });
 
                 var skillContent = await skillReader.ReadAsync(candidate.SkillRelativePath, cancellationToken);
+                var modelProfile = await modelProfiles.ResolveAsync(claimedRow.Id, null, null, cancellationToken);
 
                 claimed.Add(new ClaimedTask(
                     claimedRow.Id,
@@ -166,7 +169,8 @@ public sealed class TaskClaimer(
                     claimedRow.ModelProfileId,
                     claimedRow.MaxAttempts,
                     claimedRow.TimeoutSeconds,
-                    new TaskLease(attemptId, claimedRow.AttemptCount, token, leaseExpiresAtUtc)));
+                    new TaskLease(attemptId, claimedRow.AttemptCount, token, leaseExpiresAtUtc),
+                    modelProfile));
 
                 progress++;
             }

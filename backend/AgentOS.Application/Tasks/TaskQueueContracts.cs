@@ -29,7 +29,8 @@ public sealed record ClaimedTask(
     Guid? ModelProfileId,
     int MaxAttempts,
     int TimeoutSeconds,
-    TaskLease Lease);
+    TaskLease Lease,
+    AgentOS.Application.ModelProfiles.ResolvedModelProfile? ModelProfile = null);
 
 /// <summary>Atomically claims due tasks for one worker.</summary>
 public interface ITaskClaimer

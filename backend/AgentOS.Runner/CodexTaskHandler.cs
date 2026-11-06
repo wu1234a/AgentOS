@@ -31,6 +31,27 @@ public sealed class CodexTaskHandler(
                 retryable: false);
         }
 
+        var profile = context.ModelProfile;
+
+        if (profile is not null)
+        {
+            if (!string.Equals(profile.Provider, "codex-cli", StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(profile.ExecutionMode, "cli", StringComparison.OrdinalIgnoreCase))
+            {
+                context.Log(
+                    "error",
+                    $"model profile {profile.Code} requires provider={profile.Provider} mode={profile.ExecutionMode}");
+                return TaskHandlerResult.Failed(
+                    "model-provider-unsupported",
+                    $"Provider '{profile.Provider}' with mode '{profile.ExecutionMode}' is not supported by the Codex CLI adapter.",
+                    retryable: false);
+            }
+
+            context.Log(
+                "info",
+                $"using model profile {profile.Code} ({profile.Provider}/{profile.Model}) from {profile.Source}");
+        }
+
         var prompt = PromptBuilder.Build(new AgentTaskPromptContext(
             context.TaskCode,
             context.Title,
@@ -56,9 +77,12 @@ public sealed class CodexTaskHandler(
             context.ProjectSlug,
             context.WorkspacePath,
             prompt,
-            Math.Min(context.TimeoutSeconds, options.TimeoutSeconds),
+            Math.Min(
+                context.TimeoutSeconds,
+                Math.Min(profile?.TimeoutSeconds ?? int.MaxValue, options.TimeoutSeconds)),
             policy,
-            context.Log);
+            context.Log,
+            profile?.Model);
 
         var result = await adapter.ExecuteAsync(request, cancellationToken);
 

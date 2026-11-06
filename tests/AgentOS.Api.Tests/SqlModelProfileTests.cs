@@ -1,14 +1,20 @@
+using AgentOS.Api.Tests.Fakes;
 using AgentOS.Application.Agents;
 using AgentOS.Application.ModelProfiles;
+using AgentOS.Application.Tasks;
 using AgentOS.Domain.Agents;
 using AgentOS.Domain.ModelProfiles;
 using AgentOS.Domain.Projects;
 using AgentOS.Domain.Rules;
+using AgentOS.Domain.Workers;
 using AgentOS.Domain.Tasks;
 using AgentOS.Infrastructure.Agents;
 using AgentOS.Infrastructure.ModelProfiles;
+using AgentOS.Infrastructure.Tasks;
 using AgentOS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using TaskStatus = AgentOS.Domain.Tasks.TaskStatus;
 
 namespace AgentOS.Api.Tests;
@@ -228,6 +234,85 @@ public sealed class SqlModelProfileTests
 
         Assert.Equal(ModelProfileOutcome.Ok, result.Outcome);
         return result;
+    }
+
+    [SkippableFact]
+    public async Task Claim_attaches_the_resolved_model_profile()
+    {
+        var connectionString = RequireConnectionString();
+        await MigrateAsync(connectionString);
+
+        await using var context = NewContext(connectionString);
+        var service = CreateService(context);
+        var code = $"claim-model-{Guid.NewGuid().ToString("N")[..6]}";
+        var profile = await CreateProfileAsync(service, code);
+
+        var project = await SeedProjectAsync(context);
+        var agent = new Agent
+        {
+            Id = Guid.CreateVersion7(),
+            ProjectId = project.Id,
+            Code = $"claim-agent-{Guid.NewGuid().ToString("N")[..6]}",
+            DisplayName = "Claim Agent",
+            Role = "coder",
+            PermissionProfile = "read-only",
+            DefaultModelProfileId = profile.Profile!.Id,
+            IsEnabled = true,
+            CreatedAtUtc = Now,
+            UpdatedAtUtc = Now
+        };
+        context.Agents.Add(agent);
+
+        var worker = new Worker
+        {
+            Id = Guid.CreateVersion7(),
+            WorkerCode = $"worker-{Guid.NewGuid().ToString("N")[..6]}",
+            DisplayName = "Claim Runner",
+            HostName = "localhost",
+            Platform = "Linux",
+            Architecture = "x64",
+            Version = "1.0.0",
+            Status = WorkerStatus.Online,
+            LastHeartbeatAtUtc = Now,
+            RegisteredAtUtc = Now,
+            UpdatedAtUtc = Now
+        };
+        context.Workers.Add(worker);
+
+        var task = new AutomationTask
+        {
+            Id = Guid.CreateVersion7(),
+            TaskCode = $"TASK-{Guid.NewGuid():N}".ToUpperInvariant(),
+            ProjectId = project.Id,
+            AgentId = agent.Id,
+            LogicalTaskKey = $"model-claim-{Guid.NewGuid():N}",
+            Status = TaskStatus.Queued,
+            Priority = "normal",
+            Title = "Claim model",
+            InputJson = "{}",
+            AttemptCount = 0,
+            MaxAttempts = 2,
+            NextRunAtUtc = DateTime.UtcNow.AddMinutes(-1),
+            CreatedAtUtc = DateTime.UtcNow.AddMinutes(-2),
+            UpdatedAtUtc = DateTime.UtcNow
+        };
+        context.Tasks.Add(task);
+        await context.SaveChangesAsync();
+
+        var claimer = new TaskClaimer(
+            context,
+            new LeaseTokenService(),
+            TimeProvider.System,
+            Options.Create(new TaskQueueOptions { ClaimBatchLimit = 10 }),
+            new FakeSkillContentReader(),
+            new ModelProfileRepository(context),
+            NullLogger<TaskClaimer>.Instance);
+
+        var claimed = await claimer.ClaimAsync(worker.Id, 1, CancellationToken.None);
+        var item = Assert.Single(claimed);
+        Assert.NotNull(item.ModelProfile);
+        Assert.Equal(code, item.ModelProfile!.Code);
+        Assert.Equal("agent", item.ModelProfile.Source);
     }
 
     private static ModelProfileService CreateService(AgentOSDbContext context) => new(

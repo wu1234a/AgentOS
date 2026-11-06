@@ -89,6 +89,19 @@ public sealed class CodexCliAdapterTests
     }
 
     [Fact]
+    public async Task Request_model_overrides_the_configured_default()
+    {
+        _runner.Result = Completed(exitCode: 0);
+
+        await CreateAdapter(new CodexCliOptions { ExecutablePath = "codex", Model = "default-model" })
+            .ExecuteAsync(Request() with { Model = "task-model" }, CancellationToken.None);
+
+        var arguments = _runner.LastRequest!.Arguments.ToList();
+        Assert.Contains("-m", arguments);
+        Assert.Equal("task-model", arguments[arguments.IndexOf("-m") + 1]);
+    }
+
+    [Fact]
     public async Task Non_zero_exit_is_a_failure()
     {
         _runner.Result = Completed(exitCode: 3, stderr: "boom");

@@ -73,7 +73,8 @@ public sealed class TaskProcessor(
                 task.InputJson,
                 task.Lease.AttemptNumber,
                 task.TimeoutSeconds,
-                logs.Add);
+                logs.Add,
+                task.ModelProfile);
 
             var result = await handler.ExecuteAsync(context, taskCts.Token);
 

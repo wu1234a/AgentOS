@@ -154,10 +154,14 @@ public sealed class CodexCliAdapter(
             lastMessagePath
         };
 
-        if (!string.IsNullOrWhiteSpace(configuration.Model))
+        var effectiveModel = string.IsNullOrWhiteSpace(request.Model)
+            ? configuration.Model
+            : request.Model;
+
+        if (!string.IsNullOrWhiteSpace(effectiveModel))
         {
             arguments.Add("-m");
-            arguments.Add(configuration.Model);
+            arguments.Add(effectiveModel);
         }
 
         arguments.Add("-");

@@ -31,7 +31,8 @@ public sealed record AgentExecutionRequest(
     string Prompt,
     int TimeoutSeconds,
     AgentExecutionPolicy Policy,
-    Action<string, string>? OnLog = null);
+    Action<string, string>? OnLog = null,
+    string? Model = null);
 
 public sealed record AgentExecutionResult(
     AgentExecutionStatus Status,

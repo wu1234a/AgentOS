@@ -672,3 +672,13 @@ Model/Provider/ExecutionMode 下发到 Runner，并传给 Codex `-m`）。
 ### 18.3 前端
 
 `/skills` 页面支持列表/过滤、创建版本（Markdown 编辑）、查看内容、启用/禁用。
+
+## 19. AOS-010b 模型下发
+
+- Claim 的每个任务携带 `modelProfile`（含 Source：task/rule/agent）；字段只读，密钥仅为
+  环境变量名。
+- Runner 规则：Provider 必须为 `codex-cli`、ExecutionMode 必须为 `cli`，否则任务以
+  `model-provider-unsupported` 失败且不重试。
+- 有效超时 = `min(task.TimeoutSeconds, profile.TimeoutSeconds, Codex:TimeoutSeconds)`；
+  模型优先使用 Claim 的 `modelProfile.model`，缺失时回退 `Codex:Model`。
+- Codex CLI 仍通过 `-m <model>` 传参；密钥不进入 Prompt/参数。
