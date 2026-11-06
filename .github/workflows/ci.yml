@@ -71,7 +71,12 @@ jobs:
           # lazy payload-hash backfill) run because this variable is set. The database is
           # disposable and lives only in this job.
           AGENTOS_SQL_TEST_CONNECTION: "Server=127.0.0.1,1433;Database=AgentOS_Test;User Id=sa;Password=${{ secrets.MSSQL_SA_PASSWORD || 'AgentOS!CiOnly#2026' }};TrustServerCertificate=True;Connect Timeout=30"
-        run: dotnet test backend/AgentOS.slnx --no-build --nologo --logger "trx;LogFileName=results.trx"
+        run: |
+          set +e
+          dotnet test backend/AgentOS.slnx --no-build --nologo --logger "console;verbosity=normal" 2>&1 | tee test-output.log
+          status=${PIPESTATUS[0]}
+          grep -E "\[FAIL\]|Failed!|FAILED" test-output.log | head -80 | sed "s/^/::error::/" || true
+          exit $status
       - name: Report failed tests
         if: failure()
         shell: bash
