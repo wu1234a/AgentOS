@@ -343,3 +343,72 @@ codex exec -s workspace-write "<任务>"     # 允许写工作区
 ```
 
 > 本机仍需注意：`dotnet test` 受 DSH 工作区沙箱限制（见 §5），与 Codex 的沙箱问题相互独立。
+
+## 11. AOS-005 任务队列与租约
+
+### 11.1 数据与配置
+
+新增 `Workers`、`TaskAttempts` 表，并给 `Tasks` 增加租约字段（迁移
+`20261106144413_AddTaskQueue`）。队列参数在 `TaskQueue` 配置节：
+
+| 键 | 默认 | 说明 |
+|---|---|---|
+| `LeaseDurationSeconds` | 90 | 每次领取/心跳后的租约时长 |
+| `HeartbeatIntervalSeconds` | 20 | Runner 心跳建议间隔 |
+| `TaskTimeoutSeconds` | 1800 | 任务超时上限（记录在任务上） |
+| `MaxAttempts` | 2 | 规则生成任务时的默认最大尝试次数 |
+| `BackoffBaseSeconds` / `BackoffMaxSeconds` | 30 / 900 | 指数退避基数和上限 |
+| `ClaimBatchLimit` | 10 | 单次领取上限（API 再限制为 1–100） |
+| `RecoveryIntervalSeconds` | 30 | Worker 扫描过期租约的间隔 |
+
+### 11.2 Runner API
+
+所有 Runner 端点同时要求 `X-AgentOS-Dev-Key` 和 `X-AgentOS-Worker-Code`
+（指向 `Workers` 中 Online 的 Worker）。AOS-006 会用真正的 Runner 凭证替换 Worker Code。
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| POST | `/api/v1/runners/claim` | `{ "capacity": 5 }`，返回任务与**一次性**租约 Token |
+| POST | `/api/v1/runners/tasks/{id}/start` | `{ attemptId, leaseToken, externalSessionId? }`，记录会话并续租 |
+| POST | `/api/v1/runners/tasks/{id}/heartbeat` | `{ attemptId, leaseToken }`，续租并返回 `cancelRequested` |
+| POST | `/api/v1/runners/tasks/{id}/complete` | `{ attemptId, leaseToken, exitCode? }`，标记 Succeeded |
+| POST | `/api/v1/runners/tasks/{id}/fail` | `{ attemptId, leaseToken, errorCode, errorMessage, retryable, cancelled }` |
+| POST | `/api/v1/tasks/{id}/cancel` | 管理端取消（Queued 立即取消，Running 置取消请求） |
+
+错误语义：`404` 任务不存在；`403` Worker/Token 不匹配或租约过期；`409` 状态不允许该操作
+（例如已请求取消的任务不能再 Complete），响应扩展字段 `code` 为稳定错误码。
+
+### 11.3 租约安全
+
+- Token 为 256 位随机值（Base64Url），只在 Claim 响应中返回一次。
+- 数据库只保存 SHA-256 哈希；比较使用恒定时间。
+- 所有生命周期操作都校验 WorkerId + TaskId + AttemptId + Token + 租约未过期，不能只凭 TaskId。
+
+### 11.4 本地初始化 Runner
+
+队列没有注册 API（AOS-006），本地可直接插入一个 Worker：
+
+```sql
+INSERT INTO Workers (Id, WorkerCode, DisplayName, HostName, Platform, Architecture, Version, CapabilitiesJson, Status, LastHeartbeatAtUtc, RegisteredAtUtc, UpdatedAtUtc)
+VALUES (NEWID(), 'local-runner', 'Local Runner', 'DESKTOP', 'Windows', 'x64', '1.0.0', '{}', 'Online', SYSUTCDATETIME(), SYSUTCDATETIME(), SYSUTCDATETIME());
+```
+
+### 11.5 后台恢复（AgentOS.Worker）
+
+```powershell
+dotnet run --project backend/AgentOS.Worker
+```
+
+`LeaseRecoveryWorker` 每 `RecoveryIntervalSeconds` 扫描一次：租约过期的 Running 任务，其
+Attempt 置 `Lost`；还有次数则进入 `RetryWait`（指数退避 + 0–29 秒抖动），否则 `Failed`。
+Worker 需要连接串，Development 已在 `backend/AgentOS.Worker/appsettings.Development.json` 配置。
+
+### 11.6 测试
+
+```powershell
+$env:AGENTOS_SQL_TEST_CONNECTION = "Server=lpc:localhost;Database=AgentOS_Test;Trusted_Connection=True;TrustServerCertificate=True;Connect Timeout=3"
+dotnet test backend/AgentOS.slnx --filter FullyQualifiedName~TaskQueue
+```
+
+SQL 用例会并发领取（4 个 Runner × 容量 4）、验证无重复领取、Attempt 一致性、优先级顺序、
+租约续期/过期拒绝、失败重试与最大次数、过期租约恢复与二次领取。

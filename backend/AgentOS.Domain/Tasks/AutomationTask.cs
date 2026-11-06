@@ -34,7 +34,7 @@ public sealed class AutomationTask
     /// </summary>
     public string LogicalTaskKey { get; init; } = string.Empty;
 
-    public TaskStatus Status { get; init; } = TaskStatus.Queued;
+    public TaskStatus Status { get; set; } = TaskStatus.Queued;
 
     public string Priority { get; set; } = "normal";
 
@@ -44,17 +44,40 @@ public sealed class AutomationTask
 
     public string InputJson { get; set; } = "{}";
 
-    public int AttemptCount { get; init; }
+    public int AttemptCount { get; set; }
 
     public int MaxAttempts { get; set; } = 2;
 
     public int TimeoutSeconds { get; set; } = 1800;
 
-    public DateTime NextRunAtUtc { get; init; }
+    public DateTime NextRunAtUtc { get; set; }
 
     public DateTime CreatedAtUtc { get; init; }
 
     public DateTime UpdatedAtUtc { get; set; }
+
+    // ---- AOS-005 lease state -------------------------------------------------------------
+
+    /// <summary>Worker that currently owns the lease, or null when the task is not running.</summary>
+    public Guid? LeaseOwnerWorkerId { get; set; }
+
+    /// <summary>SHA-256 (lowercase hex) of the lease token. The plaintext token is never stored.</summary>
+    public string? LeaseTokenHash { get; set; }
+
+    public DateTime? LeaseExpiresAtUtc { get; set; }
+
+    public DateTime? LastHeartbeatAtUtc { get; set; }
+
+    public DateTime? StartedAtUtc { get; set; }
+
+    public DateTime? CompletedAtUtc { get; set; }
+
+    /// <summary>Set when a cancellation was requested while the task was running.</summary>
+    public DateTime? CancelRequestedAtUtc { get; set; }
+
+    public string? ErrorCode { get; set; }
+
+    public string? ErrorMessage { get; set; }
 
     /// <summary>Concurrency token used by the queue and lease operations (AOS-005).</summary>
     public byte[] RowVersion { get; init; } = [];

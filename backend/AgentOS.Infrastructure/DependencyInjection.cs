@@ -30,12 +30,15 @@ public static class DependencyInjection
         services.AddScoped<IAutomationRuleRepository, AutomationRuleRepository>();
         services.AddScoped<IRuleReferenceLookup, RuleReferenceLookup>();
         services.AddScoped<ITaskDispatchStore, TaskDispatchStore>();
+        services.AddScoped<ITaskClaimer, TaskClaimer>();
+        services.AddScoped<ITaskQueueStore, TaskQueueStore>();
 
         // Stateless and thread-safe; shared so payload hashing and duplicate log sampling stay
         // consistent across requests.
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<EventPayloadHasher>();
         services.TryAddSingleton<DuplicateEventLogSampler>();
+        services.TryAddSingleton<LeaseTokenService>();
 
         return services;
     }

@@ -5,6 +5,7 @@ using AgentOS.Domain.Projects;
 using AgentOS.Domain.Rules;
 using AgentOS.Domain.Skills;
 using AgentOS.Domain.Tasks;
+using AgentOS.Domain.Workers;
 using Microsoft.EntityFrameworkCore;
 
 namespace AgentOS.Infrastructure.Persistence;
@@ -29,6 +30,10 @@ public sealed class AgentOSDbContext(DbContextOptions<AgentOSDbContext> options)
     public DbSet<AutomationRule> AutomationRules => Set<AutomationRule>();
 
     public DbSet<AutomationTask> Tasks => Set<AutomationTask>();
+
+    public DbSet<Worker> Workers => Set<Worker>();
+
+    public DbSet<TaskAttempt> TaskAttempts => Set<TaskAttempt>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

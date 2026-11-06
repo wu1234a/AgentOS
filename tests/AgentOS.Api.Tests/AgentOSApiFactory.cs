@@ -32,6 +32,10 @@ public sealed class AgentOSApiFactory(HealthStatus healthStatus, string environm
 
     public FakeTaskDispatcher Dispatcher { get; } = new();
 
+    public FakeTaskQueueStore Queue { get; } = new();
+
+    public FakeTaskClaimer Claimer { get; } = new();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment(environment);
@@ -53,11 +57,15 @@ public sealed class AgentOSApiFactory(HealthStatus healthStatus, string environm
             services.RemoveAll<IAutomationRuleRepository>();
             services.RemoveAll<IRuleReferenceLookup>();
             services.RemoveAll<ITaskDispatcher>();
+            services.RemoveAll<ITaskQueueStore>();
+            services.RemoveAll<ITaskClaimer>();
             services.AddSingleton<IEventRepository>(Events);
             services.AddSingleton<IProjectLookup>(Projects);
             services.AddSingleton<IAutomationRuleRepository>(Rules);
             services.AddSingleton<IRuleReferenceLookup>(RuleReferences);
             services.AddSingleton<ITaskDispatcher>(Dispatcher);
+            services.AddSingleton<ITaskQueueStore>(Queue);
+            services.AddSingleton<ITaskClaimer>(Claimer);
 
             services.Configure<HealthCheckServiceOptions>(options =>
             {

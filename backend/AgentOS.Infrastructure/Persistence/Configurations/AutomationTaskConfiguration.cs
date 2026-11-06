@@ -5,6 +5,7 @@ using AgentOS.Domain.Projects;
 using AgentOS.Domain.Rules;
 using AgentOS.Domain.Skills;
 using AgentOS.Domain.Tasks;
+using AgentOS.Domain.Workers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -32,6 +33,14 @@ public sealed class AutomationTaskConfiguration : IEntityTypeConfiguration<Autom
         builder.Property(task => task.NextRunAtUtc).HasColumnType("datetime2(3)");
         builder.Property(task => task.CreatedAtUtc).HasColumnType("datetime2(3)");
         builder.Property(task => task.UpdatedAtUtc).HasColumnType("datetime2(3)");
+        builder.Property(task => task.LeaseTokenHash).HasMaxLength(64);
+        builder.Property(task => task.LeaseExpiresAtUtc).HasColumnType("datetime2(3)");
+        builder.Property(task => task.LastHeartbeatAtUtc).HasColumnType("datetime2(3)");
+        builder.Property(task => task.StartedAtUtc).HasColumnType("datetime2(3)");
+        builder.Property(task => task.CompletedAtUtc).HasColumnType("datetime2(3)");
+        builder.Property(task => task.CancelRequestedAtUtc).HasColumnType("datetime2(3)");
+        builder.Property(task => task.ErrorCode).HasMaxLength(100);
+        builder.Property(task => task.ErrorMessage).HasMaxLength(2000);
         builder.Property(task => task.RowVersion).IsRowVersion();
 
         builder.HasOne<Event>()
@@ -64,6 +73,11 @@ public sealed class AutomationTaskConfiguration : IEntityTypeConfiguration<Autom
             .HasForeignKey(task => task.ModelProfileId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        builder.HasOne<Worker>()
+            .WithMany()
+            .HasForeignKey(task => task.LeaseOwnerWorkerId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasIndex(task => task.TaskCode)
             .IsUnique()
             .HasDatabaseName("UX_Tasks_TaskCode");
@@ -78,5 +92,7 @@ public sealed class AutomationTaskConfiguration : IEntityTypeConfiguration<Autom
 
         builder.HasIndex(task => task.EventId);
         builder.HasIndex(task => task.RuleId);
+        builder.HasIndex(task => task.LeaseExpiresAtUtc)
+            .HasDatabaseName("IX_Tasks_LeaseExpiresAtUtc");
     }
 }

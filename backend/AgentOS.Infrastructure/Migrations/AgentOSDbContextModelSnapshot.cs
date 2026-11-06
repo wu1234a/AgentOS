@@ -437,10 +437,24 @@ namespace AgentOS.Infrastructure.Migrations
                     b.Property<int>("AttemptCount")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("CancelRequestedAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<DateTime?>("CompletedAtUtc")
+                        .HasColumnType("datetime2(3)");
+
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2(3)");
 
                     b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("ErrorCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ErrorMessage")
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
 
@@ -450,6 +464,19 @@ namespace AgentOS.Infrastructure.Migrations
                     b.Property<string>("InputJson")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("LastHeartbeatAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<DateTime?>("LeaseExpiresAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<Guid?>("LeaseOwnerWorkerId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("LeaseTokenHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
 
                     b.Property<string>("LogicalTaskKey")
                         .IsRequired()
@@ -491,6 +518,9 @@ namespace AgentOS.Infrastructure.Migrations
                     b.Property<Guid?>("SkillId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<DateTime?>("StartedAtUtc")
+                        .HasColumnType("datetime2(3)");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -518,6 +548,11 @@ namespace AgentOS.Infrastructure.Migrations
 
                     b.HasIndex("EventId");
 
+                    b.HasIndex("LeaseExpiresAtUtc")
+                        .HasDatabaseName("IX_Tasks_LeaseExpiresAtUtc");
+
+                    b.HasIndex("LeaseOwnerWorkerId");
+
                     b.HasIndex("LogicalTaskKey")
                         .IsUnique()
                         .HasDatabaseName("UX_Tasks_LogicalTaskKey");
@@ -540,6 +575,133 @@ namespace AgentOS.Infrastructure.Migrations
                     b.ToTable("Tasks", null, t =>
                         {
                             t.HasCheckConstraint("CK_Tasks_InputJson_IsJson", "ISJSON([InputJson]) = 1");
+                        });
+                });
+
+            modelBuilder.Entity("AgentOS.Domain.Tasks.TaskAttempt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("AttemptNumber")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<int?>("DurationMs")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ErrorCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<int?>("ExitCode")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ExternalSessionId")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("FinishedAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<DateTime>("StartedAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<Guid>("TaskId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<Guid>("WorkerId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WorkerId");
+
+                    b.HasIndex("TaskId", "AttemptNumber")
+                        .IsUnique()
+                        .HasDatabaseName("UX_TaskAttempts_Task_Attempt");
+
+                    b.ToTable("TaskAttempts", (string)null);
+                });
+
+            modelBuilder.Entity("AgentOS.Domain.Workers.Worker", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Architecture")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("CapabilitiesJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("HostName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("LastHeartbeatAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("Platform")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTime>("RegisteredAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("Version")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("WorkerCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WorkerCode")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Workers_WorkerCode");
+
+                    b.ToTable("Workers", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Workers_CapabilitiesJson_IsJson", "ISJSON([CapabilitiesJson]) = 1");
                         });
                 });
 
@@ -611,6 +773,11 @@ namespace AgentOS.Infrastructure.Migrations
                         .HasForeignKey("EventId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("AgentOS.Domain.Workers.Worker", null)
+                        .WithMany()
+                        .HasForeignKey("LeaseOwnerWorkerId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("AgentOS.Domain.ModelProfiles.ModelProfile", null)
                         .WithMany()
                         .HasForeignKey("ModelProfileId")
@@ -631,6 +798,21 @@ namespace AgentOS.Infrastructure.Migrations
                         .WithMany()
                         .HasForeignKey("SkillId")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("AgentOS.Domain.Tasks.TaskAttempt", b =>
+                {
+                    b.HasOne("AgentOS.Domain.Tasks.AutomationTask", null)
+                        .WithMany()
+                        .HasForeignKey("TaskId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AgentOS.Domain.Workers.Worker", null)
+                        .WithMany()
+                        .HasForeignKey("WorkerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 #pragma warning restore 612, 618
         }

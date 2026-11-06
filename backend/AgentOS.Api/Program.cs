@@ -29,7 +29,10 @@ builder.Services.AddScoped<EventService>();
 builder.Services.AddScoped<RuleValidator>();
 builder.Services.AddScoped<RuleService>();
 builder.Services.AddScoped<ITaskDispatcher, TaskDispatchService>();
+builder.Services.Configure<TaskQueueOptions>(builder.Configuration.GetSection("TaskQueue"));
+builder.Services.AddScoped<TaskQueueService>();
 builder.Services.AddScoped<ApiClientAuthenticationFilter>();
+builder.Services.AddScoped<RunnerAuthenticationFilter>();
 
 if (builder.Environment.IsDevelopment())
 {
@@ -87,6 +90,8 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 
 app.MapEventEndpoints();
 app.MapRuleEndpoints();
+app.MapRunnerEndpoints();
+app.MapTaskEndpoints();
 
 app.MapGet("/", () => Results.Ok(new
 {

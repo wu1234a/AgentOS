@@ -386,6 +386,24 @@ AOS-004 已创建：`ModelProfiles`、`Skills`、`Agents`、`AutomationRules`、
   AOS-004 生成的任务不会设置该字段。
 - `PUT /api/v1/rules/{id}` 是完整替换，唯一例外是省略 `isEnabled` 时保留当前启用状态。
 
+### 3.17 AOS-005 队列与租约
+
+- `Tasks` 增加：`LeaseOwnerWorkerId`（FK `Workers`，Restrict）、`LeaseTokenHash`
+  （SHA-256 小写十六进制，明文 Token 不入库）、`LeaseExpiresAtUtc`、`LastHeartbeatAtUtc`、
+  `StartedAtUtc`、`CompletedAtUtc`、`CancelRequestedAtUtc`、`ErrorCode`、`ErrorMessage`。
+- `Workers`：`WorkerCode` 唯一，`Status` 为 Online / Offline / Disabled。
+- `TaskAttempts`：`(TaskId, AttemptNumber)` 唯一；状态为 Running / Succeeded / Failed / Lost /
+  Cancelled；每次领取新增一行，重试不覆盖历史。
+- 领取算法（AOS-005）：**无锁扫描候选**（按 priority、CreatedAtUtc、Id 排序）→ 对每个候选执行
+  `UPDATE ... WHERE Status IN (Queued, RetryWait) AND NextRunAtUtc <= @now OUTPUT inserted.*`
+  → 只有更新成功的行才创建 TaskAttempt。未抢到的候选在下一轮重新选取。
+  这样避免 `UPDLOCK` 扫描把整批行锁到事务结束、导致其他 Runner `READPAST` 全部跳过。
+- 过期租约恢复：`LeaseExpiresAtUtc <= now` 的 Running 任务，其 Attempt 置为 `Lost`；
+  若 `AttemptCount < MaxAttempts` 进入 `RetryWait` 并按 `BackoffBaseSeconds * 2^(n-1)`
+  （上限 `BackoffMaxSeconds`，加 0–29 秒确定性抖动）设置 `NextRunAtUtc`，否则 `Failed`。
+- 任务状态流转：Queued → Running → Succeeded / RetryWait → Running → … / Failed / Cancelled；
+  Running 取消先置 `CancelRequestedAtUtc`，Runner 停止后以 `fail(cancelled=true)` 落为 Cancelled。
+
 ## 4. 关系与删除策略
 
 - Projects 对 Events、Tasks、Agents 使用
