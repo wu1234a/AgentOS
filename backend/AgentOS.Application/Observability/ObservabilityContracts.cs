@@ -132,13 +132,6 @@ public interface IObservabilityQueryStore
 
     Task<TaskDetail?> GetTaskAsync(Guid taskId, CancellationToken cancellationToken);
 
-    Task<LogPage> GetTaskLogsAsync(
-        Guid taskId,
-        string? level,
-        int afterSequence,
-        int limit,
-        CancellationToken cancellationToken);
-
     Task<LogPage> GetAttemptLogsAsync(
         Guid taskId,
         Guid attemptId,

@@ -78,7 +78,7 @@ public sealed class ObservabilityApiTests
             1));
 
         using var client = CreateClient(factory);
-        var page = await client.GetFromJsonAsync<System.Text.Json.JsonElement>($"/api/v1/tasks/{Guid.NewGuid()}/logs");
+        var page = await client.GetFromJsonAsync<System.Text.Json.JsonElement>($"/api/v1/tasks/{Guid.NewGuid()}/attempts/{Guid.NewGuid()}/logs");
 
         Assert.Equal(1, page.GetProperty("items")[0].GetProperty("sequence").GetInt32());
         Assert.Equal(1, page.GetProperty("nextSequence").GetInt32());

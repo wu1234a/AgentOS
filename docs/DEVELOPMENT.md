@@ -577,3 +577,10 @@ Runner 上传产物：`POST /api/v1/runners/tasks/{taskId}/artifacts?attemptId&n
   password/token/secret、Cookie）。
 - 大段 stdout/stderr 通过 Artifact 保存，数据库只保留摘要与引用。
 - 保留策略/自动清理尚未实现（见交付报告限制）。
+
+### 14.5 审查修正
+
+- 日志按 **Attempt** 分页（`(AttemptId, Sequence)` 唯一）；Task 详情页先选择 Attempt 再加载/增量拉取。
+- Artifact 上传端点会把请求体上限提升到 `Artifacts:MaxBytes`，存储层仍做流式大小校验。
+- Worker 列表按 2 分钟心跳新鲜度显示 Offline；Disabled 保持原状态。
+- 前端把无时区的 SQL 时间按 UTC 解析后再本地化展示。

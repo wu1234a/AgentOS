@@ -22,8 +22,8 @@
   `GET /api/v1/events/{id}/tasks`。
 - `GET /api/v1/tasks`（status/projectId 过滤、limit/offset 分页）、`GET /api/v1/tasks/{id}`
   （Attempts、最近 50 条日志、Artifacts、Usage）。
-- `GET /api/v1/tasks/{id}/logs`、`GET /api/v1/tasks/{id}/attempts/{attemptId}/logs`
-  （level 过滤、`afterSequence` 增量、limit ≤ 500）。
+- `GET /api/v1/tasks/{id}/attempts/{attemptId}/logs`（level 过滤、`afterSequence` 增量、
+  limit ≤ 500；按 Attempt 分页避免多 Attempt 序号重复）。
 - `GET /api/v1/workers`。
 - `GET /api/v1/artifacts/{id}/download`（Dev Key 授权）。
 - Runner 产物上传：`POST /api/v1/runners/tasks/{taskId}/artifacts`，租约头校验，media type
@@ -91,7 +91,7 @@
 | 日志脱敏测试 | `Log_sanitizer_redacts_credentials` + Runner 行级脱敏测试 |
 | SignalR 断线后 REST 恢复 | 前端重连回调重新拉取；Hub 断开不影响 REST（无自动化 WebSocket 测试，见限制） |
 | Dashboard 与数据库一致 | `Dashboard_counts_match_the_database` |
-| 大日志分页 | `Task_detail...` 中 afterSequence 分页 + limit 上限 |
+| 大日志分页 | Attempt 日志 `afterSequence` 分页 + limit 上限（`Task_detail...`） |
 | Runner 状态/心跳正确 | `GET /workers` 与 AOS-006 心跳测试；Dashboard 在线数测试 |
 | 前端 lint/build、后端 build/test | 见下 |
 
@@ -120,10 +120,10 @@
 3. 日志没有全文检索；按级别/Sequence/Attempt 过滤。
 4. Usage 仅有表与 UI，Codex CLI JSON 事件的 usage 尚未解析入库（显示“未提供/估算”）。
 5. 前端 SignalR 未做自动化 WebSocket 集成测试，断线恢复依赖重连回调重新拉取 REST。
-6. Dashboard 成功率定义为 `Succeeded / (Succeeded + Failed + Cancelled)`，在页面文档中说明。
+6. Dashboard 成功率定义为 `Succeeded / (Succeeded + Failed + Cancelled)`，在页面文档中说明。\n7. 任务级日志分页接口已移除，按 Attempt 分页；跨 Attempt 的全局时间线需要后续新增稳定游标。
 7. 事件列表沿用 AOS-002 的 `page/pageSize` 契约，任务/日志使用 `limit/offset`。
 
-## 11. 变更文件
+### 10.1 独立代码审查\n\nCodex CLI 审查发现 1 个 P1（Artifact 源文件被 `.gitignore` 误伤未提交）与 6 个 P2（Task 级日志分页歧义、Artifact 请求体上限、失败执行未上传 artifact、前端 UTC 解析、Worker 在线判定、DATEDIFF 溢出），全部修复，详见 `docs/reports/AOS-008-CODE-REVIEW.md`。\n\n## 11. 变更文件
 
 **后端新增**
 

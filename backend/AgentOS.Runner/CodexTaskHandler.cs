@@ -83,14 +83,14 @@ public sealed class CodexTaskHandler(
 
             case AgentExecutionStatus.Cancelled:
                 context.Log("warn", "codex execution was cancelled");
-                return TaskHandlerResult.Cancelled();
+                return TaskHandlerResult.Cancelled() with { Artifacts = BuildArtifacts(result) };
 
             case AgentExecutionStatus.TimedOut:
                 context.Log("error", result.ErrorMessage ?? "codex timed out");
                 return TaskHandlerResult.Failed(
                     result.ErrorCode ?? "codex-timeout",
                     result.ErrorMessage ?? "Codex timed out.",
-                    retryable: true);
+                    retryable: true) with { Artifacts = BuildArtifacts(result) };
 
             case AgentExecutionStatus.Unavailable:
                 context.Log("error", result.ErrorMessage ?? "codex is unavailable");
@@ -106,7 +106,7 @@ public sealed class CodexTaskHandler(
                 return TaskHandlerResult.Failed(
                     result.ErrorCode ?? $"codex-exit-{result.ExitCode}",
                     result.ErrorMessage ?? "Codex failed.",
-                    retryable: true);
+                    retryable: true) with { Artifacts = BuildArtifacts(result) };
         }
     }
 

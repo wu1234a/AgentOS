@@ -25,16 +25,16 @@ public sealed class ObservabilityQueryStore(AgentOSDbContext dbContext) : IObser
         var terminal = succeeded + failed + cancelled;
         var successRate = terminal == 0 ? 0d : Math.Round(succeeded * 100d / terminal, 1);
 
-        var averageWaitMs = await dbContext.Tasks
+        var averageWaitSeconds = await dbContext.Tasks
             .Where(task => task.StartedAtUtc != null)
             .AverageAsync(
-                task => (double?)EF.Functions.DateDiffMillisecond(task.CreatedAtUtc, task.StartedAtUtc!.Value),
+                task => (double?)EF.Functions.DateDiffSecond(task.CreatedAtUtc, task.StartedAtUtc!.Value),
                 cancellationToken);
 
-        var averageExecutionMs = await dbContext.Tasks
+        var averageExecutionSeconds = await dbContext.Tasks
             .Where(task => task.StartedAtUtc != null && task.CompletedAtUtc != null)
             .AverageAsync(
-                task => (double?)EF.Functions.DateDiffMillisecond(task.StartedAtUtc!.Value, task.CompletedAtUtc!.Value),
+                task => (double?)EF.Functions.DateDiffSecond(task.StartedAtUtc!.Value, task.CompletedAtUtc!.Value),
                 cancellationToken);
 
         var onlineRunners = await dbContext.Workers.CountAsync(
@@ -62,8 +62,8 @@ public sealed class ObservabilityQueryStore(AgentOSDbContext dbContext) : IObser
             failed,
             cancelled,
             successRate,
-            averageWaitMs is null ? null : Math.Round(averageWaitMs.Value / 1000d, 1),
-            averageExecutionMs is null ? null : Math.Round(averageExecutionMs.Value / 1000d, 1),
+            averageWaitSeconds is null ? null : Math.Round(averageWaitSeconds.Value, 1),
+            averageExecutionSeconds is null ? null : Math.Round(averageExecutionSeconds.Value, 1),
             onlineRunners,
             leaseExpiries,
             failureRows.Select(ToSummary).ToList());
@@ -229,14 +229,6 @@ public sealed class ObservabilityQueryStore(AgentOSDbContext dbContext) : IObser
         return new TaskDetail(ToSummary(row), attempts, artifacts, usage, logs);
     }
 
-    public Task<LogPage> GetTaskLogsAsync(
-        Guid taskId,
-        string? level,
-        int afterSequence,
-        int limit,
-        CancellationToken cancellationToken)
-        => QueryLogsAsync(log => log.TaskId == taskId, level, afterSequence, limit, cancellationToken);
-
     public Task<LogPage> GetAttemptLogsAsync(
         Guid taskId,
         Guid attemptId,
@@ -258,12 +250,19 @@ public sealed class ObservabilityQueryStore(AgentOSDbContext dbContext) : IObser
             .OrderByDescending(worker => worker.LastHeartbeatAtUtc)
             .ToListAsync(cancellationToken);
 
+        var staleBefore = DateTime.UtcNow.AddMinutes(-2);
+
         return rows
             .Select(worker => new WorkerView(
                 worker.Id,
                 worker.WorkerCode,
                 worker.DisplayName,
-                worker.Status.ToString(),
+                worker.Status == WorkerStatus.Disabled
+                    ? WorkerStatus.Disabled.ToString()
+                    : worker.Status == WorkerStatus.Online
+                      && worker.LastHeartbeatAtUtc < staleBefore
+                        ? WorkerStatus.Offline.ToString()
+                        : worker.Status.ToString(),
                 worker.Platform,
                 worker.Architecture,
                 worker.Version,

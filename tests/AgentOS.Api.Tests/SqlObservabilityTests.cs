@@ -177,11 +177,17 @@ public sealed class SqlObservabilityTests
         Assert.Single(errorLogs.Items);
         Assert.Equal("boom", errorLogs.Items[0].Message);
 
-        var firstPage = await store.GetTaskLogsAsync(task.Id, null, 0, 1, CancellationToken.None);
+        var firstPage = await store.GetAttemptLogsAsync(task.Id, attempt.Id, null, 0, 1, CancellationToken.None);
         Assert.Single(firstPage.Items);
         Assert.Equal(1, firstPage.NextSequence);
 
-        var secondPage = await store.GetTaskLogsAsync(task.Id, null, firstPage.NextSequence!.Value, 10, CancellationToken.None);
+        var secondPage = await store.GetAttemptLogsAsync(
+            task.Id,
+            attempt.Id,
+            null,
+            firstPage.NextSequence!.Value,
+            10,
+            CancellationToken.None);
         Assert.Single(secondPage.Items);
         Assert.Equal(2, secondPage.Items[0].Sequence);
     }

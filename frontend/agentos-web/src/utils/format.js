@@ -1,6 +1,8 @@
 export function formatUtc(value) {
   if (!value) return '—'
-  const date = new Date(value)
+  // SQL datetime2 materializes as Unspecified; treat offset-free values as UTC.
+  const hasZone = /Z$|[+-]\d{2}:?\d{2}$/.test(value)
+  const date = new Date(hasZone ? value : `${value}Z`)
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
 }
 

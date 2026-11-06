@@ -1,12 +1,8 @@
 <script setup>
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { Refresh } from '@element-plus/icons-vue'
-import {
-  downloadArtifact,
-  getTask,
-  getTaskLogs
-} from '../api/observability'
+import { downloadArtifact, getAttemptLogs, getTask } from '../api/observability'
 import { formatUtc, statusTagType } from '../utils/format'
 import { useTaskHub } from '../composables/useTaskHub'
 
@@ -20,6 +16,7 @@ const nextSequence = ref(null)
 const level = ref('')
 const logLoading = ref(false)
 const levels = ['', 'debug', 'info', 'warn', 'error']
+const selectedAttemptId = ref('')
 
 const { start, stop } = useTaskHub(async () => {
   await load()
@@ -31,6 +28,9 @@ async function load() {
   error.value = ''
   try {
     detail.value = await getTask(route.params.id)
+    if (!selectedAttemptId.value && detail.value.attempts.length) {
+      selectedAttemptId.value = detail.value.attempts[detail.value.attempts.length - 1].id
+    }
   } catch (exception) {
     error.value = exception.message
   } finally {
@@ -42,7 +42,8 @@ async function loadLogs(reset = false) {
   logLoading.value = true
   try {
     const after = reset ? 0 : nextSequence.value || 0
-    const page = await getTaskLogs(route.params.id, {
+    if (!selectedAttemptId.value) return
+    const page = await getAttemptLogs(route.params.id, selectedAttemptId.value, {
       level: level.value || undefined,
       afterSequence: after,
       limit: 100
@@ -69,6 +70,8 @@ onMounted(async () => {
   await loadLogs(true)
   await start()
 })
+
+watch(selectedAttemptId, () => loadLogs(true))
 
 onBeforeUnmount(() => stop())
 </script>
@@ -133,10 +136,19 @@ onBeforeUnmount(() => stop())
       <el-card shadow="never" class="section">
         <template #header>
           <div class="card-head">
-            <span>Logs</span>
-            <el-select v-model="level" size="small" style="width: 130px" @change="loadLogs(true)">
-              <el-option v-for="item in levels" :key="item" :label="item || '全部级别'" :value="item" />
-            </el-select>
+            <div class="log-controls">
+              <el-select v-model="selectedAttemptId" size="small" style="width: 220px">
+                <el-option
+                  v-for="attempt in detail.attempts"
+                  :key="attempt.id"
+                  :label="`Attempt ${attempt.attemptNumber} · ${attempt.status}`"
+                  :value="attempt.id"
+                />
+              </el-select>
+              <el-select v-model="level" size="small" style="width: 130px" @change="loadLogs(true)">
+                <el-option v-for="item in levels" :key="item" :label="item || '全部级别'" :value="item" />
+              </el-select>
+            </div>
           </div>
         </template>
         <div v-loading="logLoading" class="logs">
@@ -207,6 +219,11 @@ onBeforeUnmount(() => stop())
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.log-controls {
+  display: flex;
+  gap: 8px;
 }
 .logs {
   max-height: 360px;

@@ -16,7 +16,6 @@ public static class ObservabilityEndpoints
         group.MapGet("/events/{eventId:guid}/tasks", GetEventTasksAsync).WithName("GetEventTasks");
         group.MapGet("/tasks", ListTasksAsync).WithName("ListTasks");
         group.MapGet("/tasks/{taskId:guid}", GetTaskAsync).WithName("GetTask");
-        group.MapGet("/tasks/{taskId:guid}/logs", GetTaskLogsAsync).WithName("GetTaskLogs");
         group.MapGet("/tasks/{taskId:guid}/attempts/{attemptId:guid}/logs", GetAttemptLogsAsync)
             .WithName("GetAttemptLogs");
         group.MapGet("/workers", ListWorkersAsync).WithName("ListWorkers");
@@ -60,19 +59,6 @@ public static class ObservabilityEndpoints
     {
         var detail = await store.GetTaskAsync(taskId, cancellationToken);
         return detail is null ? Results.NotFound() : Results.Ok(detail);
-    }
-
-    private static async Task<IResult> GetTaskLogsAsync(
-        Guid taskId,
-        IObservabilityQueryStore store,
-        string? level,
-        int? afterSequence,
-        int? limit,
-        CancellationToken cancellationToken)
-    {
-        var pageSize = Math.Clamp(limit ?? 100, 1, 500);
-        var page = await store.GetTaskLogsAsync(taskId, level, Math.Max(0, afterSequence ?? 0), pageSize, cancellationToken);
-        return Results.Ok(page);
     }
 
     private static async Task<IResult> GetAttemptLogsAsync(

@@ -3,6 +3,7 @@ using AgentOS.Api.Realtime;
 using AgentOS.Application.Observability;
 using AgentOS.Application.Tasks;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.Options;
 
 namespace AgentOS.Api.Endpoints;
 
@@ -232,6 +233,7 @@ public static class RunnerEndpoints
         HttpContext httpContext,
         TaskQueueService queue,
         IArtifactStore artifacts,
+        IOptions<ArtifactOptions> artifactOptions,
         string? attemptId,
         string? name,
         string? mediaType,
@@ -252,6 +254,16 @@ public static class RunnerEndpoints
             {
                 ["leaseToken"] = ["The X-AgentOS-Lease-Token header is required."]
             });
+        }
+
+        var limitFeature = httpContext.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>();
+        if (limitFeature is { IsReadOnly: false })
+        {
+            limitFeature.MaxRequestBodySize = artifactOptions.Value.MaxBytes;
+        }
+        else if (limitFeature is not null && httpContext.Request.ContentLength > artifactOptions.Value.MaxBytes)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status413PayloadTooLarge, title: "Artifact too large");
         }
 
         var workerId = (Guid)httpContext.Items[RunnerAuthenticationFilter.WorkerIdItemKey]!;

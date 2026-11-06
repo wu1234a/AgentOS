@@ -36,10 +36,6 @@ public sealed class FakeObservabilityQueryStore : IObservabilityQueryStore
     public Task<TaskDetail?> GetTaskAsync(Guid taskId, CancellationToken cancellationToken)
         => System.Threading.Tasks.Task.FromResult(TaskDetail);
 
-    public Task<LogPage> GetTaskLogsAsync(
-        Guid taskId, string? level, int afterSequence, int limit, CancellationToken cancellationToken)
-        => System.Threading.Tasks.Task.FromResult(LogPages.FirstOrDefault() ?? new LogPage([], null));
-
     public Task<LogPage> GetAttemptLogsAsync(
         Guid taskId, Guid attemptId, string? level, int afterSequence, int limit,
         CancellationToken cancellationToken)
