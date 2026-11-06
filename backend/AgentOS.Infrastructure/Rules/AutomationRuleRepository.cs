@@ -85,8 +85,11 @@ public sealed class AutomationRuleRepository(AgentOSDbContext dbContext) : IAuto
         return new RulePage(summaries, query.Page, query.PageSize, total);
     }
 
-    public Task<RuleDetail?> GetAsync(Guid id, CancellationToken cancellationToken)
-        => (
+    public async Task<RuleDetail?> GetAsync(Guid id, CancellationToken cancellationToken)
+    {
+        // Materialize plain columns first: JsonElement is not translatable inside an EF
+        // projection, so the JSON documents are parsed on the client after the query.
+        var row = await (
                 from rule in dbContext.AutomationRules.AsNoTracking()
                 where rule.Id == id
                 select new
@@ -113,31 +116,38 @@ public sealed class AutomationRuleRepository(AgentOSDbContext dbContext) : IAuto
                             .Select(profile => profile.Code)
                             .FirstOrDefault()
                 })
-            .Select(item => new RuleDetail(
-                item.Rule.Id,
-                item.Rule.Name,
-                item.Rule.ProjectId,
-                item.ProjectSlug,
-                item.Rule.SourcePattern,
-                item.Rule.EventTypePattern,
-                item.AgentCode ?? string.Empty,
-                item.Rule.AgentId,
-                item.SkillCode,
-                item.Rule.SkillId,
-                item.ModelProfileCode,
-                item.Rule.ModelProfileId,
-                System.Text.Json.JsonDocument.Parse(item.Rule.MatchJson).RootElement.Clone(),
-                System.Text.Json.JsonDocument.Parse(item.Rule.DispatchJson).RootElement.Clone(),
-                item.Rule.Priority,
-                item.Rule.MaxParallel,
-                item.Rule.MaxAttempts,
-                item.Rule.TimeoutSeconds,
-                item.Rule.NotificationPolicy,
-                item.Rule.IsEnabled,
-                item.Rule.Version,
-                item.Rule.CreatedAtUtc,
-                item.Rule.UpdatedAtUtc))
             .FirstOrDefaultAsync(cancellationToken);
+
+        if (row is null)
+        {
+            return null;
+        }
+
+        return new RuleDetail(
+            row.Rule.Id,
+            row.Rule.Name,
+            row.Rule.ProjectId,
+            row.ProjectSlug,
+            row.Rule.SourcePattern,
+            row.Rule.EventTypePattern,
+            row.AgentCode ?? string.Empty,
+            row.Rule.AgentId,
+            row.SkillCode,
+            row.Rule.SkillId,
+            row.ModelProfileCode,
+            row.Rule.ModelProfileId,
+            System.Text.Json.JsonDocument.Parse(row.Rule.MatchJson).RootElement.Clone(),
+            System.Text.Json.JsonDocument.Parse(row.Rule.DispatchJson).RootElement.Clone(),
+            row.Rule.Priority,
+            row.Rule.MaxParallel,
+            row.Rule.MaxAttempts,
+            row.Rule.TimeoutSeconds,
+            row.Rule.NotificationPolicy,
+            row.Rule.IsEnabled,
+            row.Rule.Version,
+            row.Rule.CreatedAtUtc,
+            row.Rule.UpdatedAtUtc);
+    }
 
     public Task<AutomationRule?> FindEntityAsync(Guid id, CancellationToken cancellationToken)
         => dbContext.AutomationRules.FirstOrDefaultAsync(rule => rule.Id == id, cancellationToken);

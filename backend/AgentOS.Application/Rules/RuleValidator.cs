@@ -99,7 +99,12 @@ public sealed class RuleValidator(IRuleReferenceLookup lookup)
         }
 
         var sourcePattern = string.IsNullOrWhiteSpace(request.SourcePattern) ? "*" : request.SourcePattern.Trim();
-        if (!RulePattern.IsValid(sourcePattern, out var sourceError))
+        if (sourcePattern.Length > 64)
+        {
+            // The column is nvarchar(64); rejecting here keeps a 400 instead of a DB truncation 500.
+            Add("sourcePattern", "sourcePattern must be 64 characters or fewer.");
+        }
+        else if (!RulePattern.IsValid(sourcePattern, out var sourceError))
         {
             Add("sourcePattern", sourceError!);
         }

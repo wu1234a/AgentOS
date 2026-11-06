@@ -91,7 +91,8 @@ public sealed class RuleMatcherTests
 
         var expected = RuleMatcher.Order(rules).Select(rule => rule.Id).ToArray();
 
-        var shuffled = rules.OrderBy(rule => rule.Name.GetHashCode(StringComparison.Ordinal)).ToArray();
+        // A fixed permutation, not a hash of equal names: this actually reorders the input.
+        var shuffled = new[] { rules[5], rules[1], rules[4], rules[0], rules[3], rules[2] };
         Assert.Equal(expected, RuleMatcher.Order(shuffled).Select(rule => rule.Id));
     }
 

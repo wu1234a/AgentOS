@@ -114,6 +114,26 @@ public sealed class RuleValidatorTests
     }
 
     [Fact]
+    public async Task Null_condition_arrays_are_treated_as_empty()
+    {
+        var request = Valid(matchJson: """{"subjectTypes":null,"priorities":null}""");
+
+        var result = await _validator.ValidateAsync(request, requireEnabledTargets: true, CancellationToken.None);
+
+        Assert.True(result.IsValid, string.Join("; ", result.Errors.SelectMany(pair => pair.Value)));
+    }
+
+    [Fact]
+    public async Task Source_pattern_longer_than_the_column_is_rejected()
+    {
+        var request = Valid(sourcePattern: new string('a', 65));
+
+        var result = await _validator.ValidateAsync(request, requireEnabledTargets: true, CancellationToken.None);
+
+        Assert.Contains("sourcePattern", result.Errors.Keys);
+    }
+
+    [Fact]
     public async Task Dispatch_settings_are_validated()
     {
         var request = Valid(dispatchJson: """{"dispatchKey":"second","priority":"urgent"}""");

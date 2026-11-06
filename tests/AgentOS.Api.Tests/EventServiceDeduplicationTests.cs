@@ -164,6 +164,21 @@ public sealed class EventServiceDeduplicationTests
     }
 
     [Fact]
+    public async Task Redelivery_of_a_received_event_retries_dispatch_and_reports_created_tasks()
+    {
+        _repository.Seed(LegacyEvent(payloadJson: """{ "description": "x" }"""));
+        _dispatcher.Result = new DispatchResult(1, 1, EventStatus.Processed);
+        var service = CreateService();
+
+        var result = await service.CreateAsync(Request(), CancellationToken.None);
+
+        Assert.Equal(CreateEventOutcome.Duplicate, result.Outcome);
+        Assert.Equal(EventStatus.Processed, result.Status);
+        Assert.Equal(1, result.TasksCreated);
+        Assert.Equal(1, _dispatcher.Calls);
+    }
+
+    [Fact]
     public async Task Project_that_does_not_exist_is_still_rejected()
     {
         var service = CreateService();

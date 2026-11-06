@@ -43,6 +43,7 @@ public sealed class RuleReferenceLookup(AgentOSDbContext dbContext) : IRuleRefer
                                 && (candidate.ProjectId == null || candidate.ProjectId == projectId))
             .OrderByDescending(candidate => candidate.ProjectId != null)
             .ThenByDescending(candidate => candidate.CreatedAtUtc)
+            .ThenBy(candidate => candidate.Id)
             .FirstOrDefaultAsync(cancellationToken);
 
         return skill is null

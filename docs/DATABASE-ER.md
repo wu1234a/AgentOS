@@ -382,6 +382,9 @@ AOS-004 已创建：`ModelProfiles`、`Skills`、`Agents`、`AutomationRules`、
 - `Agents` 的 Code 唯一性：项目内 `(ProjectId, Code)` 唯一 + 全局 `Code` 唯一（过滤索引）。
 - `Skills` 唯一约束为 `(ProjectId, Code, Version)`；全局 Skill（`ProjectId` 为 NULL）目前
   不强制版本唯一，规则按 `CreatedAtUtc` 最新一条解析。
+- `Tasks.ParentTaskId` 已建模但**暂未建外键/索引**，留给 AOS-016（多阶段任务）使用；
+  AOS-004 生成的任务不会设置该字段。
+- `PUT /api/v1/rules/{id}` 是完整替换，唯一例外是省略 `isEnabled` 时保留当前启用状态。
 
 ## 4. 关系与删除策略
 

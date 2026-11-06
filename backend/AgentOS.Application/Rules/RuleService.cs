@@ -74,7 +74,7 @@ public sealed class RuleService(
 
         var validation = await validator.ValidateAsync(
             request,
-            requireEnabledTargets: request.IsEnabled ?? false,
+            requireEnabledTargets: request.IsEnabled ?? rule.IsEnabled,
             cancellationToken);
 
         if (!validation.IsValid)
@@ -97,7 +97,10 @@ public sealed class RuleService(
         rule.MaxAttempts = values.MaxAttempts;
         rule.TimeoutSeconds = values.TimeoutSeconds;
         rule.NotificationPolicy = values.NotificationPolicy;
-        rule.IsEnabled = values.IsEnabled;
+
+        // PUT is a full replacement except for isEnabled: omitting it keeps the current state
+        // instead of silently disabling an enabled rule.
+        rule.IsEnabled = request.IsEnabled ?? rule.IsEnabled;
         rule.Version += 1;
         rule.UpdatedAtUtc = timeProvider.GetUtcNow().UtcDateTime;
 

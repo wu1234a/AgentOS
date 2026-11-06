@@ -12,6 +12,7 @@ using AgentOS.Domain.Tasks;
 using AgentOS.Infrastructure.Persistence;
 using AgentOS.Infrastructure.Projects;
 using AgentOS.Infrastructure.Repositories;
+using AgentOS.Infrastructure.Rules;
 using AgentOS.Infrastructure.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -124,6 +125,69 @@ public sealed class SqlRuleDispatchTests
         var exception = await Assert.ThrowsAsync<DbUpdateException>(() => dbContext.SaveChangesAsync());
         Assert.True(SqlErrorHelper.IsUniqueKeyViolation(exception));
     }
+
+    [SkippableFact]
+    public async Task Rule_service_round_trips_through_the_real_repository()
+    {
+        var connectionString = RequireConnectionString();
+        await using var dbContext = new AgentOSDbContext(Options(connectionString));
+        await dbContext.Database.MigrateAsync();
+
+        var (project, agent) = await SeedReferencesAsync(dbContext);
+        var service = new RuleService(
+            new RuleValidator(new RuleReferenceLookup(dbContext)),
+            new AutomationRuleRepository(dbContext),
+            TimeProvider.System);
+
+        var created = await service.CreateAsync(
+            SaveRequest(project.Slug, agent.Code, priority: 7, isEnabled: true),
+            CancellationToken.None);
+
+        Assert.True(created.IsSuccess, string.Join("; ", created.Errors.SelectMany(pair => pair.Value)));
+        var detail = created.Rule!;
+        Assert.Equal(project.Slug, detail.ProjectSlug);
+        Assert.Equal(agent.Code, detail.AgentCode);
+        Assert.Equal(1, detail.Version);
+
+        var loaded = await service.GetAsync(detail.Id, CancellationToken.None);
+        Assert.NotNull(loaded);
+        Assert.Equal("3derp", loaded!.SourcePattern);
+
+        var page = await service.ListAsync(new RuleListQuery(1, 10, null, project.Slug), CancellationToken.None);
+        Assert.Equal(1, page.Total);
+
+        // PUT without isEnabled keeps the rule enabled rather than silently disabling it.
+        var updated = await service.UpdateAsync(
+            detail.Id,
+            SaveRequest(project.Slug, agent.Code, priority: 9, isEnabled: null),
+            CancellationToken.None);
+
+        Assert.True(updated!.IsSuccess);
+        Assert.Equal(2, updated.Rule!.Version);
+        Assert.Equal(9, updated.Rule.Priority);
+        Assert.True(updated.Rule.IsEnabled);
+    }
+
+    private static SaveRuleRequest SaveRequest(
+        string projectSlug,
+        string agentCode,
+        int priority,
+        bool? isEnabled) => new()
+    {
+        Name = $"rule-{Guid.NewGuid():N}",
+        Project = projectSlug,
+        SourcePattern = "3derp",
+        EventTypePattern = "development.task.*",
+        AgentCode = agentCode,
+        MatchJson = JsonSerializer.Deserialize<JsonElement>("""{"subjectTypes":["development_task"]}"""),
+        DispatchJson = JsonSerializer.Deserialize<JsonElement>("""{"dispatchKey":"default","priority":"normal"}"""),
+        Priority = priority,
+        MaxParallel = 1,
+        MaxAttempts = 2,
+        TimeoutSeconds = 1800,
+        NotificationPolicy = "none",
+        IsEnabled = isEnabled
+    };
 
     private static EventService CreateService(AgentOSDbContext dbContext) => new(
         new CreateEventValidator(),

@@ -26,9 +26,11 @@ public sealed class SkillConfiguration : IEntityTypeConfiguration<Skill>
             .HasForeignKey(skill => skill.ProjectId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        // A skill version is unique within its project; AOS-004 treats a NULL project as one scope.
+        // A skill version is unique within its project; global skills (ProjectId IS NULL) are
+        // matched by the filtered index on the project scope only.
         builder.HasIndex(skill => new { skill.ProjectId, skill.Code, skill.Version })
             .IsUnique()
+            .HasFilter("[ProjectId] IS NOT NULL")
             .HasDatabaseName("UX_Skills_Project_Code_Version");
     }
 }

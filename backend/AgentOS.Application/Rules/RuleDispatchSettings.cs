@@ -46,9 +46,9 @@ public sealed class RuleDispatchSettings
             settings = parsed;
             return true;
         }
-        catch (JsonException exception)
+        catch (JsonException)
         {
-            error = $"dispatchJson is not a valid dispatch object: {exception.Message}";
+            error = "dispatchJson must be a JSON object with only dispatchKey and priority.";
             return false;
         }
     }

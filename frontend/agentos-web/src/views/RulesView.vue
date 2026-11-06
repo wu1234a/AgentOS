@@ -2,7 +2,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus, Refresh } from '@element-plus/icons-vue'
-import { createRule, disableRule, enableRule, fetchRules, updateRule } from '../api/rules'
+import { createRule, disableRule, enableRule, fetchRule, fetchRules, updateRule } from '../api/rules'
 
 const rules = ref([])
 const total = ref(0)
@@ -64,27 +64,34 @@ function openCreate() {
   dialogVisible.value = true
 }
 
-function openEdit(row) {
-  editingId.value = row.id
-  formErrors.value = {}
-  Object.assign(form, {
-    name: row.name,
-    project: row.projectSlug ?? '',
-    sourcePattern: row.sourcePattern,
-    eventTypePattern: row.eventTypePattern,
-    agentCode: row.agentCode,
-    skillCode: row.skillCode ?? '',
-    modelProfileCode: row.modelProfileCode ?? '',
-    matchJson: '{}',
-    dispatchJson: '{"dispatchKey":"default","priority":"normal"}',
-    priority: row.priority,
-    maxParallel: row.maxParallel,
-    maxAttempts: row.maxAttempts,
-    timeoutSeconds: row.timeoutSeconds,
-    notificationPolicy: row.notificationPolicy,
-    isEnabled: row.isEnabled
-  })
-  dialogVisible.value = true
+async function openEdit(row) {
+  try {
+    // The list projection has no JSON documents; load the detail so PUT does not wipe
+    // matchJson/dispatchJson back to defaults.
+    const detail = await fetchRule(row.id)
+    editingId.value = detail.id
+    formErrors.value = {}
+    Object.assign(form, {
+      name: detail.name,
+      project: detail.projectSlug ?? '',
+      sourcePattern: detail.sourcePattern,
+      eventTypePattern: detail.eventTypePattern,
+      agentCode: detail.agentCode,
+      skillCode: detail.skillCode ?? '',
+      modelProfileCode: detail.modelProfileCode ?? '',
+      matchJson: JSON.stringify(detail.matchJson ?? {}, null, 2),
+      dispatchJson: JSON.stringify(detail.dispatchJson ?? {}, null, 2),
+      priority: detail.priority,
+      maxParallel: detail.maxParallel,
+      maxAttempts: detail.maxAttempts,
+      timeoutSeconds: detail.timeoutSeconds,
+      notificationPolicy: detail.notificationPolicy,
+      isEnabled: detail.isEnabled
+    })
+    dialogVisible.value = true
+  } catch (exception) {
+    ElMessage.error(exception.message)
+  }
 }
 
 function buildPayload() {

@@ -41,24 +41,33 @@ public sealed class RuleMatchConditions
                 return false;
             }
 
-            if (parsed.SubjectTypes.Any(value => string.IsNullOrWhiteSpace(value) || value.Length > 64))
+            // System.Text.Json sets a missing or explicit null array to null even though the
+            // property has an initializer, so normalize before validating.
+            var subjectTypes = parsed.SubjectTypes ?? [];
+            var priorities = parsed.Priorities ?? [];
+
+            if (subjectTypes.Any(value => string.IsNullOrWhiteSpace(value) || value.Length > 64))
             {
                 error = "matchJson.subjectTypes entries must be 1-64 characters.";
                 return false;
             }
 
-            if (parsed.Priorities.Any(value => string.IsNullOrWhiteSpace(value) || value.Length > 16))
+            if (priorities.Any(value => string.IsNullOrWhiteSpace(value) || value.Length > 16))
             {
                 error = "matchJson.priorities entries must be 1-16 characters.";
                 return false;
             }
 
-            conditions = parsed;
+            conditions = new RuleMatchConditions
+            {
+                SubjectTypes = subjectTypes,
+                Priorities = priorities
+            };
             return true;
         }
-        catch (JsonException exception)
+        catch (JsonException)
         {
-            error = $"matchJson is not a valid conditions object: {exception.Message}";
+            error = "matchJson must be a JSON object with only subjectTypes and priorities.";
             return false;
         }
     }

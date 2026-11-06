@@ -89,13 +89,26 @@
 | 检查 | 命令 | 结果 |
 |---|---|---|
 | 后端构建 | `dotnet build backend/AgentOS.slnx` | ✅ 0 错误 |
-| 后端测试（含真实 SQL Server） | `dotnet vstest ... --TestCaseFilter` / CI `dotnet test` | ✅ 133 通过 / 0 失败（本机，工作区外运行） |
+| 后端测试（含真实 SQL Server） | 工作区外 `dotnet vstest` / CI `dotnet test` | ✅ **137 通过 / 0 失败**（本机，工作区外运行） |
+| 模型一致性 | `dotnet ef migrations has-pending-model-changes` | ✅ No changes |
 | 前端 lint | `npm run lint` | ✅ 通过 |
 | 前端构建 | `npm run build` | ✅ 成功（Element Plus 包体偏大的既有告警） |
 | 迁移 | `dotnet ef database update` | ✅ 已应用到 `AgentOS_Dev` |
 
 > 本机 `dotnet test` 仍受工作区沙箱限制（见 AOS-003 报告 §5.2），测试通过工作区外副本 +
 > `vstest` 执行；CI（GitHub Actions）用标准 `dotnet test` 全量执行，结果见 Actions。
+
+## 4.1 独立代码审查
+
+第三方（DSH 原生 Codex 规范）审查 commit `2700396`：2 个 P1、4 个 P2、4 个 P3，全部修复或记录，
+详见 `docs/reports/AOS-004-CODE-REVIEW.md`。关键修复：
+
+- `sourcePattern` 长度与列宽对齐（65+ 字符返回 400 而不是 500）；
+- 前端“编辑”先取详情，避免 PUT 清空 `matchJson`/`dispatchJson`；
+- `matchJson` 显式 null 数组归一化，避免 NRE 500；
+- `Skills` 索引配置与迁移/快照对齐，`has-pending-model-changes` 干净；
+- 新增真实仓储/引用查询的 SQL 测试，并修复了 `JsonElement` 不能直接在 EF 投影中映射的问题；
+- PUT 省略 `isEnabled` 时保留当前状态；`FindSkillAsync` 增加 Id 兜底。
 
 ## 5. 安全检查
 
@@ -117,6 +130,9 @@
 5. `LogicalTaskKey` 的分发键来自 `dispatchJson.dispatchKey`；同一规则同一版本对同一事件
    只能产生一条任务，多任务扇出需要不同的 dispatchKey。
 6. 任务列表 API 与前端任务页面属于 AOS-005/AOS-008。
+7. `PUT /api/v1/rules/{id}` 是完整替换；唯一例外是省略 `isEnabled` 时保留当前状态。
+   `sourcePattern` 上限 64 字符（与列宽一致），`eventTypePattern` 上限 120。
+8. `Tasks.ParentTaskId` 已建模但未建外键/索引，留给 AOS-016 的多阶段任务；AOS-004 不设置该字段。
 
 ## 7. 未完成事项
 
