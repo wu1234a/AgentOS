@@ -588,6 +588,11 @@ namespace AgentOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Code", "Version")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Skills_Global_Code_Version")
+                        .HasFilter("[ProjectId] IS NULL");
+
                     b.HasIndex("ProjectId", "Code", "Version")
                         .IsUnique()
                         .HasDatabaseName("UX_Skills_Project_Code_Version")

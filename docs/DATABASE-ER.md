@@ -509,3 +509,11 @@ Client 是否存在。
   `api_key`/`apikey`/`secret`/`password`/`access_token`/`client_secret` 字段。
 - 解析优先级：`Tasks.ModelProfileId` → `AutomationRules.ModelProfileId` →
   `Agents.DefaultModelProfileId`；仅使用 `IsEnabled = true` 的 Profile，全部不可用则未解析。
+
+### 3.23 AOS-011 Skill 版本
+
+- 复用 `Skills` 表；新增全局唯一索引 `UX_Skills_Global_Code_Version`（`ProjectId IS NULL` 时
+  `Code + Version` 唯一），项目内仍由 `UX_Skills_Project_Code_Version` 约束。
+- 内容存放：`Skills:RootPath/<projectId|_global>/<code>/<version>.md`，路径由服务端生成；
+  `ContentHash` 为内容 SHA-256（小写十六进制）。
+- 版本只增不改：Code/Version 不可变；可更新描述、启用/禁用；不删除历史版本。

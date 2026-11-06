@@ -6,6 +6,7 @@ using AgentOS.Application.Agents;
 using AgentOS.Application.ModelProfiles;
 using AgentOS.Application.Observability;
 using AgentOS.Application.Security;
+using AgentOS.Application.Skills;
 using AgentOS.Application.Tasks;
 using AgentOS.Infrastructure.Persistence;
 using AgentOS.Infrastructure.Projects;
@@ -48,6 +49,8 @@ public static class DependencyInjection
         services.AddScoped<IApiClientStore, ApiClientStore>();
         services.AddScoped<IRunnerRegistrationStore, RunnerRegistrationStore>();
         services.AddScoped<ISkillContentReader, SkillContentReader>();
+        services.AddScoped<ISkillStore, SkillStore>();
+        services.AddScoped<ISkillRepository, SkillRepository>();
         services.AddScoped<IObservabilityQueryStore, ObservabilityQueryStore>();
         services.AddScoped<IArtifactStore, ArtifactStore>();
         services.AddScoped<IAgentRepository, AgentRepository>();

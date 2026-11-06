@@ -8,6 +8,7 @@ using AgentOS.Application.Agents;
 using AgentOS.Application.ModelProfiles;
 using AgentOS.Application.Observability;
 using AgentOS.Application.Rules;
+using AgentOS.Application.Skills;
 using AgentOS.Application.Runners;
 using AgentOS.Application.Security;
 using AgentOS.Application.Tasks;
@@ -43,6 +44,7 @@ builder.Services.AddScoped<TaskQueueService>();
 builder.Services.AddScoped<RunnerRegistrationService>();
 builder.Services.AddScoped<AgentService>();
 builder.Services.AddScoped<ModelProfileService>();
+builder.Services.AddScoped<SkillService>();
 builder.Services.AddScoped<ApiClientAuthenticationFilter>();
 builder.Services.AddScoped<RunnerAuthenticationFilter>();
 
@@ -108,6 +110,7 @@ app.MapTaskEndpoints();
 app.MapObservabilityEndpoints();
 app.MapAgentEndpoints();
 app.MapModelProfileEndpoints();
+app.MapSkillEndpoints();
 app.MapHub<TaskHub>("/hubs/tasks");
 
 app.MapGet("/", () => Results.Ok(new

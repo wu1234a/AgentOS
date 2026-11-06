@@ -32,5 +32,11 @@ public sealed class SkillConfiguration : IEntityTypeConfiguration<Skill>
             .IsUnique()
             .HasFilter("[ProjectId] IS NOT NULL")
             .HasDatabaseName("UX_Skills_Project_Code_Version");
+
+        // SQL Server treats NULLs as distinct, so global versions need their own filtered index.
+        builder.HasIndex(skill => new { skill.Code, skill.Version })
+            .IsUnique()
+            .HasFilter("[ProjectId] IS NULL")
+            .HasDatabaseName("UX_Skills_Global_Code_Version");
     }
 }

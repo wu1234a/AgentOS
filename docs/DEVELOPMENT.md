@@ -647,3 +647,28 @@ Model/Provider/ExecutionMode 下发到 Runner，并传给 Codex `-m`）。
   2. 通用 `ApiAgentAdapter`（OpenAI 兼容接口），不把 Kimi 参数写进 Codex CLI Adapter；
   3. 密钥仅通过环境变量引用（`SecretReference`），配置中不得出现明文。
 - 编码执行（AOS-013 之后）是否使用 Kimi 再单独评估；优先从只读分析/测试补充/文档任务开始。
+
+## 18. AOS-011 Skill 管理与版本
+
+### 18.1 API
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/v1/skills?projectId&code&includeDisabled&limit&offset` | 列表 |
+| GET | `/api/v1/skills/{id}` | 元数据 |
+| GET | `/api/v1/skills/{id}/content` | Markdown（text/markdown） |
+| POST | `/api/v1/skills` | 创建版本 |
+| PUT | `/api/v1/skills/{id}` | 更新描述 |
+| POST | `/api/v1/skills/{id}/enable\|disable` | 启停版本 |
+
+### 18.2 校验与存储
+
+- Code 小写 slug（3–120），Version `[0-9A-Za-z][0-9A-Za-z._-]{0,39}`，均不可变。
+- 内容 ≤ `Skills:MaxBytes`（默认 64KB）；服务端写入并计算 SHA-256。
+- `Skills:RootPath` 未配置时创建返回 503；客户端不能提交路径。
+- 同项目/全局 Code+Version 重复返回 409 `skill-version-conflict`。
+- 规则引用仍按项目优先、最新 `CreatedAtUtc` 解析；禁用最新版本会阻止新规则引用。
+
+### 18.3 前端
+
+`/skills` 页面支持列表/过滤、创建版本（Markdown 编辑）、查看内容、启用/禁用。
