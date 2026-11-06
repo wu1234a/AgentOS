@@ -49,7 +49,8 @@ public sealed class PlannerService(
         }
 
         var context = string.IsNullOrWhiteSpace(request.Context) ? null : request.Context.Trim();
-        if (context is { Length: > 8000 })
+        if (context is { } contextValue
+            && contextValue.Length > configuration.MaxContextCharacters)
         {
             errors["context"] = [$"context must be {configuration.MaxContextCharacters} characters or fewer."];
         }
@@ -152,22 +153,16 @@ public sealed class PlannerService(
         PlanningDraftStatus status,
         CancellationToken cancellationToken)
     {
-        var draft = await repository.GetTrackedAsync(draftId, cancellationToken);
-        if (draft is null)
-        {
-            return PlannerResult.NotFound();
-        }
-
-        if (draft.Status != PlanningDraftStatus.PendingReview)
-        {
-            return PlannerResult.Conflict("draft-already-decided");
-        }
-
         var now = timeProvider.GetUtcNow().UtcDateTime;
-        draft.Status = status;
-        draft.DecidedAtUtc = now;
-        draft.UpdatedAtUtc = now;
-        await repository.SaveAsync(cancellationToken);
+        var decided = await repository.TryDecideAsync(draftId, status, now, cancellationToken);
+
+        if (!decided)
+        {
+            var existing = await repository.GetViewAsync(draftId, cancellationToken);
+            return existing is null
+                ? PlannerResult.NotFound()
+                : PlannerResult.Conflict("draft-already-decided");
+        }
 
         return PlannerResult.Ok((await repository.GetViewAsync(draftId, cancellationToken))!);
     }
@@ -235,12 +230,14 @@ public sealed class PlannerService(
                 }
 
                 if (document.RootElement.TryGetProperty("temperature", out var temp)
+                    && temp.ValueKind == JsonValueKind.Number
                     && temp.TryGetDouble(out var parsedTemp))
                 {
                     temperature = parsedTemp;
                 }
 
                 if (document.RootElement.TryGetProperty("maxTokens", out var tokens)
+                    && tokens.ValueKind == JsonValueKind.Number
                     && tokens.TryGetInt32(out var parsedTokens))
                 {
                     maxTokens = parsedTokens;

@@ -80,8 +80,16 @@ public sealed class ApiCompletionClient(
             using var document = JsonDocument.Parse(body);
 
             if (!document.RootElement.TryGetProperty("choices", out var choices)
-                || choices.GetArrayLength() == 0
-                || !choices[0].TryGetProperty("message", out var message)
+                || choices.ValueKind != JsonValueKind.Array
+                || choices.GetArrayLength() == 0)
+            {
+                return Failure("planner-invalid-response", "Provider response did not contain message content.");
+            }
+
+            var firstChoice = choices[0];
+            if (firstChoice.ValueKind != JsonValueKind.Object
+                || !firstChoice.TryGetProperty("message", out var message)
+                || message.ValueKind != JsonValueKind.Object
                 || !message.TryGetProperty("content", out var content)
                 || content.ValueKind != JsonValueKind.String)
             {

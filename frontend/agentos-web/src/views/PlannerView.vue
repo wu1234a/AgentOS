@@ -10,6 +10,8 @@ const total = ref(0)
 const loading = ref(false)
 const error = ref('')
 const statusFilter = ref('')
+const page = ref(1)
+const pageSize = 50
 const profiles = ref([])
 const dialogVisible = ref(false)
 const contentVisible = ref(false)
@@ -21,7 +23,11 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const data = await listDrafts({ status: statusFilter.value || undefined })
+    const data = await listDrafts({
+      status: statusFilter.value || undefined,
+      limit: pageSize,
+      offset: (page.value - 1) * pageSize
+    })
     items.value = data.items
     total.value = data.total
   } catch (exception) {
@@ -96,7 +102,12 @@ onMounted(async () => {
         <p class="muted">由 Kimi/API 模型生成任务草案，必须人工批准后才进入实现</p>
       </div>
       <div class="actions">
-        <el-select v-model="statusFilter" placeholder="全部状态" style="width: 150px" @change="load">
+        <el-select
+          v-model="statusFilter"
+          placeholder="全部状态"
+          style="width: 150px"
+          @change="() => { page = 1; load() }"
+        >
           <el-option label="全部状态" value="" />
           <el-option label="PendingReview" value="PendingReview" />
           <el-option label="Approved" value="Approved" />
@@ -143,6 +154,15 @@ onMounted(async () => {
         </template>
       </el-table-column>
     </el-table>
+
+    <el-pagination
+      class="pager"
+      layout="prev, pager, next, total"
+      :total="total"
+      :page-size="pageSize"
+      :current-page="page"
+      @current-change="(value) => { page = value; load() }"
+    />
 
     <el-dialog v-model="dialogVisible" title="生成任务草案" width="720px">
       <el-form label-width="110px">
@@ -194,6 +214,11 @@ onMounted(async () => {
   color: #6b7280;
   margin: 4px 0 0;
 }
+.pager {
+  margin-top: 16px;
+  justify-content: flex-end;
+}
+
 .markdown {
   white-space: pre-wrap;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;

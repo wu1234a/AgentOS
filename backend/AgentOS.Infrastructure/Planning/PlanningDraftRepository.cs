@@ -51,6 +51,24 @@ public sealed class PlanningDraftRepository(AgentOSDbContext dbContext) : IPlann
         return draft is null ? null : ToView(draft);
     }
 
+    public async Task<bool> TryDecideAsync(
+        Guid draftId,
+        PlanningDraftStatus status,
+        DateTime nowUtc,
+        CancellationToken cancellationToken)
+    {
+        var updated = await dbContext.PlanningDrafts
+            .Where(draft => draft.Id == draftId && draft.Status == PlanningDraftStatus.PendingReview)
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(draft => draft.Status, status)
+                    .SetProperty(draft => draft.DecidedAtUtc, nowUtc)
+                    .SetProperty(draft => draft.UpdatedAtUtc, nowUtc),
+                cancellationToken);
+
+        return updated > 0;
+    }
+
     public async Task AddAsync(PlanningDraft draft, CancellationToken cancellationToken)
     {
         dbContext.PlanningDrafts.Add(draft);

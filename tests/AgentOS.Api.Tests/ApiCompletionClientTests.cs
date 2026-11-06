@@ -67,6 +67,20 @@ public sealed class ApiCompletionClientTests
     }
 
     [Fact]
+    public async Task Malformed_choice_structures_are_reported_as_provider_errors()
+    {
+        var nullChoices = await CreateClient(new StubHandler((_, _) =>
+                Task.FromResult(JsonResponse("""{"choices":null}"""))))
+            .CompleteAsync(Request(), CancellationToken.None);
+        Assert.Equal("planner-invalid-response", nullChoices.ErrorCode);
+
+        var nullChoice = await CreateClient(new StubHandler((_, _) =>
+                Task.FromResult(JsonResponse("""{"choices":[null]}"""))))
+            .CompleteAsync(Request(), CancellationToken.None);
+        Assert.Equal("planner-invalid-response", nullChoice.ErrorCode);
+    }
+
+    [Fact]
     public async Task Timeout_is_reported_as_a_timeout()
     {
         var handler = new StubHandler(async (_, cancellationToken) =>

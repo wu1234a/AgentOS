@@ -118,6 +118,12 @@ public interface IPlanningDraftRepository
 
     Task<PlanningDraftView?> GetViewAsync(Guid draftId, CancellationToken cancellationToken);
 
+    Task<bool> TryDecideAsync(
+        Guid draftId,
+        PlanningDraftStatus status,
+        DateTime nowUtc,
+        CancellationToken cancellationToken);
+
     Task AddAsync(PlanningDraft draft, CancellationToken cancellationToken);
 
     Task SaveAsync(CancellationToken cancellationToken);

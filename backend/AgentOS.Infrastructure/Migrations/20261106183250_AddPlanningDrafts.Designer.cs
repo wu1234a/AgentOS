@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace AgentOS.Infrastructure.Migrations
 {
     [DbContext(typeof(AgentOSDbContext))]
-    [Migration("20261106182635_AddPlanningDrafts")]
+    [Migration("20261106183250_AddPlanningDrafts")]
     partial class AddPlanningDrafts
     {
         /// <inheritdoc />

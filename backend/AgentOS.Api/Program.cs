@@ -42,7 +42,8 @@ builder.Services.Configure<RunnerRegistrationOptions>(builder.Configuration.GetS
 builder.Services.Configure<SkillContentOptions>(builder.Configuration.GetSection("Skills"));
 builder.Services.Configure<ArtifactOptions>(builder.Configuration.GetSection("Artifacts"));
 builder.Services.Configure<PlannerOptions>(builder.Configuration.GetSection("Planner"));
-builder.Services.AddHttpClient("planner");
+builder.Services.AddHttpClient("planner", client => client.Timeout = Timeout.InfiniteTimeSpan)
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
 builder.Services.AddScoped<TaskQueueService>();
 builder.Services.AddScoped<RunnerRegistrationService>();
 builder.Services.AddScoped<AgentService>();

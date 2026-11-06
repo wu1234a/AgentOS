@@ -86,6 +86,43 @@ public sealed class SqlPlannerTests
     }
 
     [SkippableFact]
+    public async Task Concurrent_decisions_only_allow_one_winner()
+    {
+        var connectionString = RequireConnectionString();
+        await MigrateAsync(connectionString);
+
+        await using var setup = NewContext(connectionString);
+        var secretName = $"PLANNER_RACE_KEY_{Guid.NewGuid():N}".ToUpperInvariant();
+        Environment.SetEnvironmentVariable(secretName, "race-key");
+        var profile = await SeedProfileAsync(setup, secretName, "api", "kimi");
+        var service = CreateService(setup, new FakeCompletionClient(), profile.Code);
+
+        var created = await service.CreateAsync(
+            new CreatePlanningDraftRequest
+            {
+                Title = "Race draft",
+                Goal = "A long enough goal for a decision race.",
+                ModelProfileId = profile.Id
+            },
+            CancellationToken.None);
+        var draftId = created.Draft!.Id;
+
+        await using var firstContext = NewContext(connectionString);
+        await using var secondContext = NewContext(connectionString);
+        var first = CreateService(firstContext, new FakeCompletionClient(), profile.Code);
+        var second = CreateService(secondContext, new FakeCompletionClient(), profile.Code);
+
+        var results = await Task.WhenAll(
+            first.ApproveAsync(draftId, CancellationToken.None),
+            second.RejectAsync(draftId, CancellationToken.None));
+
+        Assert.Equal(1, results.Count(result => result.Outcome == PlannerOutcome.Ok));
+        Assert.Equal(1, results.Count(result => result.Outcome == PlannerOutcome.Conflict));
+
+        Environment.SetEnvironmentVariable(secretName, null);
+    }
+
+    [SkippableFact]
     public async Task Rejects_invalid_requests_and_unavailable_configuration()
     {
         var connectionString = RequireConnectionString();
