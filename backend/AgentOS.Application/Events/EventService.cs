@@ -2,15 +2,26 @@ using System.Text.Json;
 using AgentOS.Application.Projects;
 using AgentOS.Domain.Events;
 using AgentOS.Domain.Projects;
+using Microsoft.Extensions.Logging;
 
 namespace AgentOS.Application.Events;
 
 /// <summary>Application use cases for accepting and reading events.</summary>
 public sealed class EventService(
     CreateEventValidator validator,
+    EventPayloadHasher payloadHasher,
+    DuplicateEventLogSampler duplicateLogSampler,
     IEventRepository repository,
-    IProjectLookup projectLookup)
+    IProjectLookup projectLookup,
+    TimeProvider timeProvider,
+    ILogger<EventService> logger)
 {
+    /// <summary>
+    /// Accepts one event envelope. Idempotency is enforced by the database unique index on
+    /// <c>Source + DedupeKey</c>: the insert is always attempted and the unique violation is
+    /// translated into a duplicate (identical canonical payload) or a conflict (different
+    /// payload) response.
+    /// </summary>
     public async Task<CreateEventResult> CreateAsync(
         CreateEventRequest request,
         CancellationToken cancellationToken)
@@ -42,6 +53,8 @@ public sealed class EventService(
             throw new InvalidOperationException("occurredAtUtc was not validated.");
         }
 
+        var canonicalPayload = payloadHasher.Canonicalize(request.Payload!.Value);
+
         var entity = new Event
         {
             Id = Guid.CreateVersion7(),
@@ -53,7 +66,8 @@ public sealed class EventService(
             DedupeKey = request.DedupeKey!.Trim(),
             Summary = request.Summary!.Trim(),
             ResourceUrl = TrimToNull(request.ResourceUrl),
-            PayloadJson = request.Payload!.Value.GetRawText(),
+            PayloadJson = canonicalPayload.CanonicalJson,
+            PayloadHash = canonicalPayload.Sha256,
             SubjectType = TrimToNull(request.Subject?.Type),
             SubjectId = TrimToNull(request.Subject?.Id),
             Priority = string.IsNullOrWhiteSpace(request.Priority)
@@ -61,12 +75,29 @@ public sealed class EventService(
                 : request.Priority.Trim().ToLowerInvariant(),
             Status = EventStatus.Received,
             OccurredAtUtc = occurredAtUtc.UtcDateTime,
-            ReceivedAtUtc = DateTime.UtcNow,
+            ReceivedAtUtc = timeProvider.GetUtcNow().UtcDateTime,
             CorrelationId = TrimToNull(request.CorrelationId)
         };
 
-        await repository.AddAsync(entity, cancellationToken);
-        return CreateEventResult.Accepted(entity.Id);
+        var writeResult = await repository.TryAddAsync(entity, cancellationToken);
+        if (writeResult.Outcome == EventWriteOutcome.Inserted)
+        {
+            return CreateEventResult.Accepted(entity.Id, EventStatus.Received);
+        }
+
+        var existing = writeResult.Existing
+            ?? throw new InvalidOperationException(
+                "The deduplication unique index rejected the insert but the existing event could not be loaded.");
+
+        var existingHash = await ResolveExistingHashAsync(existing, cancellationToken);
+        if (string.Equals(existingHash, canonicalPayload.Sha256, StringComparison.Ordinal))
+        {
+            LogDuplicate(existing, entity);
+            return CreateEventResult.Duplicate(existing.Id, existing.Status);
+        }
+
+        LogConflict(existing, entity);
+        return CreateEventResult.Conflict(entity.Id, existing.Id);
     }
 
     public async Task<EventDetail?> GetAsync(Guid id, CancellationToken cancellationToken)
@@ -83,6 +114,75 @@ public sealed class EventService(
             query.Page,
             query.PageSize,
             page.Total);
+    }
+
+    /// <summary>
+    /// Returns the stored payload hash, hashing (and lazily persisting) rows that were written
+    /// before AOS-003 introduced the column.
+    /// </summary>
+    private async Task<string> ResolveExistingHashAsync(Event existing, CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(existing.PayloadHash))
+        {
+            return existing.PayloadHash;
+        }
+
+        var hash = payloadHasher.CanonicalizeJson(existing.PayloadJson).Sha256;
+
+        try
+        {
+            var updated = await repository.TrySetPayloadHashAsync(existing.Id, hash, cancellationToken);
+            logger.LogInformation(
+                "Backfilled PayloadHash for legacy event {EventId} (backfillApplied={BackfillApplied})",
+                existing.Id,
+                updated);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // A failed backfill must not change the response: the hash is recomputed next time.
+            logger.LogWarning(ex, "Could not backfill PayloadHash for legacy event {EventId}", existing.Id);
+        }
+
+        return hash;
+    }
+
+    private void LogDuplicate(Event existing, Event attempted)
+    {
+        var decision = duplicateLogSampler.Observe(attempted.Source, attempted.DedupeKey);
+        if (!decision.ShouldLog)
+        {
+            return;
+        }
+
+        logger.LogInformation(
+            "Duplicate event ignored. Source={Source} DedupeKey={DedupeKey} EventId={EventId} OccurrencesInWindow={OccurrencesInWindow} SuppressedSinceLastLog={SuppressedSinceLastLog} CorrelationId={CorrelationId}",
+            attempted.Source,
+            attempted.DedupeKey,
+            existing.Id,
+            decision.OccurrencesInWindow,
+            decision.SuppressedSinceLastLog,
+            attempted.CorrelationId);
+    }
+
+    private void LogConflict(Event existing, Event attempted)
+    {
+        // Conflicts are logged on their own sampling channel: the first conflict in a window is
+        // always recorded, even when the same key was retried many times as a duplicate before.
+        var decision = duplicateLogSampler.Observe(attempted.Source, attempted.DedupeKey, isConflict: true);
+        if (!decision.ShouldLog)
+        {
+            return;
+        }
+
+        logger.LogWarning(
+            "Event deduplication conflict. Source={Source} DedupeKey={DedupeKey} ExistingEventId={ExistingEventId} AttemptedEventId={AttemptedEventId} OccurrencesInWindow={OccurrencesInWindow} SuppressedSinceLastLog={SuppressedSinceLastLog} CorrelationId={CorrelationId}",
+            attempted.Source,
+            attempted.DedupeKey,
+            existing.Id,
+            attempted.Id,
+            decision.OccurrencesInWindow,
+            decision.SuppressedSinceLastLog,
+            attempted.CorrelationId);
     }
 
     private static EventListItem MapListItem(Event entity) => new(

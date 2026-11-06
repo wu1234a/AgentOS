@@ -101,6 +101,7 @@ erDiagram
       nvarchar EventType
       nvarchar DedupeKey
       nvarchar PayloadJson
+      nvarchar PayloadHash
       nvarchar Status
       datetime2 OccurredAtUtc
       datetime2 ReceivedAtUtc
@@ -273,10 +274,18 @@ JSON - `IsEnabled` bit - `CreatedAtUtc`、`UpdatedAtUtc`
 `Summary` - `ResourceUrl` 可空 - `PayloadJson` -
 `Status`：`Received`、`Processed`、`Ignored`、`Rejected`、`Failed` -
 `OccurredAtUtc` - `ReceivedAtUtc` - `ProcessedAtUtc` 可空 -
-`CorrelationId` 可空
+`CorrelationId` 可空 - `PayloadHash` nvarchar(64) 可空：`PayloadJson`
+规范形式的 SHA-256（见 `docs/EVENT-SPECIFICATION.md` §5.2）。迁移前写入的行保持 NULL，
+首次命中去重时由应用回填；新行必填（应用层）。检查约束
+`CK_Events_PayloadHash_LowerHex64` 保证长度 64 且只含小写十六进制。
 
-索引： - `Source + DedupeKey` 唯一（按产品约定处理 NULL；建议 DedupeKey
-必填）。 - `ReceivedAtUtc`。 - `ProjectId + EventType + ReceivedAtUtc`。
+索引： - `UX_Events_Source_DedupeKey (Source, DedupeKey)` 唯一（AOS-003），
+数据库兜底去重；比较遵循库排序规则，默认不区分大小写。 - `ReceivedAtUtc`。 -
+`ProjectId + EventType + ReceivedAtUtc`。 - `Source + ReceivedAtUtc`。
+
+历史数据迁移规则：不删除行；空 `DedupeKey` 改为 `legacy-{Id}`；同一
+`Source + DedupeKey` 的重复行中最早一行保留原键，其余改为
+`{原键}~legacy-dup-{Id}`（一次性、不可逆）。
 
 ### 3.7 Tasks
 

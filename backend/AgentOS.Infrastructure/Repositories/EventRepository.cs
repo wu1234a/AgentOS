@@ -1,6 +1,7 @@
 using AgentOS.Application.Events;
 using AgentOS.Domain.Events;
 using AgentOS.Infrastructure.Persistence;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 namespace AgentOS.Infrastructure.Repositories;
@@ -8,10 +9,36 @@ namespace AgentOS.Infrastructure.Repositories;
 /// <summary>EF Core implementation of the event ledger persistence seam.</summary>
 public sealed class EventRepository(AgentOSDbContext dbContext) : IEventRepository
 {
-    public async Task AddAsync(Event entity, CancellationToken cancellationToken)
+    // 2601: Cannot insert duplicate key row in object ... with unique index.
+    // 2627: Violation of UNIQUE KEY constraint ...
+    private const int DuplicateKeyRowErrorNumber = 2601;
+    private const int UniqueConstraintErrorNumber = 2627;
+
+    public async Task<EventWriteResult> TryAddAsync(Event entity, CancellationToken cancellationToken)
     {
         dbContext.Events.Add(entity);
-        await dbContext.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return EventWriteResult.Inserted(entity);
+        }
+        catch (DbUpdateException ex) when (IsUniqueKeyViolation(ex))
+        {
+            // The insert lost the race; the winning row is already committed because the
+            // unique index lock is released only after that transaction commits.
+            dbContext.Entry(entity).State = EntityState.Detached;
+
+            var existing = await FindByDedupeKeyAsync(entity.Source, entity.DedupeKey, cancellationToken);
+            if (existing is null)
+            {
+                // A unique violation without a matching row means the schema and the model
+                // disagree; surface it instead of pretending the event is a duplicate.
+                throw;
+            }
+
+            return EventWriteResult.DuplicateKey(existing);
+        }
     }
 
     public Task<Event?> GetByIdAsync(Guid id, CancellationToken cancellationToken)
@@ -19,6 +46,31 @@ public sealed class EventRepository(AgentOSDbContext dbContext) : IEventReposito
             .AsNoTracking()
             .Include(evt => evt.Project)
             .FirstOrDefaultAsync(evt => evt.Id == id, cancellationToken);
+
+    public Task<Event?> FindByDedupeKeyAsync(string source, string dedupeKey, CancellationToken cancellationToken)
+        => dbContext.Events
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                evt => evt.Source == source && evt.DedupeKey == dedupeKey,
+                cancellationToken);
+
+    public async Task<bool> TrySetPayloadHashAsync(
+        Guid eventId,
+        string payloadHash,
+        CancellationToken cancellationToken)
+    {
+        var existing = await dbContext.Events
+            .FirstOrDefaultAsync(evt => evt.Id == eventId && evt.PayloadHash == null, cancellationToken);
+
+        if (existing is null)
+        {
+            return false;
+        }
+
+        dbContext.Entry(existing).Property(evt => evt.PayloadHash).CurrentValue = payloadHash;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
 
     public async Task<EventPage> ListAsync(EventListQuery query, CancellationToken cancellationToken)
     {
@@ -64,5 +116,19 @@ public sealed class EventRepository(AgentOSDbContext dbContext) : IEventReposito
             .ToListAsync(cancellationToken);
 
         return new EventPage(items, total);
+    }
+
+    private static bool IsUniqueKeyViolation(DbUpdateException exception)
+    {
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is SqlException sqlException
+                && sqlException.Number is DuplicateKeyRowErrorNumber or UniqueConstraintErrorNumber)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

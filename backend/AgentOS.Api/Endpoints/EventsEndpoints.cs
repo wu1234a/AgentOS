@@ -46,22 +46,49 @@ public static class EventsEndpoints
         CancellationToken cancellationToken)
     {
         var result = await service.CreateAsync(request, cancellationToken);
+        return MapCreateResult(result);
+    }
 
-        if (!result.IsSuccess)
-        {
-            return Results.ValidationProblem(result.Errors);
-        }
-
-        return Results.Accepted(
+    /// <summary>
+    /// Maps the application outcome to the documented HTTP contract:
+    /// 202 for a new event, 200 for an identical duplicate, 409 for a dedupe-key conflict,
+    /// and 400 for validation errors. Exposed to the test assembly so the contract can be
+    /// verified without booting the test host.
+    /// </summary>
+    internal static IResult MapCreateResult(CreateEventResult result) => result.Outcome switch
+    {
+        CreateEventOutcome.Created => Results.Accepted(
             $"/api/v1/events/{result.EventId}",
             new
             {
                 eventId = result.EventId,
                 accepted = true,
                 duplicate = false,
-                status = EventStatus.Received.ToString()
-            });
-    }
+                status = result.Status!.Value.ToString()
+            }),
+
+        CreateEventOutcome.Duplicate => Results.Ok(new
+        {
+            eventId = result.EventId,
+            accepted = false,
+            duplicate = true,
+            status = result.Status!.Value.ToString()
+        }),
+
+        CreateEventOutcome.Conflict => Results.Problem(
+            statusCode: StatusCodes.Status409Conflict,
+            title: "Event deduplication conflict",
+            detail: "An event with the same source and dedupeKey already exists with different content. " +
+                    "The stored event was not modified.",
+            extensions: new Dictionary<string, object?>
+            {
+                ["code"] = "event.dedupe.conflict",
+                ["attemptedEventId"] = result.EventId,
+                ["existingEventId"] = result.ExistingEventId
+            }),
+
+        _ => Results.ValidationProblem(result.Errors)
+    };
 
     private static async Task<IResult> ListAsync(
         EventService service,

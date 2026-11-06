@@ -12,6 +12,7 @@ namespace AgentOS.Api.Tests;
 /// Opt-in integration test against a real SQL Server. Set
 /// <c>AGENTOS_SQL_TEST_CONNECTION</c> to a disposable database connection string to run it.
 /// </summary>
+[Collection("SqlServer")]
 public sealed class SqlEventRepositoryTests
 {
     [SkippableFact]
@@ -63,7 +64,8 @@ public sealed class SqlEventRepositoryTests
         };
 
         var repository = new EventRepository(dbContext);
-        await repository.AddAsync(entity, CancellationToken.None);
+        var writeResult = await repository.TryAddAsync(entity, CancellationToken.None);
+        Assert.Equal(EventWriteOutcome.Inserted, writeResult.Outcome);
 
         var loaded = await repository.GetByIdAsync(entity.Id, CancellationToken.None);
         Assert.NotNull(loaded);

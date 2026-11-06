@@ -62,8 +62,12 @@ ID。 - `payload`：来源相关数据，必须为 JSON 对象，不得包含密
 
 成功首次接收：HTTP 202，返回 Event ID 和接收状态。
 
-重复事件：返回已存在的 Event ID，并标识
+重复事件：HTTP 200，返回已存在的 Event ID，并标识
 `duplicate: true`。重复事件不能再次创建同一规则版本下的同一逻辑任务。
+
+去重键冲突（相同 `source + dedupeKey`、不同 `payload`）：HTTP 409，响应体为
+`ProblemDetails`，扩展字段 `code = event.dedupe.conflict`，并包含
+`existingEventId` 与 `attemptedEventId`。原事件保持不变。
 
 无效事件：HTTP 400，返回字段级错误。
 
@@ -84,8 +88,47 @@ GitHub：`github:{repo}:{eventType}:{deliveryId}`。 -
 
 数据库必须有唯一约束作为最终防线。应用层先查再插入不能替代唯一约束。
 
-如果相同 `source + dedupeKey` 再次到达： - 若内容一致：返回已有
-Event。 - 若内容不同：记录冲突并返回明确响应，不得静默覆盖原事件。
+### 5.1 数据库约束（AOS-003）
+
+- `Events` 上存在唯一索引 `UX_Events_Source_DedupeKey (Source, DedupeKey)`。
+- 比较语义遵循数据库排序规则：默认安装下 `Source`、`DedupeKey` 按**不区分大小写**
+  比较，因此 `3derp` 与 `3DERP` 视为同一来源。需要区分大小写时必须显式修改列排序规则，
+  不能只改应用代码。
+- 迁移前已存在的历史数据：不删除任何行。空去重键改写为 `legacy-{EventId}`；同一
+  `Source + DedupeKey` 的多行中，最早一行保留原键，其余改写为
+  `{原键}~legacy-dup-{EventId}`。改写后旧键不会自动恢复。
+
+### 5.2 PayloadHash 策略（固定，v1）
+
+`PayloadHash` = `payload` 规范 JSON 的 SHA-256（小写十六进制，64 字符）：
+
+- 对象属性按名称**序数（ordinal）**升序排列；同名属性保留最后一次出现的值。
+- 数组顺序保持不变。
+- 数字保留接收时的字面形式（`1` 与 `1.0` 不同）。
+- 不输出任何格式化空白。
+- 字符串使用 UTF-8 最小转义（仅转义引号、反斜杠和控制字符），中文与 emoji 保持原样。
+
+实现位置：`EventPayloadHasher`，策略常量 `agentos.payload-canonical-json/v1`。
+`Events.PayloadJson` 对新事件保存的就是该规范形式，哈希与存储内容一一对应。
+比较范围只包含 `payload`；`summary`、`occurredAtUtc` 等信封字段不参与冲突判断，
+以便来源系统安全重试。修改上述任一规则都会改变已存储哈希，必须升级策略版本并回填。
+
+### 5.3 响应约定
+
+| 场景 | 状态码 | 响应 |
+|---|---|---|
+| 首次接收 | 202 Accepted | `{ eventId, accepted: true, duplicate: false, status }` |
+| 相同 `source + dedupeKey` 且内容一致 | 200 OK | `{ eventId: 原 EventId, accepted: false, duplicate: true, status }` |
+| 相同 `source + dedupeKey` 但内容不同 | 409 Conflict | `ProblemDetails`，`code: event.dedupe.conflict`，含 `existingEventId`、`attemptedEventId` |
+
+- 冲突时原事件不被覆盖、不被删除，新内容不落库。
+- 重复与冲突日志按“去重键 + 类别（duplicate / conflict）”分别采样：每个键 60 秒窗口内
+  首条必记，其余每 100 条记一条，窗口切换时报告被抑制的条数。冲突走独立计数，因此即使
+  同一键先经历大量内容一致的重试，每次窗口内的第一条 409 仍会留下安全日志。
+- 采样器最多跟踪 4096 个键，超出时先淘汰过期窗口、再淘汰最旧窗口至一半容量，避免重试
+  风暴导致内存无界增长或每次请求都做全量清理。
+- 历史行（迁移前写入）的 `PayloadHash` 为 NULL，首次命中去重时按 v1 策略计算并回填；
+  回填失败不影响响应，下次重试会再次计算。
 
 ## 6. 事件处理和任务创建
 

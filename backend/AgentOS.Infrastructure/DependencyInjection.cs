@@ -6,6 +6,7 @@ using AgentOS.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace AgentOS.Infrastructure;
 
@@ -22,6 +23,12 @@ public static class DependencyInjection
         services.AddDbContext<AgentOSDbContext>(options => options.UseSqlServer(connectionString));
         services.AddScoped<IEventRepository, EventRepository>();
         services.AddScoped<IProjectLookup, ProjectLookup>();
+
+        // Stateless and thread-safe; shared so payload hashing and duplicate log sampling stay
+        // consistent across requests.
+        services.TryAddSingleton(TimeProvider.System);
+        services.TryAddSingleton<EventPayloadHasher>();
+        services.TryAddSingleton<DuplicateEventLogSampler>();
 
         return services;
     }

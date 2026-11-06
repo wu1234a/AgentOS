@@ -102,6 +102,8 @@ Domain 只有实体和枚举；Application 包含 DTO、Validator、Service、Re
 2. Development API Key 必须显式配置；未配置时 API 对事件端点返回 401，这是刻意的 fail-closed。
 3. CI 尚未加入 SQL Server service container；SQL 集成测试在 CI 中会跳过。真实 SQL 验收在本地
    通过 `AGENTOS_SQL_TEST_CONNECTION` 完成，CI SQL 服务作为后续补强。
+   *（后续状态：该补强已于 AOS-003 期间完成——CI 后端 job 现在启动 SQL Server 2022 容器并
+   真实执行 SQL 用例，见 `docs/DEVELOPMENT.md` §7。）*
 4. 去重唯一索引、冲突行为（AOS-003）、规则引擎（AOS-004）、Outbox 尚未实现。
 5. `Projects` 是最小表，ER 中的 `AllowedWorkspaceRoot`、`RepositoryUrl` 等字段后续补。
 6. 在 DSH 受限令牌下运行 API/测试仍需要普通 PowerShell 或提权终端（Low 完整性无法访问

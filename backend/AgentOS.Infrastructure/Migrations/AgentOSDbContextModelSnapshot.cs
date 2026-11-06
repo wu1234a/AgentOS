@@ -49,6 +49,10 @@ namespace AgentOS.Infrastructure.Migrations
                     b.Property<DateTime>("OccurredAtUtc")
                         .HasColumnType("datetime2(3)");
 
+                    b.Property<string>("PayloadHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<string>("PayloadJson")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -103,12 +107,18 @@ namespace AgentOS.Infrastructure.Migrations
 
                     b.HasIndex("ReceivedAtUtc");
 
+                    b.HasIndex("Source", "DedupeKey")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Events_Source_DedupeKey");
+
                     b.HasIndex("Source", "ReceivedAtUtc");
 
                     b.HasIndex("ProjectId", "EventType", "ReceivedAtUtc");
 
                     b.ToTable("Events", null, t =>
                         {
+                            t.HasCheckConstraint("CK_Events_PayloadHash_LowerHex64", "[PayloadHash] IS NULL OR (LEN([PayloadHash]) = 64 AND [PayloadHash] COLLATE Latin1_General_BIN2 NOT LIKE '%[^0-9a-f]%')");
+
                             t.HasCheckConstraint("CK_Events_PayloadJson_IsJson", "ISJSON([PayloadJson]) = 1");
                         });
                 });

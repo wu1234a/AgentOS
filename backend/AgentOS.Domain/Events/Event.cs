@@ -4,7 +4,9 @@ namespace AgentOS.Domain.Events;
 
 /// <summary>
 /// A normalized event in the unified event ledger. AOS-002 stores the envelope fields
-/// and the validated payload; deduplication and routing are handled by later tasks.
+/// and the validated payload. AOS-003 adds <see cref="PayloadHash"/> and the
+/// <c>Source + DedupeKey</c> unique index that make ingestion idempotent; routing is
+/// handled by later tasks.
 /// </summary>
 public sealed class Event
 {
@@ -29,6 +31,13 @@ public sealed class Event
     public string? ResourceUrl { get; init; }
 
     public string PayloadJson { get; init; } = "{}";
+
+    /// <summary>
+    /// SHA-256 (lowercase hex) of the canonical JSON representation of
+    /// <see cref="PayloadJson"/>. Null only for rows written before AOS-003; those rows
+    /// are hashed lazily the first time a duplicate hits them.
+    /// </summary>
+    public string? PayloadHash { get; init; }
 
     public string? SubjectType { get; init; }
 

@@ -35,6 +35,54 @@ public sealed class EventsApiTests
     }
 
     [Fact]
+    public async Task Create_same_event_twice_returns_200_duplicate_with_the_same_event_id()
+    {
+        using var factory = new AgentOSApiFactory(HealthStatus.Healthy);
+        using var client = CreateClient(factory);
+
+        using var first = await client.PostAsJsonAsync("/api/v1/events", ValidEnvelope());
+        Assert.Equal(HttpStatusCode.Accepted, first.StatusCode);
+        var firstBody = await first.Content.ReadFromJsonAsync<JsonElement>();
+        var firstId = firstBody.GetProperty("eventId").GetGuid();
+
+        using var second = await client.PostAsJsonAsync("/api/v1/events", ValidEnvelope());
+        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+
+        var secondBody = await second.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(secondBody.GetProperty("duplicate").GetBoolean());
+        Assert.False(secondBody.GetProperty("accepted").GetBoolean());
+        Assert.Equal("Received", secondBody.GetProperty("status").GetString());
+        Assert.Equal(firstId, secondBody.GetProperty("eventId").GetGuid());
+
+        var page = await client.GetFromJsonAsync<JsonElement>("/api/v1/events");
+        Assert.Equal(1, page.GetProperty("total").GetInt32());
+    }
+
+    [Fact]
+    public async Task Create_same_dedupe_key_with_different_payload_returns_409_and_keeps_the_original()
+    {
+        using var factory = new AgentOSApiFactory(HealthStatus.Healthy);
+        using var client = CreateClient(factory);
+
+        using var first = await client.PostAsJsonAsync("/api/v1/events", ValidEnvelope(payloadDescription: "original"));
+        Assert.Equal(HttpStatusCode.Accepted, first.StatusCode);
+        var firstId = (await first.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("eventId").GetGuid();
+
+        using var conflict = await client.PostAsJsonAsync("/api/v1/events", ValidEnvelope(payloadDescription: "changed"));
+        Assert.Equal(HttpStatusCode.Conflict, conflict.StatusCode);
+
+        var problem = await conflict.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("event.dedupe.conflict", problem.GetProperty("code").GetString());
+        Assert.Equal(firstId, problem.GetProperty("existingEventId").GetGuid());
+
+        var detail = await client.GetFromJsonAsync<JsonElement>($"/api/v1/events/{firstId}");
+        Assert.Equal("original", detail.GetProperty("payload").GetProperty("description").GetString());
+
+        var page = await client.GetFromJsonAsync<JsonElement>("/api/v1/events");
+        Assert.Equal(1, page.GetProperty("total").GetInt32());
+    }
+
+    [Fact]
     public async Task Create_missing_source_returns_400()
     {
         using var factory = new AgentOSApiFactory(HealthStatus.Healthy);
@@ -252,7 +300,8 @@ public sealed class EventsApiTests
     private static object ValidEnvelope(
         string project = "3derp",
         string dedupeKey = "3derp:DEV-1",
-        string summary = "test event") => new
+        string summary = "test event",
+        string payloadDescription = "x") => new
     {
         schemaVersion = "1.0",
         source = "3derp",
@@ -262,7 +311,7 @@ public sealed class EventsApiTests
         dedupeKey,
         occurredAtUtc = "2026-11-05T00:00:00Z",
         subject = new { type = "development_task", id = "DEV-1" },
-        payload = new { description = "x" }
+        payload = new { description = payloadDescription }
     };
 
     private static Event CreateEvent(
