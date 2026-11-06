@@ -492,3 +492,11 @@ Client 是否存在。
 - `UsageRecords`：Adapter 上报的 token 用量（当前 Codex Adapter 尚未提供，UI 显示“未提供/估算”）。
 - `OutboxMessages`：为后续可靠副作用预留的 Outbox 表（Status/AvailableAtUtc 索引）。
 - `Events` 增加 `DuplicateCount`：重复投递时递增，用于 Dashboard 的重复事件指标。
+
+### 3.21 AOS-009 Agent 生命周期
+
+- `Agents` 增加 `ArchivedAtUtc`（datetime2(3)，可空）。归档为终态：`IsEnabled = false`，
+  不可更新/启用/再次归档；默认列表排除归档。
+- 唯一约束保持：`(ProjectId, Code)` 项目内唯一；`ProjectId IS NULL` 的全局 Agent 全局唯一。
+- 禁用只影响后续规则校验/任务派发，不回收已领取或运行中的任务。
+- 归档前必须没有 `Queued` / `Running` / `RetryWait` 任务（409 `agent-has-active-tasks`）。

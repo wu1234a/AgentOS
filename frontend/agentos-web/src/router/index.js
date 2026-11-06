@@ -7,6 +7,7 @@ import EventDetailView from '../views/EventDetailView.vue'
 import TasksView from '../views/TasksView.vue'
 import TaskDetailView from '../views/TaskDetailView.vue'
 import RunnersView from '../views/RunnersView.vue'
+import AgentsView from '../views/AgentsView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -46,6 +47,12 @@ const router = createRouter({
       name: 'task-detail',
       component: TaskDetailView,
       meta: { title: 'Task Detail' }
+    },
+    {
+      path: '/agents',
+      name: 'agents',
+      component: AgentsView,
+      meta: { title: 'Agents' }
     },
     {
       path: '/runners',

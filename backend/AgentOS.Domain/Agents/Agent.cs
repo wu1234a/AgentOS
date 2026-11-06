@@ -16,13 +16,16 @@ public sealed class Agent
 
     public string? Description { get; set; }
 
-    public Guid? DefaultModelProfileId { get; init; }
+    public Guid? DefaultModelProfileId { get; set; }
 
-    public string? SystemPromptPath { get; init; }
+    public string? SystemPromptPath { get; set; }
 
     public string PermissionProfile { get; set; } = "read-only";
 
     public bool IsEnabled { get; set; }
+
+    /// <summary>Set when the agent is archived; archived agents are read-only and hidden by default.</summary>
+    public DateTime? ArchivedAtUtc { get; set; }
 
     public DateTime CreatedAtUtc { get; set; }
 

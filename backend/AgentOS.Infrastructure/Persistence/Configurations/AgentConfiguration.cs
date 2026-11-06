@@ -20,6 +20,7 @@ public sealed class AgentConfiguration : IEntityTypeConfiguration<Agent>
         builder.Property(agent => agent.Description).HasMaxLength(1000);
         builder.Property(agent => agent.SystemPromptPath).HasMaxLength(500);
         builder.Property(agent => agent.PermissionProfile).HasMaxLength(40).IsRequired();
+        builder.Property(agent => agent.ArchivedAtUtc).HasColumnType("datetime2(3)");
         builder.Property(agent => agent.CreatedAtUtc).HasColumnType("datetime2(3)");
         builder.Property(agent => agent.UpdatedAtUtc).HasColumnType("datetime2(3)");
 

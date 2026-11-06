@@ -28,6 +28,9 @@ namespace AgentOS.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<DateTime?>("ArchivedAtUtc")
+                        .HasColumnType("datetime2(3)");
+
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(80)

@@ -584,3 +584,29 @@ Runner 上传产物：`POST /api/v1/runners/tasks/{taskId}/artifacts?attemptId&n
 - Artifact 上传端点会把请求体上限提升到 `Artifacts:MaxBytes`，存储层仍做流式大小校验。
 - Worker 列表按 2 分钟心跳新鲜度显示 Offline；Disabled 保持原状态。
 - 前端把无时区的 SQL 时间按 UTC 解析后再本地化展示。
+
+## 15. AOS-009 Agent 注册中心
+
+### 15.1 API
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/v1/agents?projectId&role&includeArchived&limit&offset` | 列表（默认排除归档） |
+| GET | `/api/v1/agents/{id}` | 详情 |
+| POST | `/api/v1/agents` | 创建（Code 不可变） |
+| PUT | `/api/v1/agents/{id}` | 更新可变字段 |
+| POST | `/api/v1/agents/{id}/enable` / `disable` | 启用/禁用（幂等） |
+| POST | `/api/v1/agents/{id}/archive` | 归档（有未终态任务时 409） |
+
+### 15.2 校验与生命周期
+
+- Code 小写 slug（3–80），项目内/全局唯一；创建后不可修改。
+- Role：planner / coder / reviewer / qa；PermissionProfile：read-only / workspace-write。
+- SystemPromptPath 只允许相对路径，禁止根路径与 `..`；实际文件读取留给后续任务。
+- Project/DefaultModelProfile 必须存在且启用。
+- 归档终态；禁用 Agent 后规则校验会拒绝新任务，已运行任务继续。
+
+### 15.3 前端
+
+`/agents` 页面支持列表、角色/归档过滤、创建/编辑、启用/禁用/归档。项目级 Agent
+需通过 API 指定 ProjectId（当前 UI 只创建全局 Agent）。

@@ -4,6 +4,7 @@ using AgentOS.Api.Realtime;
 using AgentOS.Api.Health;
 using AgentOS.Api.Security;
 using AgentOS.Application.Events;
+using AgentOS.Application.Agents;
 using AgentOS.Application.Observability;
 using AgentOS.Application.Rules;
 using AgentOS.Application.Runners;
@@ -39,6 +40,7 @@ builder.Services.Configure<SkillContentOptions>(builder.Configuration.GetSection
 builder.Services.Configure<ArtifactOptions>(builder.Configuration.GetSection("Artifacts"));
 builder.Services.AddScoped<TaskQueueService>();
 builder.Services.AddScoped<RunnerRegistrationService>();
+builder.Services.AddScoped<AgentService>();
 builder.Services.AddScoped<ApiClientAuthenticationFilter>();
 builder.Services.AddScoped<RunnerAuthenticationFilter>();
 
@@ -102,6 +104,7 @@ app.MapRunnerEndpoints();
 app.MapRunnerRegistrationEndpoints();
 app.MapTaskEndpoints();
 app.MapObservabilityEndpoints();
+app.MapAgentEndpoints();
 app.MapHub<TaskHub>("/hubs/tasks");
 
 app.MapGet("/", () => Results.Ok(new
