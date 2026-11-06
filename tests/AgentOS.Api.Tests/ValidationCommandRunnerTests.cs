@@ -67,6 +67,60 @@ public sealed class ValidationCommandRunnerTests
     }
 
     [Fact]
+    public async Task Quoted_arguments_survive_the_windows_shell()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var result = await _runner.RunAsync(
+            Path.GetTempPath(),
+            new ValidationCommand("echo \"hello world\"", 10),
+            (_, _) => { },
+            CancellationToken.None);
+
+        Assert.True(result.Success);
+        Assert.Contains("hello world", result.Output);
+        Assert.DoesNotContain("\\\"", result.Output);
+    }
+
+    [Fact]
+    public async Task Output_is_bounded()
+    {
+        var command = OperatingSystem.IsWindows()
+            ? "for /l %i in (1,1,5000) do @echo x"
+            : "yes x | head -n 5000";
+
+        var result = await _runner.RunAsync(
+            Path.GetTempPath(),
+            new ValidationCommand(command, 10),
+            (_, _) => { },
+            CancellationToken.None);
+
+        Assert.True(result.Success);
+        Assert.True(result.Output.Length <= 4000);
+    }
+
+    [Fact]
+    public async Task A_child_holding_the_pipe_cannot_hang_forever()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var result = await _runner.RunAsync(
+            Path.GetTempPath(),
+            new ValidationCommand("sleep 10 &", 1),
+            (_, _) => { },
+            CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Equal("validation-timeout", result.ErrorCode);
+    }
+
+    [Fact]
     public async Task Timeout_kills_the_command()
     {
         var command = OperatingSystem.IsWindows()

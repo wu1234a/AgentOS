@@ -33,11 +33,10 @@ public sealed class ValidationCommandRunner : IValidationCommandRunner
 
         if (OperatingSystem.IsWindows())
         {
+            // cmd.exe does not understand the C-runtime backslash escaping produced by
+            // ArgumentList; pass a cmd-compatible quoted command string instead.
             startInfo.FileName = "cmd.exe";
-            startInfo.ArgumentList.Add("/d");
-            startInfo.ArgumentList.Add("/s");
-            startInfo.ArgumentList.Add("/c");
-            startInfo.ArgumentList.Add(command.Command);
+            startInfo.Arguments = $"/d /s /c \"{command.Command}\"";
         }
         else
         {
@@ -57,6 +56,8 @@ public sealed class ValidationCommandRunner : IValidationCommandRunner
         }
 
         using var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(command.TimeoutSeconds));
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
 
         try
         {
@@ -70,15 +71,15 @@ public sealed class ValidationCommandRunner : IValidationCommandRunner
             return Failure("validation-error", $"Validation process could not start: {exception.Message}");
         }
 
-        var stdout = process.StandardOutput.ReadToEndAsync(cancellationToken);
-        var stderr = process.StandardError.ReadToEndAsync(cancellationToken);
-
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(command.TimeoutSeconds));
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
+        var stdout = new StringBuilder();
+        var stderr = new StringBuilder();
+        var stdoutTask = DrainAsync(process.StandardOutput, stdout, linked.Token);
+        var stderrTask = DrainAsync(process.StandardError, stderr, linked.Token);
 
         try
         {
             await process.WaitForExitAsync(linked.Token);
+            await Task.WhenAll(stdoutTask, stderrTask).WaitAsync(linked.Token);
         }
         catch (OperationCanceledException) when (timeout.IsCancellationRequested)
         {
@@ -91,7 +92,7 @@ public sealed class ValidationCommandRunner : IValidationCommandRunner
             throw;
         }
 
-        var output = Combine(await SafeReadAsync(stdout), await SafeReadAsync(stderr));
+        var output = Combine(stdout.ToString(), stderr.ToString());
         var exitCode = process.ExitCode;
 
         if (output.Length > 0)
@@ -121,6 +122,29 @@ public sealed class ValidationCommandRunner : IValidationCommandRunner
             $"Validation command failed with exit code {exitCode}.");
     }
 
+    private static async Task DrainAsync(StreamReader reader, StringBuilder sink, CancellationToken cancellationToken)
+    {
+        var buffer = new char[1024];
+
+        while (true)
+        {
+            var read = await reader.ReadAsync(buffer.AsMemory(), cancellationToken);
+            if (read == 0)
+            {
+                return;
+            }
+
+            lock (sink)
+            {
+                var remaining = MaxOutputChars - sink.Length;
+                if (remaining > 0)
+                {
+                    sink.Append(buffer, 0, Math.Min(read, remaining));
+                }
+            }
+        }
+    }
+
     private static string Combine(string stdout, string stderr)
     {
         var builder = new StringBuilder(stdout);
@@ -131,18 +155,6 @@ public sealed class ValidationCommandRunner : IValidationCommandRunner
         }
 
         return builder.Length <= MaxOutputChars ? builder.ToString() : builder.ToString(0, MaxOutputChars);
-    }
-
-    private static async Task<string> SafeReadAsync(Task<string> task)
-    {
-        try
-        {
-            return await task;
-        }
-        catch (OperationCanceledException)
-        {
-            return string.Empty;
-        }
     }
 
     private static void TryKill(Process process)
