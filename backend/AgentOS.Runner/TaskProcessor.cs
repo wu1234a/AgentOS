@@ -60,11 +60,19 @@ public sealed class TaskProcessor(
         {
             var context = new TaskExecutionContext(
                 task.TaskId,
+                task.Lease.AttemptId,
                 task.TaskCode,
+                task.Title,
+                task.Priority,
                 task.ProjectSlug,
+                task.AgentCode,
+                task.AgentRole,
+                task.SkillCode,
+                task.SkillContent,
                 decision.WorkspacePath!,
                 task.InputJson,
                 task.Lease.AttemptNumber,
+                task.TimeoutSeconds,
                 logs.Add);
 
             var result = await handler.ExecuteAsync(context, taskCts.Token);

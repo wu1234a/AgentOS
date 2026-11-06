@@ -32,6 +32,7 @@ builder.Services.AddScoped<RuleService>();
 builder.Services.AddScoped<ITaskDispatcher, TaskDispatchService>();
 builder.Services.Configure<TaskQueueOptions>(builder.Configuration.GetSection("TaskQueue"));
 builder.Services.Configure<RunnerRegistrationOptions>(builder.Configuration.GetSection("Runner"));
+builder.Services.Configure<SkillContentOptions>(builder.Configuration.GetSection("Skills"));
 builder.Services.AddScoped<TaskQueueService>();
 builder.Services.AddScoped<RunnerRegistrationService>();
 builder.Services.AddScoped<ApiClientAuthenticationFilter>();

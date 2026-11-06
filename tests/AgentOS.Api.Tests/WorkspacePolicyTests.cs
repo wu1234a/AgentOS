@@ -156,6 +156,19 @@ public sealed class RunnerOptionsTests
     }
 
     [Fact]
+    public void Invalid_agent_adapter_is_reported()
+    {
+        var options = new RunnerOptions
+        {
+            AgentAdapter = "shell",
+            WorkspaceRoots = ["D:\\workspaces"],
+            Projects = [new ProjectWorkspace { Slug = "demo", Path = "D:\\workspaces\\demo" }]
+        };
+
+        Assert.Contains(options.Validate(), error => error.Contains("AgentAdapter"));
+    }
+
+    [Fact]
     public void Missing_workspace_configuration_is_reported()
     {
         var options = new RunnerOptions { MaxConcurrentTasks = 0 };

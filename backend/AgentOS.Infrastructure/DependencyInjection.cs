@@ -10,6 +10,7 @@ using AgentOS.Infrastructure.Repositories;
 using AgentOS.Infrastructure.Rules;
 using AgentOS.Infrastructure.Runners;
 using AgentOS.Infrastructure.Security;
+using AgentOS.Infrastructure.Skills;
 using AgentOS.Infrastructure.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -39,6 +40,7 @@ public static class DependencyInjection
         services.AddScoped<ITaskLogStore, TaskLogStore>();
         services.AddScoped<IApiClientStore, ApiClientStore>();
         services.AddScoped<IRunnerRegistrationStore, RunnerRegistrationStore>();
+        services.AddScoped<ISkillContentReader, SkillContentReader>();
 
         // Stateless and thread-safe; shared so payload hashing and duplicate log sampling stay
         // consistent across requests.

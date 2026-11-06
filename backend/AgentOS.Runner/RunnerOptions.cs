@@ -5,6 +5,9 @@ public sealed class RunnerOptions
 {
     public string BaseUrl { get; set; } = "http://localhost:5000";
 
+    /// <summary>Task handler to use: <c>demo</c> or <c>codex-cli</c>.</summary>
+    public string AgentAdapter { get; set; } = "demo";
+
     public string WorkerCode { get; set; } = "local-runner";
 
     public string DisplayName { get; set; } = "Local Runner";
@@ -71,6 +74,11 @@ public sealed class RunnerOptions
         if (HeartbeatIntervalSeconds is < 5 or > 300)
         {
             errors.Add("HeartbeatIntervalSeconds must be between 5 and 300.");
+        }
+
+        if (AgentAdapter is not ("demo" or "codex-cli"))
+        {
+            errors.Add("AgentAdapter must be demo or codex-cli.");
         }
 
         if (WorkspaceRoots.Length == 0)

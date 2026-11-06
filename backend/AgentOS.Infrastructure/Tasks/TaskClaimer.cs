@@ -7,7 +7,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using TaskStatus = AgentOS.Domain.Tasks.TaskStatus;
 
 namespace AgentOS.Infrastructure.Tasks;
 
@@ -15,25 +14,28 @@ namespace AgentOS.Infrastructure.Tasks;
 /// Atomic claim implementation.
 /// </summary>
 /// <remarks>
-/// Selection deliberately takes no locks: a locking scan (UPDLOCK) would hold update locks on
-/// every row it inspected until commit, so concurrent runners using READPAST would skip the
-/// whole table and one runner would win the entire batch. Instead each candidate is claimed by
-/// a conditional <c>UPDATE ... OUTPUT</c> on its primary key: the row lock is brief, a lost race
-/// simply affects zero rows, and the caller refills its batch from the next selection round.
+/// Selection takes no locks: each candidate is claimed by a conditional
+/// <c>UPDATE ... OUTPUT</c> on its primary key, so a lost race affects zero rows and the caller
+/// refills its batch from the next selection round.
 /// </remarks>
 public sealed class TaskClaimer(
     AgentOSDbContext dbContext,
     LeaseTokenService tokens,
     TimeProvider timeProvider,
     IOptions<TaskQueueOptions> options,
+    ISkillContentReader skillReader,
     ILogger<TaskClaimer> logger) : ITaskClaimer
 {
     private const int SelectionRounds = 4;
 
     private const string SelectCandidatesSql = """
-        SELECT TOP (@capacity) t.[Id], p.[Slug]
+        SELECT TOP (@capacity)
+               t.[Id], p.[Slug], a.[Code] AS AgentCode, a.[Role] AS AgentRole,
+               s.[Code] AS SkillCode, s.[RelativePath] AS SkillRelativePath
         FROM [Tasks] AS t
         INNER JOIN [Projects] AS p ON p.[Id] = t.[ProjectId] AND p.[IsEnabled] = 1
+        INNER JOIN [Agents] AS a ON a.[Id] = t.[AgentId]
+        LEFT JOIN [Skills] AS s ON s.[Id] = t.[SkillId]
         WHERE t.[Status] IN (N'Queued', N'RetryWait')
           AND t.[NextRunAtUtc] <= @now
         ORDER BY CASE t.[Priority]
@@ -74,8 +76,7 @@ public sealed class TaskClaimer(
         var now = timeProvider.GetUtcNow().UtcDateTime;
         var leaseExpiresAtUtc = now.Add(options.Value.LeaseDuration);
 
-        // Defence in depth: the API filter already rejects disabled runners, but a disabled
-        // worker must never be able to take work even if a new caller bypasses the filter.
+        // Defence in depth: the API filter already rejects disabled runners.
         var workerStatus = await dbContext.Workers
             .AsNoTracking()
             .Where(worker => worker.Id == workerId)
@@ -129,7 +130,6 @@ public sealed class TaskClaimer(
 
                 if (claimedRow is null)
                 {
-                    // Another runner won this row; the next selection round picks fresh work.
                     continue;
                 }
 
@@ -146,6 +146,8 @@ public sealed class TaskClaimer(
                     UpdatedAtUtc = now
                 });
 
+                var skillContent = await skillReader.ReadAsync(candidate.SkillRelativePath, cancellationToken);
+
                 claimed.Add(new ClaimedTask(
                     claimedRow.Id,
                     candidate.ProjectSlug,
@@ -153,6 +155,10 @@ public sealed class TaskClaimer(
                     claimedRow.Title,
                     claimedRow.Priority,
                     claimedRow.InputJson,
+                    candidate.AgentCode,
+                    candidate.AgentRole,
+                    candidate.SkillCode,
+                    skillContent,
                     claimedRow.RuleId,
                     claimedRow.RuleVersion,
                     claimedRow.AgentId,
@@ -167,7 +173,6 @@ public sealed class TaskClaimer(
 
             if (progress == 0)
             {
-                // Every candidate was taken by a concurrent claim; stop instead of spinning.
                 break;
             }
         }
@@ -205,7 +210,13 @@ public sealed class TaskClaimer(
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
-            candidates.Add(new Candidate(reader.GetGuid(0), reader.GetString(1)));
+            candidates.Add(new Candidate(
+                reader.GetGuid(0),
+                reader.GetString(1),
+                reader.GetString(2),
+                reader.GetString(3),
+                reader.IsDBNull(4) ? null : reader.GetString(4),
+                reader.IsDBNull(5) ? null : reader.GetString(5)));
         }
 
         return candidates;
@@ -260,7 +271,13 @@ public sealed class TaskClaimer(
         command.Parameters.Add(parameter);
     }
 
-    private sealed record Candidate(Guid Id, string ProjectSlug);
+    private sealed record Candidate(
+        Guid Id,
+        string ProjectSlug,
+        string AgentCode,
+        string AgentRole,
+        string? SkillCode,
+        string? SkillRelativePath);
 
     private sealed record ClaimedRow(
         Guid Id,

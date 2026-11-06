@@ -479,3 +479,53 @@ C:\AgentOS\runner\AgentOS.Runner.exe
 - Runner 只使用 Runner Scope 的客户端凭证；Secret 只存哈希，轮换后旧 Secret 立即失效。
 - `RegistrationKey` 仅用于首次绑定，不应长期保留在配置中。
 - Handler 只能访问校验通过的工作区；路径穿越、符号链接逃逸与未授权项目都会被拒绝。
+
+## 13. AOS-007 Codex CLI Adapter
+
+### 13.1 已验证版本与参数
+
+- 验证环境：Windows 11，`codex-cli 0.166.0-alpha.6`（`codex --version`）。
+- 非交互执行：`codex exec [OPTIONS] -`，Prompt 从 stdin 读取；
+  `--json` 输出 JSONL（`thread.started.thread_id`、`item.completed.agent_message`），
+  `-o <file>` 写入最后一条消息。
+- Adapter 固定使用：`exec --sandbox <read-only|workspace-write> -C <workspace>
+  --skip-git-repo-check --ephemeral --color never --json -o <artifact>/last-message.txt [-m model] -`。
+- 明确禁止：`--dangerously-bypass-approvals-and-sandbox`、
+  `--dangerously-bypass-hook-trust`、`--add-dir`、任意 `-c sandbox_permissions=...`。
+- Windows 必须指向 `codex.exe`（`.cmd`/`.bat` shim 会被拒绝，避免引入 shell 解析）。
+
+### 13.2 Runner 配置
+
+```json
+"Runner": { "AgentAdapter": "codex-cli", "...": "..." },
+"Codex": {
+  "ExecutablePath": "C:\\Users\\<user>\\AppData\\Local\\OpenAI\\Codex\\bin\\codex.exe",
+  "SandboxMode": "read-only",
+  "TimeoutSeconds": 900,
+  "MaxOutputBytes": 2000000,
+  "EnvironmentAllowList": [ "PATH", "USERPROFILE", "HTTPS_PROXY", "OPENAI_API_KEY", "..." ],
+  "RedactEnvironmentVariables": [ "OPENAI_API_KEY" ]
+}
+```
+
+- `read-only` 用于分析/评审；`workspace-write` 用于需要改文件的任务，仍然受 Runner
+  的项目/工作区白名单约束。
+- API Key 只通过子进程环境变量提供，不写入 Prompt、配置或日志。
+- `AGENTOS_CODEX_SMOKE=1` 可运行真实 CLI 冒烟测试（默认跳过）。
+
+### 13.3 故障排查
+
+| 现象 | 处理 |
+|---|---|
+| `codex-not-found` | `Codex:ExecutablePath` 不存在；Windows 用 `codex.exe` 绝对路径 |
+| `codex-unavailable` / start 失败 | 检查可执行权限、`.cmd` 被拒绝、PATH |
+| `codex-timeout` | 增大 `Codex:TimeoutSeconds` 或任务超时；进程树已被终止 |
+| 退出码非零 | 查看 `%TEMP%\agentos\codex\<task>\<attempt>\stderr.log` |
+| 日志被 `[REDACTED]` | 正常脱敏；确认没有把 Secret 放进 Prompt |
+
+### 13.4 安全边界
+
+- Prompt 由可信模板 + 转义后的任务数据/Skill 内容组成；数据段不能关闭或覆盖安全规则。
+- 只允许 `read-only` / `workspace-write`；沙箱模式来自受信配置。
+- 工作目录必须通过 Runner 白名单；Adapter 不额外放宽路径。
+- 超时/取消会终止整个进程树；输出按行脱敏后写 artifact 与日志。

@@ -460,6 +460,7 @@ public sealed class SqlTaskQueueTests
             new LeaseTokenService(),
             clock ?? new ManualTimeProvider(Now),
             Options.Create(QueueOptions),
+            new FakeSkillContentReader(),
             NullLogger<TaskClaimer>.Instance);
 
         return (await claimer.ClaimAsync(workerId, capacity, CancellationToken.None)).ToList();

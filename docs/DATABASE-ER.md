@@ -473,3 +473,11 @@ Approvals、Decisions、UsageRecords
 Worker（注册引导阶段可先使用一次性注册凭证）。 - 每个 Client 只能访问其
 Scopes 和项目范围。 - 密钥只在创建/轮换时显示一次。 - 认证失败不能泄露
 Client 是否存在。
+
+### 3.19 AOS-007 Adapter 输入
+
+- 无新增表。领取（Claim）响应在 AOS-007 扩展为包含 `AgentCode`、`AgentRole`、
+  `SkillCode` 与 `SkillContent`：Agent 来自 `Agents`；Skill 内容在控制面按
+  `Skills.RelativePath` 从配置的 `Skills:RootPath` 读取（必须位于根目录内、≤
+  `Skills:MaxBytes`，默认 64KB），读取失败时为 null 并在日志中告警。
+- Prompt 与 Codex 参数不进入数据库；Adapter 配置只来自 Runner 受信配置。

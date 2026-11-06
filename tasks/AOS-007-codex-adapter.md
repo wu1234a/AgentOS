@@ -1,6 +1,6 @@
 # AOS-007：Codex CLI Adapter
 
-状态：Not Started  
+状态：Completed  
 优先级：P0  
 依赖：AOS-006
 

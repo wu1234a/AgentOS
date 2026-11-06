@@ -1,3 +1,4 @@
+using AgentOS.AgentAdapters.Codex;
 using AgentOS.Runner;
 using AgentOS.Runner.Handlers;
 using Microsoft.Extensions.Options;
@@ -5,6 +6,7 @@ using Microsoft.Extensions.Options;
 var builder = Host.CreateApplicationBuilder(args);
 
 builder.Services.Configure<RunnerOptions>(builder.Configuration.GetSection("Runner"));
+builder.Services.Configure<CodexCliOptions>(builder.Configuration.GetSection("Codex"));
 
 builder.Services.AddHttpClient<IRunnerApi, RunnerApiClient>((services, httpClient) =>
 {
