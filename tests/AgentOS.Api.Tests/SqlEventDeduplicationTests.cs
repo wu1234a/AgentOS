@@ -1,10 +1,12 @@
 using System.Text.Json;
 using AgentOS.Application.Events;
+using AgentOS.Application.Tasks;
 using AgentOS.Domain.Events;
 using AgentOS.Domain.Projects;
 using AgentOS.Infrastructure.Persistence;
 using AgentOS.Infrastructure.Projects;
 using AgentOS.Infrastructure.Repositories;
+using AgentOS.Infrastructure.Tasks;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -357,6 +359,10 @@ public sealed class SqlEventDeduplicationTests
         new DuplicateEventLogSampler(TimeProvider.System),
         new EventRepository(dbContext),
         new ProjectLookup(dbContext),
+        new TaskDispatchService(
+            new TaskDispatchStore(dbContext, NullLogger<TaskDispatchStore>.Instance),
+            TimeProvider.System,
+            NullLogger<TaskDispatchService>.Instance),
         TimeProvider.System,
         NullLogger<EventService>.Instance);
 

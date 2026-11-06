@@ -1,18 +1,20 @@
 using System.Text.Json;
 using AgentOS.Application.Projects;
+using AgentOS.Application.Tasks;
 using AgentOS.Domain.Events;
 using AgentOS.Domain.Projects;
 using Microsoft.Extensions.Logging;
 
 namespace AgentOS.Application.Events;
 
-/// <summary>Application use cases for accepting and reading events.</summary>
+/// <summary>Application use cases for accepting, dispatching and reading events.</summary>
 public sealed class EventService(
     CreateEventValidator validator,
     EventPayloadHasher payloadHasher,
     DuplicateEventLogSampler duplicateLogSampler,
     IEventRepository repository,
     IProjectLookup projectLookup,
+    ITaskDispatcher taskDispatcher,
     TimeProvider timeProvider,
     ILogger<EventService> logger)
 {
@@ -93,7 +95,8 @@ public sealed class EventService(
         var writeResult = await repository.TryAddAsync(entity, cancellationToken);
         if (writeResult.Outcome == EventWriteOutcome.Inserted)
         {
-            return CreateEventResult.Accepted(entity.Id, EventStatus.Received);
+            var dispatch = await taskDispatcher.DispatchAsync(entity, cancellationToken);
+            return CreateEventResult.Accepted(entity.Id, dispatch.Status, dispatch.CreatedTaskCount);
         }
 
         var existing = writeResult.Existing
@@ -111,14 +114,24 @@ public sealed class EventService(
         CancellationToken cancellationToken)
     {
         var existingHash = await ResolveExistingHashAsync(existing, cancellationToken);
-        if (string.Equals(existingHash, submittedHash, StringComparison.Ordinal))
+        if (!string.Equals(existingHash, submittedHash, StringComparison.Ordinal))
         {
-            LogDuplicate(existing, attempted);
-            return CreateEventResult.Duplicate(existing.Id, existing.Status);
+            LogConflict(existing, attempted);
+            return CreateEventResult.Conflict(attempted.Id, existing.Id);
         }
 
-        LogConflict(existing, attempted);
-        return CreateEventResult.Conflict(attempted.Id, existing.Id);
+        LogDuplicate(existing, attempted);
+
+        // The event was stored but never dispatched (for example the process died between the
+        // insert and the dispatch, or dispatch threw). Retry the dispatch idempotently so a
+        // redelivery cannot strand an event in Received forever.
+        if (existing.Status == EventStatus.Received)
+        {
+            var dispatch = await taskDispatcher.DispatchAsync(existing, cancellationToken);
+            return CreateEventResult.Duplicate(existing.Id, dispatch.Status, dispatch.CreatedTaskCount);
+        }
+
+        return CreateEventResult.Duplicate(existing.Id, existing.Status, 0);
     }
 
     public async Task<EventDetail?> GetAsync(Guid id, CancellationToken cancellationToken)

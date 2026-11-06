@@ -207,5 +207,83 @@ CI 的后端 job 已提供 SQL Server 容器并自动设置该变量，因此上
   `legacy-dup-{Id}`，改名后仍与既有键冲突的再加 8 位随机后缀。`PayloadHash` 在首次命中时惰性回填。
 - 重复/冲突日志按“去重键 + 类别”分别采样（60 秒窗口，首条必记，其余每 100 条记一条，
   最多跟踪 4096 个键）；冲突有独立计数，窗口内第一条 409 必定记录。日志不记录 payload 内容。
-- 任务幂等键预留：`EventId + RuleId + RuleVersion + DispatchKey`，由
-  `AgentOS.Domain.Tasks.LogicalTaskKey` 统一生成，AOS-004 创建 Task 时使用。
+- 任务幂等键：`EventId + RuleId + RuleVersion + DispatchKey`，由
+  `AgentOS.Domain.Tasks.LogicalTaskKey` 统一生成（AOS-004 已使用）。
+
+## 9. AOS-004 Rules Engine
+
+### 9.1 数据模型
+
+新增表：`ModelProfiles`、`Skills`、`Agents`、`AutomationRules`、`Tasks`（迁移
+`20261106082553_AddRulesEngine`）。关键约束：
+
+- `Tasks.LogicalTaskKey` 唯一：同一 Event + RuleId + RuleVersion + DispatchKey 只会产生一条任务；
+- `Tasks.TaskCode` 唯一；`Tasks.RowVersion` 供 AOS-005 的领取/租约使用；
+- `AutomationRules` 的 `MatchJson` / `DispatchJson` 有 `ISJSON` 检查约束；
+- `Agents` 的 Code 在项目内唯一，全局 Agent 单独唯一；
+- `Skills` 的 `(ProjectId, Code, Version)` 唯一（项目范围）。
+
+### 9.2 规则匹配
+
+- `SourcePattern` / `EventTypePattern` 支持 `*` 通配（大小写不敏感，整串匹配）。
+- `ProjectId` 为空 = 全局规则；否则只匹配该项目的事件。
+- `matchJson` 只支持声明式条件：`subjectTypes`、`priorities`（未知字段会被拒绝）。
+- 匹配顺序固定：**项目规则优先 → priority 降序 → CreatedAtUtc 升序 → Id 升序**。
+- `dispatchJson` 支持 `dispatchKey`（默认 `default`）与 `priority`（任务优先级）。
+
+### 9.3 事件到任务
+
+1. 事件首次持久化后，Rules Engine 读取启用的规则（Agent/Skill/ModelProfile 必须启用）。
+2. 命中的每条规则生成一条 `Queued` 任务，记录 `RuleId` 与 `RuleVersion`。
+3. 任务与事件状态（`Processed` / `Ignored`）在同一事务提交。
+4. 重复投递的事件若仍处于 `Received`，会幂等重试派发；已派发的事件不会再生成任务。
+5. 没有项目归属的事件无法生成任务，规则会被跳过并记录警告。
+
+### 9.4 管理 API
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/v1/rules` | 列表（`page`、`pageSize`、`enabled`、`project`） |
+| GET | `/api/v1/rules/{id}` | 详情（含 matchJson / dispatchJson） |
+| POST | `/api/v1/rules` | 创建，返回 201 |
+| PUT | `/api/v1/rules/{id}` | 更新（Version +1） |
+| POST | `/api/v1/rules/{id}/enable` / `disable` | 启用（重新校验引用）/ 禁用 |
+| POST | `/api/v1/rules/validate` | 只校验不保存 |
+
+所有规则端点都要求 `X-AgentOS-Dev-Key`（与事件端点相同）。启用引用已禁用的
+Agent/Skill/ModelProfile 会返回 400 字段错误。
+
+### 9.5 引用数据初始化
+
+规则需要 Agent / Skill / ModelProfile 存在且启用。AOS-004 没有提供这些资源的管理 API，
+本地开发用 SQL 初始化（示例）：
+
+```sql
+DECLARE @ProjectId uniqueidentifier = (SELECT Id FROM Projects WHERE Slug = '3derp');
+DECLARE @ProfileId uniqueidentifier = NEWID();
+
+INSERT INTO ModelProfiles (Id, Code, Provider, Model, ExecutionMode, ConfigurationJson, TimeoutSeconds, IsEnabled, CreatedAtUtc, UpdatedAtUtc)
+VALUES (@ProfileId, 'strong-reasoning', 'codex-cli', 'gpt-6.1-sol', 'cli', '{}', 1800, 1, SYSUTCDATETIME(), SYSUTCDATETIME());
+
+INSERT INTO Skills (Id, ProjectId, Code, Version, RelativePath, IsEnabled, CreatedAtUtc, UpdatedAtUtc)
+VALUES (NEWID(), @ProjectId, '3derp-plan-development', '1.0', 'skills/projects/3derp/plan-development/SKILL.md', 1, SYSUTCDATETIME(), SYSUTCDATETIME());
+
+INSERT INTO Agents (Id, ProjectId, Code, DisplayName, Role, DefaultModelProfileId, PermissionProfile, IsEnabled, CreatedAtUtc, UpdatedAtUtc)
+VALUES (NEWID(), @ProjectId, 'planner', 'Planner', 'planner', @ProfileId, 'read-only', 1, SYSUTCDATETIME(), SYSUTCDATETIME());
+```
+
+### 9.6 前端
+
+`/rules` 列表页（筛选、新建/编辑对话框、启用/禁用）与 `/rules/:id` 详情页。本地开发需在
+`frontend/agentos-web/.env.local` 设置 `VITE_DEV_API_KEY`，前端会带上
+`X-AgentOS-Dev-Key` 请求头。
+
+### 9.7 测试
+
+```powershell
+$env:AGENTOS_SQL_TEST_CONNECTION = "Server=lpc:localhost;Database=AgentOS_Test;Trusted_Connection=True;TrustServerCertificate=True;Connect Timeout=3"
+dotnet test backend/AgentOS.slnx --filter FullyQualifiedName~Rule
+```
+
+覆盖：通配匹配与顺序确定性、JSON 校验、禁用引用、规则 CRUD/版本号、任务派发幂等、
+`LogicalTaskKey` 唯一索引、Agent 禁用时跳过、事件状态 `Processed`/`Ignored`。

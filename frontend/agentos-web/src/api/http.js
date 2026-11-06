@@ -1,9 +1,14 @@
 import axios from 'axios'
 
+const devApiKey = import.meta.env.VITE_DEV_API_KEY
+
 const http = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '',
   timeout: 10000,
-  headers: { Accept: 'application/json' }
+  headers: {
+    Accept: 'application/json',
+    ...(devApiKey ? { 'X-AgentOS-Dev-Key': devApiKey } : {})
+  }
 })
 
 http.interceptors.response.use(
@@ -12,7 +17,10 @@ http.interceptors.response.use(
     const status = error.response?.status
     const detail = error.response?.data?.detail || error.response?.data?.title || error.message
     const message = status ? `HTTP ${status}: ${detail}` : detail
-    return Promise.reject(new Error(message))
+    const wrapped = new Error(message)
+    wrapped.status = status
+    wrapped.problem = error.response?.data
+    return Promise.reject(wrapped)
   }
 )
 

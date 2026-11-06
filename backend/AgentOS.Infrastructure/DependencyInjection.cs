@@ -1,8 +1,12 @@
 using AgentOS.Application.Events;
 using AgentOS.Application.Projects;
+using AgentOS.Application.Rules;
+using AgentOS.Application.Tasks;
 using AgentOS.Infrastructure.Persistence;
 using AgentOS.Infrastructure.Projects;
 using AgentOS.Infrastructure.Repositories;
+using AgentOS.Infrastructure.Rules;
+using AgentOS.Infrastructure.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,6 +27,9 @@ public static class DependencyInjection
         services.AddDbContext<AgentOSDbContext>(options => options.UseSqlServer(connectionString));
         services.AddScoped<IEventRepository, EventRepository>();
         services.AddScoped<IProjectLookup, ProjectLookup>();
+        services.AddScoped<IAutomationRuleRepository, AutomationRuleRepository>();
+        services.AddScoped<IRuleReferenceLookup, RuleReferenceLookup>();
+        services.AddScoped<ITaskDispatchStore, TaskDispatchStore>();
 
         // Stateless and thread-safe; shared so payload hashing and duplicate log sampling stay
         // consistent across requests.

@@ -3,7 +3,9 @@ using AgentOS.Api.Filters;
 using AgentOS.Api.Health;
 using AgentOS.Api.Security;
 using AgentOS.Application.Events;
+using AgentOS.Application.Rules;
 using AgentOS.Application.Security;
+using AgentOS.Application.Tasks;
 using AgentOS.Infrastructure;
 using AgentOS.Infrastructure.Health;
 using Microsoft.AspNetCore.Diagnostics;
@@ -24,6 +26,9 @@ builder.Services.AddAgentOSInfrastructure(builder.Configuration);
 
 builder.Services.AddSingleton<CreateEventValidator>();
 builder.Services.AddScoped<EventService>();
+builder.Services.AddScoped<RuleValidator>();
+builder.Services.AddScoped<RuleService>();
+builder.Services.AddScoped<ITaskDispatcher, TaskDispatchService>();
 builder.Services.AddScoped<ApiClientAuthenticationFilter>();
 
 if (builder.Environment.IsDevelopment())
@@ -81,6 +86,7 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 });
 
 app.MapEventEndpoints();
+app.MapRuleEndpoints();
 
 app.MapGet("/", () => Results.Ok(new
 {

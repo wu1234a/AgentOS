@@ -64,7 +64,8 @@ public static class EventsEndpoints
                 eventId = result.EventId,
                 accepted = true,
                 duplicate = false,
-                status = result.Status!.Value.ToString()
+                status = result.Status!.Value.ToString(),
+                tasksCreated = result.TasksCreated
             }),
 
         CreateEventOutcome.Duplicate => Results.Ok(new
@@ -72,7 +73,8 @@ public static class EventsEndpoints
             eventId = result.EventId,
             accepted = false,
             duplicate = true,
-            status = result.Status!.Value.ToString()
+            status = result.Status!.Value.ToString(),
+            tasksCreated = result.TasksCreated
         }),
 
         CreateEventOutcome.Conflict => Results.Problem(

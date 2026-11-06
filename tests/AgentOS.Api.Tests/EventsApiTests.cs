@@ -25,7 +25,7 @@ public sealed class EventsApiTests
         var payload = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.True(payload.GetProperty("accepted").GetBoolean());
         Assert.False(payload.GetProperty("duplicate").GetBoolean());
-        Assert.Equal("Received", payload.GetProperty("status").GetString());
+        Assert.Equal("Ignored", payload.GetProperty("status").GetString());
         var eventId = payload.GetProperty("eventId").GetGuid();
         Assert.NotEqual(Guid.Empty, eventId);
 
@@ -51,7 +51,7 @@ public sealed class EventsApiTests
         var secondBody = await second.Content.ReadFromJsonAsync<JsonElement>();
         Assert.True(secondBody.GetProperty("duplicate").GetBoolean());
         Assert.False(secondBody.GetProperty("accepted").GetBoolean());
-        Assert.Equal("Received", secondBody.GetProperty("status").GetString());
+        Assert.Equal("Ignored", secondBody.GetProperty("status").GetString());
         Assert.Equal(firstId, secondBody.GetProperty("eventId").GetGuid());
 
         var page = await client.GetFromJsonAsync<JsonElement>("/api/v1/events");

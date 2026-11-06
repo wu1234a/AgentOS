@@ -22,6 +22,72 @@ namespace AgentOS.Infrastructure.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("AgentOS.Domain.Agents.Agent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<Guid?>("DefaultModelProfileId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("PermissionProfile")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<Guid?>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("SystemPromptPath")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Agents_Global_Code")
+                        .HasFilter("[ProjectId] IS NULL");
+
+                    b.HasIndex("DefaultModelProfileId");
+
+                    b.HasIndex("ProjectId", "Code")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Agents_Project_Code")
+                        .HasFilter("[ProjectId] IS NOT NULL");
+
+                    b.ToTable("Agents", (string)null);
+                });
+
             modelBuilder.Entity("AgentOS.Domain.Events.Event", b =>
                 {
                     b.Property<Guid>("Id")
@@ -123,6 +189,68 @@ namespace AgentOS.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AgentOS.Domain.ModelProfiles.ModelProfile", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("ConfigurationJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("ExecutionMode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal?>("MaxCostPerTask")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<string>("Model")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<string>("SecretReference")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("TimeoutSeconds")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ModelProfiles_Code");
+
+                    b.ToTable("ModelProfiles", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ModelProfiles_ConfigurationJson_IsJson", "ISJSON([ConfigurationJson]) = 1");
+                        });
+                });
+
             modelBuilder.Entity("AgentOS.Domain.Projects.Project", b =>
                 {
                     b.Property<Guid>("Id")
@@ -156,6 +284,278 @@ namespace AgentOS.Infrastructure.Migrations
                     b.ToTable("Projects", (string)null);
                 });
 
+            modelBuilder.Entity("AgentOS.Domain.Rules.AutomationRule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AgentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("DispatchJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EventTypePattern")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("MatchJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("MaxAttempts")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MaxParallel")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("ModelProfileId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("NotificationPolicy")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("SkillId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("SourcePattern")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int>("TimeoutSeconds")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AgentId");
+
+                    b.HasIndex("IsEnabled");
+
+                    b.HasIndex("ModelProfileId");
+
+                    b.HasIndex("SkillId");
+
+                    b.HasIndex("ProjectId", "IsEnabled");
+
+                    b.ToTable("AutomationRules", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_AutomationRules_DispatchJson_IsJson", "ISJSON([DispatchJson]) = 1");
+
+                            t.HasCheckConstraint("CK_AutomationRules_MatchJson_IsJson", "ISJSON([MatchJson]) = 1");
+                        });
+                });
+
+            modelBuilder.Entity("AgentOS.Domain.Skills.Skill", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("ContentHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid?>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("RelativePath")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("Version")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "Code", "Version")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Skills_Project_Code_Version")
+                        .HasFilter("[ProjectId] IS NOT NULL");
+
+                    b.ToTable("Skills", (string)null);
+                });
+
+            modelBuilder.Entity("AgentOS.Domain.Tasks.AutomationTask", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AgentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<Guid?>("EventId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("InputJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("LogicalTaskKey")
+                        .IsRequired()
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
+
+                    b.Property<int>("MaxAttempts")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("ModelProfileId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("NextRunAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<Guid?>("ParentTaskId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Priority")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<Guid?>("RuleId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int?>("RuleVersion")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("SkillId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("TaskCode")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<int>("TimeoutSeconds")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AgentId");
+
+                    b.HasIndex("EventId");
+
+                    b.HasIndex("LogicalTaskKey")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Tasks_LogicalTaskKey");
+
+                    b.HasIndex("ModelProfileId");
+
+                    b.HasIndex("ProjectId");
+
+                    b.HasIndex("RuleId");
+
+                    b.HasIndex("SkillId");
+
+                    b.HasIndex("TaskCode")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Tasks_TaskCode");
+
+                    b.HasIndex("Status", "Priority", "NextRunAtUtc")
+                        .HasDatabaseName("IX_Tasks_Status_Priority_NextRunAtUtc");
+
+                    b.ToTable("Tasks", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Tasks_InputJson_IsJson", "ISJSON([InputJson]) = 1");
+                        });
+                });
+
+            modelBuilder.Entity("AgentOS.Domain.Agents.Agent", b =>
+                {
+                    b.HasOne("AgentOS.Domain.ModelProfiles.ModelProfile", null)
+                        .WithMany()
+                        .HasForeignKey("DefaultModelProfileId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AgentOS.Domain.Projects.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("AgentOS.Domain.Events.Event", b =>
                 {
                     b.HasOne("AgentOS.Domain.Projects.Project", "Project")
@@ -164,6 +564,73 @@ namespace AgentOS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("AgentOS.Domain.Rules.AutomationRule", b =>
+                {
+                    b.HasOne("AgentOS.Domain.Agents.Agent", null)
+                        .WithMany()
+                        .HasForeignKey("AgentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AgentOS.Domain.ModelProfiles.ModelProfile", null)
+                        .WithMany()
+                        .HasForeignKey("ModelProfileId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AgentOS.Domain.Projects.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AgentOS.Domain.Skills.Skill", null)
+                        .WithMany()
+                        .HasForeignKey("SkillId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("AgentOS.Domain.Skills.Skill", b =>
+                {
+                    b.HasOne("AgentOS.Domain.Projects.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("AgentOS.Domain.Tasks.AutomationTask", b =>
+                {
+                    b.HasOne("AgentOS.Domain.Agents.Agent", null)
+                        .WithMany()
+                        .HasForeignKey("AgentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AgentOS.Domain.Events.Event", null)
+                        .WithMany()
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AgentOS.Domain.ModelProfiles.ModelProfile", null)
+                        .WithMany()
+                        .HasForeignKey("ModelProfileId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AgentOS.Domain.Projects.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AgentOS.Domain.Rules.AutomationRule", null)
+                        .WithMany()
+                        .HasForeignKey("RuleId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AgentOS.Domain.Skills.Skill", null)
+                        .WithMany()
+                        .HasForeignKey("SkillId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 #pragma warning restore 612, 618
         }

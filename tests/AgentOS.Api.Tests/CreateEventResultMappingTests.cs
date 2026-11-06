@@ -19,14 +19,15 @@ public sealed class CreateEventResultMappingTests
         var eventId = Guid.CreateVersion7();
 
         var (status, body, context) = await Execute(
-            EventsEndpoints.MapCreateResult(CreateEventResult.Accepted(eventId, EventStatus.Received)));
+            EventsEndpoints.MapCreateResult(CreateEventResult.Accepted(eventId, EventStatus.Processed, 2)));
 
         Assert.Equal(StatusCodes.Status202Accepted, status);
         Assert.Equal($"/api/v1/events/{eventId}", context.Response.Headers.Location.ToString());
         Assert.Equal(eventId, body.GetProperty("eventId").GetGuid());
         Assert.True(body.GetProperty("accepted").GetBoolean());
         Assert.False(body.GetProperty("duplicate").GetBoolean());
-        Assert.Equal("Received", body.GetProperty("status").GetString());
+        Assert.Equal("Processed", body.GetProperty("status").GetString());
+        Assert.Equal(2, body.GetProperty("tasksCreated").GetInt32());
     }
 
     [Fact]
@@ -35,13 +36,14 @@ public sealed class CreateEventResultMappingTests
         var existingEventId = Guid.CreateVersion7();
 
         var (status, body, _) = await Execute(
-            EventsEndpoints.MapCreateResult(CreateEventResult.Duplicate(existingEventId, EventStatus.Processed)));
+            EventsEndpoints.MapCreateResult(CreateEventResult.Duplicate(existingEventId, EventStatus.Processed, 1)));
 
         Assert.Equal(StatusCodes.Status200OK, status);
         Assert.Equal(existingEventId, body.GetProperty("eventId").GetGuid());
         Assert.False(body.GetProperty("accepted").GetBoolean());
         Assert.True(body.GetProperty("duplicate").GetBoolean());
         Assert.Equal("Processed", body.GetProperty("status").GetString());
+        Assert.Equal(1, body.GetProperty("tasksCreated").GetInt32());
     }
 
     [Fact]

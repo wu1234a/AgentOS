@@ -24,19 +24,20 @@ public sealed record CreateEventResult(
     Guid EventId,
     Guid? ExistingEventId,
     EventStatus? Status,
+    int TasksCreated,
     IReadOnlyDictionary<string, string[]> Errors)
 {
-    public static CreateEventResult Accepted(Guid eventId, EventStatus status)
-        => new(CreateEventOutcome.Created, eventId, null, status, EmptyErrors);
+    public static CreateEventResult Accepted(Guid eventId, EventStatus status, int tasksCreated)
+        => new(CreateEventOutcome.Created, eventId, null, status, tasksCreated, EmptyErrors);
 
-    public static CreateEventResult Duplicate(Guid existingEventId, EventStatus status)
-        => new(CreateEventOutcome.Duplicate, existingEventId, existingEventId, status, EmptyErrors);
+    public static CreateEventResult Duplicate(Guid existingEventId, EventStatus status, int tasksCreated)
+        => new(CreateEventOutcome.Duplicate, existingEventId, existingEventId, status, tasksCreated, EmptyErrors);
 
     public static CreateEventResult Conflict(Guid attemptedEventId, Guid existingEventId)
-        => new(CreateEventOutcome.Conflict, attemptedEventId, existingEventId, null, EmptyErrors);
+        => new(CreateEventOutcome.Conflict, attemptedEventId, existingEventId, null, 0, EmptyErrors);
 
     public static CreateEventResult Invalid(IReadOnlyDictionary<string, string[]> errors)
-        => new(CreateEventOutcome.Invalid, Guid.Empty, null, null, errors);
+        => new(CreateEventOutcome.Invalid, Guid.Empty, null, null, 0, errors);
 
     private static readonly Dictionary<string, string[]> EmptyErrors = new(StringComparer.Ordinal);
 }

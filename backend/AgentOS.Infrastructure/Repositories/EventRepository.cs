@@ -1,7 +1,6 @@
 using AgentOS.Application.Events;
 using AgentOS.Domain.Events;
 using AgentOS.Infrastructure.Persistence;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 namespace AgentOS.Infrastructure.Repositories;
@@ -9,11 +8,6 @@ namespace AgentOS.Infrastructure.Repositories;
 /// <summary>EF Core implementation of the event ledger persistence seam.</summary>
 public sealed class EventRepository(AgentOSDbContext dbContext) : IEventRepository
 {
-    // 2601: Cannot insert duplicate key row in object ... with unique index.
-    // 2627: Violation of UNIQUE KEY constraint ...
-    private const int DuplicateKeyRowErrorNumber = 2601;
-    private const int UniqueConstraintErrorNumber = 2627;
-
     public async Task<EventWriteResult> TryAddAsync(Event entity, CancellationToken cancellationToken)
     {
         dbContext.Events.Add(entity);
@@ -23,7 +17,7 @@ public sealed class EventRepository(AgentOSDbContext dbContext) : IEventReposito
             await dbContext.SaveChangesAsync(cancellationToken);
             return EventWriteResult.Inserted(entity);
         }
-        catch (DbUpdateException ex) when (IsUniqueKeyViolation(ex))
+        catch (DbUpdateException ex) when (SqlErrorHelper.IsUniqueKeyViolation(ex))
         {
             // The insert lost the race; the winning row is already committed because the
             // unique index lock is released only after that transaction commits.
@@ -116,19 +110,5 @@ public sealed class EventRepository(AgentOSDbContext dbContext) : IEventReposito
             .ToListAsync(cancellationToken);
 
         return new EventPage(items, total);
-    }
-
-    private static bool IsUniqueKeyViolation(DbUpdateException exception)
-    {
-        for (Exception? current = exception; current is not null; current = current.InnerException)
-        {
-            if (current is SqlException sqlException
-                && sqlException.Number is DuplicateKeyRowErrorNumber or UniqueConstraintErrorNumber)
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 }

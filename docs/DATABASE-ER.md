@@ -367,6 +367,22 @@ Decisions：ApprovalId、Decision、ActorId、ActorDisplayName、Comment、Decis
 
 Outbox 与业务记录在同一数据库事务中写入，再由 Worker 投递。
 
+### 3.16 AOS-004 实现说明
+
+AOS-004 已创建：`ModelProfiles`、`Skills`、`Agents`、`AutomationRules`、`Tasks`
+（迁移 `20261106082553_AddRulesEngine`）。与上文逻辑设计的差异与补充：
+
+- `AutomationRules.Priority` 为 `int`（越大越先匹配）；`Version` 每次更新 +1。
+- `AutomationRules.MatchJson` 只承载声明式条件 `subjectTypes` / `priorities`；
+  `DispatchJson` 承载 `dispatchKey` / `priority`。两者都有 `ISJSON` 检查约束。
+- `Tasks.Priority` 为字符串（low / normal / high / urgent）；`Tasks.RuleVersion` 可空，
+  但规则生成的任务一定写入；`Tasks.RowVersion` 为 `rowversion`，供 AOS-005 租约使用。
+- `Tasks.LogicalTaskKey` 唯一索引 `UX_Tasks_LogicalTaskKey`，值为
+  `EventId:RuleId:RuleVersion:DispatchKey`，是任务幂等的最终防线。
+- `Agents` 的 Code 唯一性：项目内 `(ProjectId, Code)` 唯一 + 全局 `Code` 唯一（过滤索引）。
+- `Skills` 唯一约束为 `(ProjectId, Code, Version)`；全局 Skill（`ProjectId` 为 NULL）目前
+  不强制版本唯一，规则按 `CreatedAtUtc` 最新一条解析。
+
 ## 4. 关系与删除策略
 
 - Projects 对 Events、Tasks、Agents 使用

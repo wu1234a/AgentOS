@@ -1,6 +1,7 @@
 using System.Text.Json;
 using AgentOS.Api.Tests.Fakes;
 using AgentOS.Application.Events;
+using AgentOS.Application.Tasks;
 using AgentOS.Domain.Events;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -10,21 +11,38 @@ public sealed class EventServiceDeduplicationTests
 {
     private readonly FakeEventRepository _repository = new();
     private readonly FakeProjectLookup _projects = new();
+    private readonly FakeTaskDispatcher _dispatcher = new();
     private readonly ManualTimeProvider _time = new(new DateTimeOffset(2026, 11, 6, 0, 0, 0, TimeSpan.Zero));
 
     [Fact]
-    public async Task New_event_is_created_with_a_payload_hash()
+    public async Task New_event_is_created_and_dispatched()
+    {
+        _dispatcher.Result = new DispatchResult(1, 1, EventStatus.Processed);
+        var service = CreateService();
+
+        var result = await service.CreateAsync(Request(), CancellationToken.None);
+
+        Assert.Equal(CreateEventOutcome.Created, result.Outcome);
+        Assert.Equal(EventStatus.Processed, result.Status);
+        Assert.Equal(1, result.TasksCreated);
+        Assert.Equal(1, _dispatcher.Calls);
+        var stored = await _repository.GetByIdAsync(result.EventId, CancellationToken.None);
+        Assert.NotNull(stored);
+        Assert.NotNull(stored!.PayloadHash);
+        Assert.Equal(EventPayloadHasher.HashLength, stored.PayloadHash!.Length);
+    }
+
+    [Fact]
+    public async Task Event_with_no_matching_rule_is_marked_ignored_but_kept()
     {
         var service = CreateService();
 
         var result = await service.CreateAsync(Request(), CancellationToken.None);
 
         Assert.Equal(CreateEventOutcome.Created, result.Outcome);
-        Assert.Equal(EventStatus.Received, result.Status);
-        var stored = await _repository.GetByIdAsync(result.EventId, CancellationToken.None);
-        Assert.NotNull(stored);
-        Assert.NotNull(stored!.PayloadHash);
-        Assert.Equal(EventPayloadHasher.HashLength, stored.PayloadHash!.Length);
+        Assert.Equal(EventStatus.Ignored, result.Status);
+        Assert.Equal(0, result.TasksCreated);
+        Assert.Single(await ListAllAsync(service));
     }
 
     [Fact]
@@ -162,6 +180,7 @@ public sealed class EventServiceDeduplicationTests
         new DuplicateEventLogSampler(_time),
         _repository,
         _projects,
+        _dispatcher,
         _time,
         NullLogger<EventService>.Instance);
 

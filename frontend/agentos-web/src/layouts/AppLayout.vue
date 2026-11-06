@@ -1,7 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { Monitor, Refresh } from '@element-plus/icons-vue'
+import { Monitor, Refresh, SetUp } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const collapsed = ref(false)
@@ -15,6 +15,10 @@ const collapsed = ref(false)
         <el-menu-item index="/">
           <el-icon><Monitor /></el-icon>
           <template #title>Dashboard</template>
+        </el-menu-item>
+        <el-menu-item index="/rules">
+          <el-icon><SetUp /></el-icon>
+          <template #title>Rules</template>
         </el-menu-item>
       </el-menu>
       <div class="aside-footer">

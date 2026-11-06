@@ -45,9 +45,9 @@ public sealed class Event
 
     public string Priority { get; init; } = "normal";
 
-    public EventStatus Status { get; init; } = EventStatus.Received;
+    public EventStatus Status { get; set; } = EventStatus.Received;
 
-    public DateTime? ProcessedAtUtc { get; init; }
+    public DateTime? ProcessedAtUtc { get; set; }
 
     public DateTime OccurredAtUtc { get; init; }
 

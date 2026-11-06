@@ -1,6 +1,8 @@
 using AgentOS.Api.Tests.Fakes;
 using AgentOS.Application.Events;
 using AgentOS.Application.Projects;
+using AgentOS.Application.Rules;
+using AgentOS.Application.Tasks;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -18,9 +20,17 @@ namespace AgentOS.Api.Tests;
 public sealed class AgentOSApiFactory(HealthStatus healthStatus, string environment = "Development")
     : WebApplicationFactory<Program>
 {
+    private FakeAutomationRuleRepository? _rules;
+
     public FakeEventRepository Events { get; } = new();
 
     public FakeProjectLookup Projects { get; } = new();
+
+    public FakeRuleReferenceLookup RuleReferences { get; } = FakeRuleReferenceLookup.Default();
+
+    public FakeAutomationRuleRepository Rules => _rules ??= new FakeAutomationRuleRepository(RuleReferences);
+
+    public FakeTaskDispatcher Dispatcher { get; } = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -40,8 +50,14 @@ public sealed class AgentOSApiFactory(HealthStatus healthStatus, string environm
         {
             services.RemoveAll<IEventRepository>();
             services.RemoveAll<IProjectLookup>();
+            services.RemoveAll<IAutomationRuleRepository>();
+            services.RemoveAll<IRuleReferenceLookup>();
+            services.RemoveAll<ITaskDispatcher>();
             services.AddSingleton<IEventRepository>(Events);
             services.AddSingleton<IProjectLookup>(Projects);
+            services.AddSingleton<IAutomationRuleRepository>(Rules);
+            services.AddSingleton<IRuleReferenceLookup>(RuleReferences);
+            services.AddSingleton<ITaskDispatcher>(Dispatcher);
 
             services.Configure<HealthCheckServiceOptions>(options =>
             {
