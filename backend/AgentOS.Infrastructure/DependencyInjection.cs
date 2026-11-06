@@ -5,6 +5,7 @@ using AgentOS.Application.Runners;
 using AgentOS.Application.Agents;
 using AgentOS.Application.ModelProfiles;
 using AgentOS.Application.Observability;
+using AgentOS.Application.Planning;
 using AgentOS.Application.Security;
 using AgentOS.Application.Skills;
 using AgentOS.Application.Tasks;
@@ -16,6 +17,7 @@ using AgentOS.Infrastructure.Agents;
 using AgentOS.Infrastructure.Artifacts;
 using AgentOS.Infrastructure.ModelProfiles;
 using AgentOS.Infrastructure.Observability;
+using AgentOS.Infrastructure.Planning;
 using AgentOS.Infrastructure.Runners;
 using AgentOS.Infrastructure.Security;
 using AgentOS.Infrastructure.Skills;
@@ -55,6 +57,8 @@ public static class DependencyInjection
         services.AddScoped<IArtifactStore, ArtifactStore>();
         services.AddScoped<IAgentRepository, AgentRepository>();
         services.AddScoped<IModelProfileRepository, ModelProfileRepository>();
+        services.AddScoped<IPlanningDraftRepository, PlanningDraftRepository>();
+        services.AddScoped<IApiCompletionClient, ApiCompletionClient>();
 
         // Stateless and thread-safe; shared so payload hashing and duplicate log sampling stay
         // consistent across requests.

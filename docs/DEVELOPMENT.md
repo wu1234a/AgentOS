@@ -682,3 +682,32 @@ Model/Provider/ExecutionMode 下发到 Runner，并传给 Codex `-m`）。
 - 有效超时 = `min(task.TimeoutSeconds, profile.TimeoutSeconds, Codex:TimeoutSeconds)`；
   模型优先使用 Claim 的 `modelProfile.model`，缺失时回退 `Codex:Model`。
 - Codex CLI 仍通过 `-m <model>` 传参；密钥不进入 Prompt/参数。
+
+## 20. AOS-012 Planner Agent 与 Kimi
+
+### 20.1 配置 Kimi
+
+1. 创建 ModelProfile（`/models` 或 API）：
+   - `provider=kimi`、`executionMode=api`、`model=<Kimi 控制台模型 ID>`
+   - `configurationJson={"baseUrl":"https://api.moonshot.cn/v1","temperature":0.2}`
+   - `secretReference=KIMI_API_KEY`
+2. 设置环境变量 `KIMI_API_KEY`（API 进程）。
+3. `Planner:DefaultModelProfileCode` 指向该 Profile（默认 `kimi-planner`）；
+   `Planner:AllowedProviderHosts` 默认仅 `api.moonshot.cn`、`api.openai.com`。
+
+### 20.2 API
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/v1/planner/drafts?status&limit&offset` | 草案列表 |
+| GET | `/api/v1/planner/drafts/{id}` | 草案详情（含 Markdown） |
+| POST | `/api/v1/planner/drafts` | 生成草案（PendingReview） |
+| POST | `/{id}/approve\|reject` | 人工决策 |
+
+- 生成请求：`{ title, goal, context?, projectId?, modelProfileId? }`。
+- 草案必须人工批准；批准仅改变状态，不自动实现。
+
+### 20.3 安全
+
+- 仅 HTTPS + 主机白名单；密钥只从环境变量读取，不落库/日志。
+- 生成失败返回 502 且不保存草案；非 API 模式/缺密钥返回 400/503。

@@ -4,6 +4,7 @@ using AgentOS.Domain.Events;
 using AgentOS.Domain.ModelProfiles;
 using AgentOS.Domain.Projects;
 using AgentOS.Domain.Outbox;
+using AgentOS.Domain.Planning;
 using AgentOS.Domain.Rules;
 using AgentOS.Domain.Security;
 using AgentOS.Domain.Skills;
@@ -45,6 +46,7 @@ public sealed class AgentOSDbContext(DbContextOptions<AgentOSDbContext> options)
     public DbSet<Artifact> Artifacts => Set<Artifact>();
     public DbSet<UsageRecord> UsageRecords => Set<UsageRecord>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+    public DbSet<PlanningDraft> PlanningDrafts => Set<PlanningDraft>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

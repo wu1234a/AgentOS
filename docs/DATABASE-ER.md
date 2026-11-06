@@ -523,3 +523,11 @@ Client 是否存在。
 - 无新增表。Claim 响应新增只读 `modelProfile` 对象（Code/Provider/Model/ExecutionMode/
   ConfigurationJson/SecretReference/TimeoutSeconds/Source），由 AOS-010 的解析规则生成。
 - 解析失败不阻止领取；Runner 回退到 `Codex:Model`/默认超时，并在日志中记录来源。
+
+### 3.25 AOS-012 Planner 草案
+
+- `PlanningDrafts`：Title/Goal/Context、ModelProfileId/Code、Status
+  (PendingReview/Approved/Rejected)、ContentMarkdown、Decision 时间；ProjectId 可空。
+- 草案只能由 API 生成与人工决策，不自动创建任务或文件；Provider 失败不落草案。
+- Kimi 通过 `ModelProfiles` 的 `provider=kimi`、`executionMode=api`、`SecretReference`
+  接入，密钥值来自环境变量。

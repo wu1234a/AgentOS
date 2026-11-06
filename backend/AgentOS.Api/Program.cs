@@ -7,6 +7,7 @@ using AgentOS.Application.Events;
 using AgentOS.Application.Agents;
 using AgentOS.Application.ModelProfiles;
 using AgentOS.Application.Observability;
+using AgentOS.Application.Planning;
 using AgentOS.Application.Rules;
 using AgentOS.Application.Skills;
 using AgentOS.Application.Runners;
@@ -40,11 +41,14 @@ builder.Services.Configure<TaskQueueOptions>(builder.Configuration.GetSection("T
 builder.Services.Configure<RunnerRegistrationOptions>(builder.Configuration.GetSection("Runner"));
 builder.Services.Configure<SkillContentOptions>(builder.Configuration.GetSection("Skills"));
 builder.Services.Configure<ArtifactOptions>(builder.Configuration.GetSection("Artifacts"));
+builder.Services.Configure<PlannerOptions>(builder.Configuration.GetSection("Planner"));
+builder.Services.AddHttpClient("planner");
 builder.Services.AddScoped<TaskQueueService>();
 builder.Services.AddScoped<RunnerRegistrationService>();
 builder.Services.AddScoped<AgentService>();
 builder.Services.AddScoped<ModelProfileService>();
 builder.Services.AddScoped<SkillService>();
+builder.Services.AddScoped<PlannerService>();
 builder.Services.AddScoped<ApiClientAuthenticationFilter>();
 builder.Services.AddScoped<RunnerAuthenticationFilter>();
 
@@ -111,6 +115,7 @@ app.MapObservabilityEndpoints();
 app.MapAgentEndpoints();
 app.MapModelProfileEndpoints();
 app.MapSkillEndpoints();
+app.MapPlannerEndpoints();
 app.MapHub<TaskHub>("/hubs/tasks");
 
 app.MapGet("/", () => Results.Ok(new

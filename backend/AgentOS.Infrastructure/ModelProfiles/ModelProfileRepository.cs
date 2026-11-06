@@ -35,6 +35,9 @@ public sealed class ModelProfileRepository(AgentOSDbContext dbContext) : IModelP
     public Task<ModelProfile?> GetAsync(Guid profileId, CancellationToken cancellationToken)
         => dbContext.ModelProfiles.FirstOrDefaultAsync(profile => profile.Id == profileId, cancellationToken);
 
+    public Task<ModelProfile?> FindByCodeAsync(string code, CancellationToken cancellationToken)
+        => dbContext.ModelProfiles.FirstOrDefaultAsync(profile => profile.Code == code, cancellationToken);
+
     public Task<bool> CodeExistsAsync(
         string code,
         Guid? excludeProfileId,

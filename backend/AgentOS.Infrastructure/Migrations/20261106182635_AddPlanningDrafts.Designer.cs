@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace AgentOS.Infrastructure.Migrations
 {
     [DbContext(typeof(AgentOSDbContext))]
-    [Migration("20261106174652_AddSkillGlobalVersionIndex")]
-    partial class AddSkillGlobalVersionIndex
+    [Migration("20261106182635_AddPlanningDrafts")]
+    partial class AddPlanningDrafts
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -361,6 +361,67 @@ namespace AgentOS.Infrastructure.Migrations
                     b.HasIndex("Status", "AvailableAtUtc");
 
                     b.ToTable("OutboxMessages", (string)null);
+                });
+
+            modelBuilder.Entity("AgentOS.Domain.Planning.PlanningDraft", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ContentMarkdown")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Context")
+                        .HasMaxLength(8000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<DateTime?>("DecidedAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("Goal")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<string>("ModelProfileCode")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<Guid?>("ModelProfileId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId");
+
+                    b.HasIndex("Status", "CreatedAtUtc");
+
+                    b.ToTable("PlanningDrafts", (string)null);
                 });
 
             modelBuilder.Entity("AgentOS.Domain.Projects.Project", b =>
@@ -1036,6 +1097,14 @@ namespace AgentOS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("AgentOS.Domain.Planning.PlanningDraft", b =>
+                {
+                    b.HasOne("AgentOS.Domain.Projects.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("AgentOS.Domain.Rules.AutomationRule", b =>

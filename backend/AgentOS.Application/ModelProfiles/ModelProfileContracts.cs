@@ -102,6 +102,8 @@ public interface IModelProfileRepository
 
     Task<ModelProfile?> GetAsync(Guid profileId, CancellationToken cancellationToken);
 
+    Task<ModelProfile?> FindByCodeAsync(string code, CancellationToken cancellationToken);
+
     Task<bool> CodeExistsAsync(string code, Guid? excludeProfileId, CancellationToken cancellationToken);
 
     Task<bool> TryAddAsync(ModelProfile profile, CancellationToken cancellationToken);
