@@ -94,11 +94,12 @@
 | 前端 lint | `npm run lint` | ✅ 通过 |
 | 前端构建 | `npm run build` | ✅ 成功（Element Plus 包体偏大的既有告警） |
 | 迁移 | `dotnet ef database update` | ✅ 已应用到 `AgentOS_Dev` |
+| CI（GitHub Actions） | `dotnet build` + `dotnet test`（含 SQL Server service container） | ✅ run#3（功能提交）、run#4（审查修复）均为 SUCCESS |
 
 > 本机 `dotnet test` 仍受工作区沙箱限制（见 AOS-003 报告 §5.2），测试通过工作区外副本 +
 > `vstest` 执行；CI（GitHub Actions）用标准 `dotnet test` 全量执行，结果见 Actions。
 
-## 4.1 独立代码审查
+### 4.1 独立代码审查
 
 第三方（DSH 原生 Codex 规范）审查 commit `2700396`：2 个 P1、4 个 P2、4 个 P3，全部修复或记录，
 详见 `docs/reports/AOS-004-CODE-REVIEW.md`。关键修复：
