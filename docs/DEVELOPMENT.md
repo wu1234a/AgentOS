@@ -636,3 +636,14 @@ Runner 上传产物：`POST /api/v1/runners/tasks/{taskId}/artifacts?attemptId&n
 
 AOS-010 只提供注册表与解析 API；Claim/Adapter 尚未自动使用解析结果（AOS-010b 将把
 Model/Provider/ExecutionMode 下发到 Runner，并传给 Codex `-m`）。
+
+## 17. 模型接入决策记录
+
+- 当前工作流保持不变：任务文件由 Agent 按 ROADMAP/架构起草，实现后由 Codex 独立审查。
+- **Kimi 在 AOS-012（Planner Agent）阶段接入**，用于 Planner/任务草案生成；草案必须人工批准，
+  不自动进入执行队列。
+- 前置条件：
+  1. AOS-010b：Claim 携带解析后的 Model/Provider/ExecutionMode/Timeout，Runner 下发给 Adapter；
+  2. 通用 `ApiAgentAdapter`（OpenAI 兼容接口），不把 Kimi 参数写进 Codex CLI Adapter；
+  3. 密钥仅通过环境变量引用（`SecretReference`），配置中不得出现明文。
+- 编码执行（AOS-013 之后）是否使用 Kimi 再单独评估；优先从只读分析/测试补充/文档任务开始。
