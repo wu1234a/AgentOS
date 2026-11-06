@@ -204,12 +204,7 @@ public sealed class ModelProfileService(IModelProfileRepository repository, Time
                 }
                 else
                 {
-                    var forbidden = document.RootElement
-                        .EnumerateObject()
-                        .Select(property => property.Name.ToLowerInvariant())
-                        .Any(name => ForbiddenConfigurationKeys.Contains(name));
-
-                    if (forbidden)
+                    if (ContainsForbiddenSecret(document.RootElement))
                     {
                         errors["configurationJson"] = ["configurationJson must not contain secret fields; use secretReference."];
                     }
@@ -246,6 +241,33 @@ public sealed class ModelProfileService(IModelProfileRepository repository, Time
             normalizedSecret,
             normalizedTimeout,
             maxCostPerTask);
+    }
+
+    private static bool ContainsForbiddenSecret(JsonElement element)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var property in element.EnumerateObject())
+            {
+                if (ForbiddenConfigurationKeys.Contains(property.Name.ToLowerInvariant())
+                    || ContainsForbiddenSecret(property.Value))
+                {
+                    return true;
+                }
+            }
+        }
+        else if (element.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in element.EnumerateArray())
+            {
+                if (ContainsForbiddenSecret(item))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private static string? NormalizeCode(string? code, Dictionary<string, string[]> errors)

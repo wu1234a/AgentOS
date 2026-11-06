@@ -84,6 +84,19 @@ public sealed class SqlModelProfileTests
         Assert.Equal(ModelProfileOutcome.ValidationFailed, secretInConfig.Outcome);
         Assert.Contains("configurationJson", secretInConfig.Errors.Keys);
 
+        var nestedSecret = await service.CreateAsync(
+            new CreateModelProfileRequest
+            {
+                Code = $"nested-secret-{suffix}",
+                Provider = "openai",
+                Model = "gpt-5",
+                ExecutionMode = "api",
+                ConfigurationJson = """{"credentials":{"api_key":"sk-123"}}"""
+            },
+            CancellationToken.None);
+        Assert.Equal(ModelProfileOutcome.ValidationFailed, nestedSecret.Outcome);
+        Assert.Contains("configurationJson", nestedSecret.Errors.Keys);
+
         var nonObject = await service.CreateAsync(
             new CreateModelProfileRequest
             {
@@ -186,6 +199,12 @@ public sealed class SqlModelProfileTests
         Assert.Equal("rule", fromRule.Source);
 
         await service.DisableAsync(ruleProfile.Profile.Id, CancellationToken.None);
+
+        var ruleOnly = await repository.ResolveAsync(null, rule.Id, null, CancellationToken.None);
+        Assert.NotNull(ruleOnly);
+        Assert.Equal(agentCode, ruleOnly!.Code);
+        Assert.Equal("agent", ruleOnly.Source);
+
         var fromAgent = await repository.ResolveAsync(task.Id, null, null, CancellationToken.None);
         Assert.NotNull(fromAgent);
         Assert.Equal(agentCode, fromAgent!.Code);

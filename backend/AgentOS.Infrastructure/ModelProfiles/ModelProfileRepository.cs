@@ -102,16 +102,21 @@ public sealed class ModelProfileRepository(AgentOSDbContext dbContext) : IModelP
 
         if (resolvedRuleId is { } ruleKey)
         {
-            var ruleProfileId = await dbContext.AutomationRules
+            var rule = await dbContext.AutomationRules
                 .AsNoTracking()
-                .Where(rule => rule.Id == ruleKey)
-                .Select(rule => rule.ModelProfileId)
+                .Where(candidate => candidate.Id == ruleKey)
+                .Select(candidate => new { candidate.ModelProfileId, candidate.AgentId })
                 .FirstOrDefaultAsync(cancellationToken);
 
-            if (ruleProfileId is { } ruleProfile
-                && await FindEnabledAsync(ruleProfile, cancellationToken) is { } fromRule)
+            if (rule is not null)
             {
-                return ToResolved(fromRule, "rule");
+                resolvedAgentId ??= rule.AgentId;
+
+                if (rule.ModelProfileId is { } ruleProfile
+                    && await FindEnabledAsync(ruleProfile, cancellationToken) is { } fromRule)
+                {
+                    return ToResolved(fromRule, "rule");
+                }
             }
         }
 

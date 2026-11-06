@@ -50,13 +50,13 @@ TimeoutSeconds 与解析来源（task/rule/agent）。
 | 前端 lint / build | ✅ 通过 |
 | CI | 见对应 run |
 
-## 7. 已知限制
+### 6.1 独立代码审查\n\nCodex CLI 审查发现 1 个 P1（嵌套密钥字段绕过校验）与 2 个 P2（rule-only 解析缺少 Agent 回退、前端编辑清空成本上限），全部修复并新增回归测试，详见 `docs/reports/AOS-010-CODE-REVIEW.md`。\n\n## 7. 已知限制
 
 1. 解析结果尚未下发到 Claim/Runner；Codex Adapter 仍使用 Runner 配置的模型
    （AOS-010b）。
 2. 不托管真实密钥，只引用环境变量；密钥轮换依赖 Runner/API 部署环境。
 3. 前端无解析预览；解析通过 API 调用。
-4. Provider 类型为自由文本，尚未做 Provider 插件/能力校验。
+4. Provider 类型为自由文本，尚未做 Provider 插件/能力校验。\n5. `ConfigurationJson` 只禁止密钥字段名，无法识别任意编码的凭证值；密钥仍应只通过 `SecretReference` 引用。
 
 ## 8. 变更文件
 

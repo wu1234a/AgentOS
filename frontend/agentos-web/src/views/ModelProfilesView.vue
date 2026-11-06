@@ -22,7 +22,8 @@ const form = reactive({
   executionMode: 'cli',
   configurationJson: '{}',
   secretReference: '',
-  timeoutSeconds: 900
+  timeoutSeconds: 900,
+  maxCostPerTask: ''
 })
 
 async function load() {
@@ -47,7 +48,8 @@ function openCreate() {
     executionMode: 'cli',
     configurationJson: '{}',
     secretReference: '',
-    timeoutSeconds: 900
+    timeoutSeconds: 900,
+    maxCostPerTask: ''
   })
   dialogVisible.value = true
 }
@@ -61,7 +63,8 @@ function openEdit(row) {
     executionMode: row.executionMode,
     configurationJson: row.configurationJson,
     secretReference: row.secretReference || '',
-    timeoutSeconds: row.timeoutSeconds
+    timeoutSeconds: row.timeoutSeconds,
+    maxCostPerTask: row.maxCostPerTask ?? ''
   })
   dialogVisible.value = true
 }
@@ -74,7 +77,8 @@ async function save() {
       executionMode: form.executionMode,
       configurationJson: form.configurationJson,
       secretReference: form.secretReference || null,
-      timeoutSeconds: Number(form.timeoutSeconds)
+      timeoutSeconds: Number(form.timeoutSeconds),
+      maxCostPerTask: form.maxCostPerTask === '' ? null : Number(form.maxCostPerTask)
     }
 
     if (editing.value) {
@@ -174,6 +178,9 @@ onMounted(load)
         </el-form-item>
         <el-form-item label="超时(秒)">
           <el-input v-model="form.timeoutSeconds" type="number" />
+        </el-form-item>
+        <el-form-item label="单任务成本上限">
+          <el-input v-model="form.maxCostPerTask" type="number" placeholder="可留空" />
         </el-form-item>
       </el-form>
       <template #footer>
