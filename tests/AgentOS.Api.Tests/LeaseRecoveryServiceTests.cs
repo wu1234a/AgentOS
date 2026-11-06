@@ -27,7 +27,7 @@ public sealed class LeaseRecoveryServiceTests
 
         var stats = await CreateService().RecoverAsync(CancellationToken.None);
 
-        Assert.Equal(new LeaseRecoveryStats(1, 0), stats);
+        Assert.Equal(new LeaseRecoveryStats(1, 0, 0), stats);
         Assert.Equal(TaskStatus.RetryWait, task.Status);
         Assert.True(task.NextRunAtUtc > Now);
         Assert.Equal(AttemptStatus.Lost, attempt.Status);
@@ -43,7 +43,7 @@ public sealed class LeaseRecoveryServiceTests
 
         var stats = await CreateService().RecoverAsync(CancellationToken.None);
 
-        Assert.Equal(new LeaseRecoveryStats(0, 1), stats);
+        Assert.Equal(new LeaseRecoveryStats(0, 1, 0), stats);
         Assert.Equal(TaskStatus.Failed, task.Status);
         Assert.Equal(Now, task.CompletedAtUtc);
     }
@@ -55,8 +55,26 @@ public sealed class LeaseRecoveryServiceTests
 
         var stats = await CreateService().RecoverAsync(CancellationToken.None);
 
-        Assert.Equal(new LeaseRecoveryStats(0, 0), stats);
+        Assert.Equal(new LeaseRecoveryStats(0, 0, 0), stats);
         Assert.Equal(TaskStatus.Running, task.Status);
+    }
+
+    [Fact]
+    public async Task Cancellation_request_is_finalized_instead_of_requeued()
+    {
+        var (task, attempt) = SeedRunning(
+            attemptCount: 1,
+            maxAttempts: 2,
+            leaseExpiredSecondsAgo: 5,
+            cancelRequested: true);
+
+        var stats = await CreateService().RecoverAsync(CancellationToken.None);
+
+        Assert.Equal(new LeaseRecoveryStats(0, 0, 1), stats);
+        Assert.Equal(TaskStatus.Cancelled, task.Status);
+        Assert.Equal(Now, task.CompletedAtUtc);
+        Assert.Equal(AttemptStatus.Cancelled, attempt.Status);
+        Assert.Equal("cancelled", attempt.ErrorCode);
     }
 
     private LeaseRecoveryService CreateService() => new(
@@ -68,7 +86,8 @@ public sealed class LeaseRecoveryServiceTests
     private (AutomationTask Task, TaskAttempt Attempt) SeedRunning(
         int attemptCount,
         int maxAttempts,
-        int leaseExpiredSecondsAgo)
+        int leaseExpiredSecondsAgo,
+        bool cancelRequested = false)
     {
         var task = new AutomationTask
         {
@@ -88,7 +107,8 @@ public sealed class LeaseRecoveryServiceTests
             UpdatedAtUtc = Now.AddMinutes(-1),
             LeaseOwnerWorkerId = WorkerId,
             LeaseTokenHash = LeaseTokenService.Hash("token"),
-            LeaseExpiresAtUtc = Now.AddSeconds(-leaseExpiredSecondsAgo)
+            LeaseExpiresAtUtc = Now.AddSeconds(-leaseExpiredSecondsAgo),
+            CancelRequestedAtUtc = cancelRequested ? Now.AddSeconds(-20) : null
         };
 
         var attempt = new TaskAttempt

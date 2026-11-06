@@ -91,4 +91,4 @@ public interface ITaskQueueStore
 }
 
 /// <summary>Result of one lease-recovery pass.</summary>
-public sealed record LeaseRecoveryStats(int Requeued, int Failed);
+public sealed record LeaseRecoveryStats(int Requeued, int Failed, int Cancelled);

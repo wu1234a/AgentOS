@@ -73,10 +73,11 @@ stateDiagram-v2
 `AgentOS.Worker` 新增 `LeaseRecoveryWorker`（BackgroundService，间隔可配置）：
 
 1. 找出 `Status=Running` 且 `LeaseExpiresAtUtc <= now` 的任务；
-2. 对应 Attempt 置 `Lost`，清空租约；
-3. `AttemptCount < MaxAttempts` → `RetryWait`，`NextRunAtUtc = now + base*2^(n-1)`（上限
-   `BackoffMaxSeconds`，另加 0–29 秒由 TaskId 派生的确定性抖动），否则 `Failed`；
-4. 一轮失败只记录错误，不影响后续扫描。
+2. 对应 Attempt 置 `Lost`（若已请求取消则置 `Cancelled`），清空租约；
+3. 已请求取消的任务 **直接落为 `Cancelled`**，绝不重新入队（否则取消可能在 Runner 断线后被“复活”）；
+4. `AttemptCount < MaxAttempts` → `RetryWait`，`NextRunAtUtc = now + base*2^(n-1)`（上限
+   `BackoffMaxSeconds`，另加 0–29 秒由完整 TaskId 哈希派生的确定性抖动），否则 `Failed`；
+5. 一轮失败只记录错误，不影响后续扫描。
 
 ### 2.6 API
 
@@ -105,14 +106,14 @@ stateDiagram-v2
 | 重试次数和退避正确 | `Retryable_failure_requeues_with_backoff`、`Last_attempt_failure_marks_the_task_failed`、SQL `Fail_retries_until_max_attempts_then_marks_the_task_failed` |
 | 取消任务状态正确 | `Cancel_marks_a_queued_task_cancelled`、`Cancelling_a_running_task_requests_cancellation...`、`Complete_is_rejected_after_a_cancel_request` |
 | 服务重启后任务仍存在 | 全部状态在 SQL Server；无内存状态 |
-| 真实 SQL Server 并发测试通过 | 5 个 SQL 队列用例通过（数据库 `AgentOS_Test`） |
+| 真实 SQL Server 并发测试通过 | 6 个 SQL 队列用例通过（数据库 `AgentOS_Test`） |
 
 ## 4. 测试命令与结果
 
 | 检查 | 命令 | 结果 |
 |---|---|---|
 | 后端构建 | `dotnet build backend/AgentOS.slnx` | ✅ 0 错误 |
-| 全量测试（含 SQL） | 工作区外 `dotnet vstest` / CI `dotnet test` | ✅ **175 通过 / 0 失败** |
+| 全量测试（含 SQL） | 工作区外 `dotnet vstest` / CI `dotnet test` | ✅ **180 通过 / 0 失败** |
 | 迁移 | `dotnet ef database update` | ✅ `AddTaskQueue` 已应用 |
 | 前端 | 无改动 | — |
 
@@ -122,7 +123,16 @@ stateDiagram-v2
 - 所有 Runner 操作校验 Worker + Task + Attempt + Token + 过期时间，不能凭 TaskId 越权。
 - Runner 端点需要已注册且 Online 的 Worker 身份，未注册/禁用返回 401/403。
 - 领取只处理启用项目下的任务；取消与完成互斥（取消请求后不允许成功）。
+- 已请求取消的任务在租约过期后直接落为 Cancelled，不会被恢复逻辑重新执行。
+- Runner 提交的 `errorCode` / `errorMessage` / `externalSessionId` 在写库前截断到列宽，
+  超长输入不会产生 500 或丢失失败记录。
 - 未执行生产操作；迁移只作用于本地开发库与可丢弃测试库。
+
+### 5.1 独立代码审查
+
+Codex CLI 审查 commit `0fc638c`：1 个 P1（取消任务被恢复逻辑重新入队）、2 个 P2
+（Runner 超长字段 500、UUIDv7 抖动取自时间戳字节），全部修复并新增回归测试，详见
+`docs/reports/AOS-005-CODE-REVIEW.md`。
 
 ## 6. 已知限制
 

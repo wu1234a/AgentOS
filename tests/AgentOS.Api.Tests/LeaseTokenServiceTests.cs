@@ -76,4 +76,20 @@ public sealed class TaskBackoffTests
             Assert.InRange(delay.TotalSeconds, 30, 60);
         }
     }
+
+    [Fact]
+    public void Burst_uuid_v7_ids_get_varied_jitter()
+    {
+        var now = new DateTime(2026, 11, 6, 0, 0, 0, DateTimeKind.Utc);
+
+        // UUIDv7 ids created in a burst share their timestamp bytes; jitter must still vary.
+        var jitters = Enumerable.Range(0, 25)
+            .Select(_ => Guid.CreateVersion7())
+            .Select(taskId => TaskBackoff.Compute(now, 1, Options, taskId) - now)
+            .Select(delay => Math.Round(delay.TotalSeconds - Options.BackoffBaseSeconds))
+            .Distinct()
+            .Count();
+
+        Assert.True(jitters > 1, "jitter should not be derived from the timestamp prefix only");
+    }
 }

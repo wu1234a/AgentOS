@@ -16,6 +16,8 @@ public sealed class TaskQueueService(
     ILogger<TaskQueueService> logger)
 {
     private const int MaxErrorMessageLength = 2000;
+    private const int MaxErrorCodeLength = 100;
+    private const int MaxExternalSessionIdLength = 200;
 
     private TaskQueueOptions Options => options.Value;
 
@@ -37,7 +39,7 @@ public sealed class TaskQueueService(
         var attempt = validated.Attempt!;
         var now = timeProvider.GetUtcNow().UtcDateTime;
 
-        attempt.ExternalSessionId = TrimToNull(externalSessionId);
+        attempt.ExternalSessionId = Truncate(TrimToNull(externalSessionId), MaxExternalSessionIdLength);
         attempt.UpdatedAtUtc = now;
         task.LastHeartbeatAtUtc = now;
         task.LeaseExpiresAtUtc = now.Add(Options.LeaseDuration);
@@ -137,9 +139,13 @@ public sealed class TaskQueueService(
         var attempt = validated.Attempt!;
         var now = timeProvider.GetUtcNow().UtcDateTime;
 
-        attempt.ErrorCode = TrimToNull(errorCode) ?? (cancelled ? "cancelled" : "failed");
+        // A cancellation request always wins: a worker that reports a plain failure after the
+        // task was cancelled must not put cancelled work back into the queue.
+        var effectiveCancelled = cancelled || task.CancelRequestedAtUtc is not null;
+
+        attempt.ErrorCode = Truncate(TrimToNull(errorCode) ?? (effectiveCancelled ? "cancelled" : "failed"), MaxErrorCodeLength);
         attempt.ErrorMessage = Truncate(errorMessage);
-        attempt.Status = cancelled ? AttemptStatus.Cancelled : AttemptStatus.Failed;
+        attempt.Status = effectiveCancelled ? AttemptStatus.Cancelled : AttemptStatus.Failed;
         FinishAttempt(attempt, now);
 
         task.ErrorCode = attempt.ErrorCode;
@@ -147,7 +153,7 @@ public sealed class TaskQueueService(
         task.UpdatedAtUtc = now;
         ClearLease(task);
 
-        if (cancelled)
+        if (effectiveCancelled)
         {
             task.Status = TaskStatus.Cancelled;
             task.CompletedAtUtc = now;
@@ -284,5 +290,8 @@ public sealed class TaskQueueService(
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static string? Truncate(string? value)
-        => value is null || value.Length <= MaxErrorMessageLength ? value : value[..MaxErrorMessageLength];
+        => Truncate(value, MaxErrorMessageLength);
+
+    private static string? Truncate(string? value, int maxLength)
+        => value is null || value.Length <= maxLength ? value : value[..maxLength];
 }

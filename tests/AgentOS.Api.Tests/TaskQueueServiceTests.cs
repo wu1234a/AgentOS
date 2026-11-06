@@ -238,6 +238,57 @@ public sealed class TaskQueueServiceTests
         Assert.Equal(TaskQueueOutcome.NotFound, result.Outcome);
     }
 
+    [Fact]
+    public async Task Fail_after_a_cancel_request_is_recorded_as_cancelled()
+    {
+        var (task, attempt) = SeedRunning(cancelRequested: Now.AddSeconds(-5));
+
+        var result = await CreateService().FailAsync(
+            WorkerId,
+            task.Id,
+            attempt.Id,
+            Token,
+            "agent-error",
+            "runner failed",
+            retryable: true,
+            cancelled: false,
+            CancellationToken.None);
+
+        Assert.Equal(TaskQueueOutcome.Ok, result.Outcome);
+        Assert.Equal(TaskStatus.Cancelled, task.Status);
+        Assert.Equal(AttemptStatus.Cancelled, attempt.Status);
+    }
+
+    [Fact]
+    public async Task Oversized_runner_fields_are_bounded_before_saving()
+    {
+        var (task, attempt) = SeedRunning();
+        var service = CreateService();
+
+        var start = await service.StartAsync(
+            WorkerId,
+            task.Id,
+            attempt.Id,
+            Token,
+            new string('s', 500),
+            CancellationToken.None);
+        Assert.Equal(TaskQueueOutcome.Ok, start.Outcome);
+        Assert.Equal(200, attempt.ExternalSessionId!.Length);
+
+        var fail = await service.FailAsync(
+            WorkerId,
+            task.Id,
+            attempt.Id,
+            Token,
+            new string('e', 500),
+            null,
+            retryable: false,
+            cancelled: false,
+            CancellationToken.None);
+        Assert.Equal(TaskQueueOutcome.Ok, fail.Outcome);
+        Assert.Equal(100, attempt.ErrorCode!.Length);
+    }
+
     private TaskQueueService CreateService() => new(
         _store,
         _time,

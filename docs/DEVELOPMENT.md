@@ -400,7 +400,8 @@ dotnet run --project backend/AgentOS.Worker
 ```
 
 `LeaseRecoveryWorker` 每 `RecoveryIntervalSeconds` 扫描一次：租约过期的 Running 任务，其
-Attempt 置 `Lost`；还有次数则进入 `RetryWait`（指数退避 + 0–29 秒抖动），否则 `Failed`。
+Attempt 置 `Lost`；已请求取消的任务直接落为 `Cancelled`（不会重新入队）；还有次数则进入
+`RetryWait`（指数退避 + 0–29 秒由 TaskId 哈希派生的抖动），否则 `Failed`。
 Worker 需要连接串，Development 已在 `backend/AgentOS.Worker/appsettings.Development.json` 配置。
 
 ### 11.6 测试

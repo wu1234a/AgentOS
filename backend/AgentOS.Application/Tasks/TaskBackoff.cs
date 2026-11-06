@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+
 namespace AgentOS.Application.Tasks;
 
 /// <summary>
@@ -7,6 +9,7 @@ namespace AgentOS.Application.Tasks;
 public static class TaskBackoff
 {
     private const int MaxExponent = 10;
+    private const int JitterSeconds = 30;
 
     public static DateTime Compute(
         DateTime nowUtc,
@@ -19,8 +22,10 @@ public static class TaskBackoff
             options.BackoffMaxSeconds,
             options.BackoffBaseSeconds * Math.Pow(2, exponent));
 
-        // Deterministic jitter in [0, 30) seconds derived from the task id.
-        var jitter = taskId.ToByteArray()[0] % 30;
+        // UUIDv7 puts the timestamp in the leading bytes, so a byte of the id itself is not
+        // random for tasks created in a burst. Hash the whole id and use the digest instead.
+        var digest = SHA256.HashData(taskId.ToByteArray());
+        var jitter = (int)(BitConverter.ToUInt32(digest, 0) % JitterSeconds);
 
         return nowUtc.AddSeconds(seconds + jitter);
     }

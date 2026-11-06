@@ -176,7 +176,7 @@ public sealed class SqlTaskQueueTests
                 Options.Create(QueueOptions),
                 NullLogger<LeaseRecoveryService>.Instance);
             var stats = await recovery.RecoverAsync(CancellationToken.None);
-            Assert.Equal(new LeaseRecoveryStats(1, 0), stats);
+            Assert.Equal(new LeaseRecoveryStats(1, 0, 0), stats);
         }
 
         await using (var verify = NewContext(connectionString))
@@ -202,6 +202,62 @@ public sealed class SqlTaskQueueTests
 
         await using var finalCheck = NewContext(connectionString);
         Assert.Equal(2, await finalCheck.TaskAttempts.CountAsync(candidate => candidate.TaskId == taskId));
+    }
+
+    [SkippableFact]
+    public async Task Cancelled_running_task_is_finalized_when_its_lease_expires()
+    {
+        var connectionString = RequireConnectionString();
+        await MigrateAsync(connectionString);
+        await ResetQueueAsync(connectionString);
+
+        await using var setup = NewContext(connectionString);
+        var project = await SeedProjectAsync(setup);
+        var worker = await SeedWorkerAsync(setup);
+        var taskId = await SeedTaskAsync(setup, project, "normal", Now);
+        var clock = new ManualTimeProvider(Now);
+
+        await ClaimAsync(connectionString, worker.Id, capacity: 1, clock);
+
+        await using (var cancelContext = NewContext(connectionString))
+        {
+            var service = CreateQueueService(cancelContext, clock);
+            var cancelled = await service.CancelAsync(taskId, CancellationToken.None);
+            Assert.Equal(TaskQueueOutcome.Ok, cancelled.Outcome);
+            Assert.True(cancelled.CancelRequested);
+        }
+
+        // The runner dies before acknowledging the cancellation; the lease expires.
+        await using (var expire = NewContext(connectionString))
+        {
+            var task = await expire.Tasks.SingleAsync(candidate => candidate.Id == taskId);
+            task.LeaseExpiresAtUtc = Now.AddSeconds(-1);
+            await expire.SaveChangesAsync();
+        }
+
+        await using (var recoveryContext = NewContext(connectionString))
+        {
+            var recovery = new LeaseRecoveryService(
+                new TaskQueueStore(recoveryContext),
+                clock,
+                Options.Create(QueueOptions),
+                NullLogger<LeaseRecoveryService>.Instance);
+            var stats = await recovery.RecoverAsync(CancellationToken.None);
+            Assert.Equal(new LeaseRecoveryStats(0, 0, 1), stats);
+        }
+
+        await using (var verify = NewContext(connectionString))
+        {
+            var task = await verify.Tasks.SingleAsync(candidate => candidate.Id == taskId);
+            Assert.Equal(TaskStatus.Cancelled, task.Status);
+
+            var attempt = await verify.TaskAttempts.SingleAsync(candidate => candidate.TaskId == taskId);
+            Assert.Equal(AttemptStatus.Cancelled, attempt.Status);
+        }
+
+        // Cancelled work must never become claimable again.
+        clock.Advance(TimeSpan.FromMinutes(10));
+        Assert.Empty(await ClaimAsync(connectionString, worker.Id, capacity: 5, clock));
     }
 
     [SkippableFact]
