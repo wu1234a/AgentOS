@@ -8,14 +8,69 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      # Ephemeral SQL Server used only inside this job. The fallback password is a
+      # throwaway, localhost-only credential for this container, not a production secret;
+      # set the MSSQL_SA_PASSWORD repository secret to override it.
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: 'Y'
+          MSSQL_SA_PASSWORD: ${{ secrets.MSSQL_SA_PASSWORD || 'AgentOS!CiOnly#2026' }}
+        ports:
+          - 1433:1433
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+
+      - name: Wait for SQL Server
+        shell: bash
+        env:
+          MSSQL_SA_PASSWORD: ${{ secrets.MSSQL_SA_PASSWORD || 'AgentOS!CiOnly#2026' }}
+        run: |
+          set -uo pipefail
+          container="$(docker ps -q --filter ancestor=mcr.microsoft.com/mssql/server:2022-latest | head -n 1)"
+          if [ -z "$container" ]; then
+            container="$(docker ps --format '{{.ID}} {{.Image}}' | awk '/mssql/ {print $1; exit}')"
+          fi
+          if [ -z "$container" ]; then
+            echo "SQL Server service container is not running." >&2
+            docker ps -a --format '{{.Names}} {{.Image}} {{.Status}}'
+            exit 1
+          fi
+
+          sqlcmd="/opt/mssql-tools18/bin/sqlcmd"
+          extra="-C"
+          if ! docker exec "$container" test -x "$sqlcmd"; then
+            sqlcmd="/opt/mssql-tools/bin/sqlcmd"
+            extra=""
+          fi
+          echo "Using $sqlcmd inside the SQL Server container."
+
+          for attempt in $(seq 1 60); do
+            if docker exec "$container" "$sqlcmd" $extra -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -Q 'SELECT 1' >/dev/null 2>&1; then
+              echo "SQL Server is ready after $attempt attempt(s)."
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "SQL Server did not become ready in time." >&2
+          docker logs "$container" | tail -n 50 || true
+          exit 1
+
       - name: Build
         run: dotnet build backend/AgentOS.slnx --nologo
+
       - name: Test
+        env:
+          # SQL integration tests (repository, unique index, concurrency, migration upgrade,
+          # lazy payload-hash backfill) run because this variable is set. The database is
+          # disposable and lives only in this job.
+          AGENTOS_SQL_TEST_CONNECTION: "Server=127.0.0.1,1433;Database=AgentOS_Test;User Id=sa;Password=${{ secrets.MSSQL_SA_PASSWORD || 'AgentOS!CiOnly#2026' }};TrustServerCertificate=True;Connect Timeout=30"
         run: dotnet test backend/AgentOS.slnx --no-build --nologo
 
   frontend:
