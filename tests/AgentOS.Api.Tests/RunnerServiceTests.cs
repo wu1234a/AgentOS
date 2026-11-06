@@ -66,6 +66,48 @@ public sealed class RunnerServiceTests
         Assert.True(api.Started.Count > 0);
     }
 
+    [Fact]
+    public async Task Runner_retries_a_transient_registration_failure()
+    {
+        var api = new FakeRunnerApi { RegisterFailuresBeforeSuccess = 1 };
+        var task = NewTask();
+        api.Claimed.Add(task);
+
+        var options = new RunnerOptions
+        {
+            BaseUrl = "http://localhost",
+            WorkerCode = "test-runner",
+            RegistrationKey = "bootstrap",
+            WorkspaceRoots = [_root],
+            Projects = [new ProjectWorkspace { Slug = "demo", Path = _workspace }],
+            PollIntervalSeconds = 1,
+            HeartbeatIntervalSeconds = 30,
+            MaxConcurrentTasks = 1
+        };
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<IRunnerApi>(api);
+        services.AddSingleton<IOptions<RunnerOptions>>(Options.Create(options));
+        services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<WorkspacePolicy>();
+        services.AddSingleton<ITaskHandler, FakeTaskHandler>();
+        services.AddTransient<TaskProcessor>();
+
+        await using var provider = services.BuildServiceProvider();
+        var runner = new RunnerService(
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            api,
+            Options.Create(options),
+            NullLogger<RunnerService>.Instance);
+
+        await runner.StartAsync(CancellationToken.None);
+        await WaitUntilAsync(() => api.Completed.Count > 0, TimeSpan.FromSeconds(20));
+        await runner.StopAsync(CancellationToken.None);
+
+        Assert.Contains(task.TaskId, api.Completed);
+    }
+
     private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
     {
         var deadline = DateTime.UtcNow + timeout;

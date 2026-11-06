@@ -60,6 +60,20 @@ public sealed class RunnerAuthenticationFilter(
             return Unauthorized("Runner credentials are invalid.");
         }
 
+        var worker = await queueStore.FindWorkerByIdAsync(client.WorkerId.Value, httpContext.RequestAborted);
+        if (worker is null)
+        {
+            return Unauthorized("The runner is not bound to a registered worker.");
+        }
+
+        if (worker.Status == WorkerStatus.Disabled)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status403Forbidden,
+                title: "Runner is disabled",
+                detail: $"Worker '{worker.WorkerCode}' is disabled.");
+        }
+
         await clientStore.TouchAsync(client.Id, now, httpContext.RequestAborted);
         httpContext.Items[WorkerIdItemKey] = client.WorkerId.Value;
         return null;

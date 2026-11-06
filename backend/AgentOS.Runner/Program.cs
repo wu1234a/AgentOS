@@ -13,9 +13,7 @@ builder.Services.AddHttpClient<IRunnerApi, RunnerApiClient>((services, httpClien
     httpClient.Timeout = TimeSpan.FromSeconds(options.RequestTimeoutSeconds);
 });
 
-builder.Services.AddSingleton<WorkspacePolicy>();
-builder.Services.AddSingleton<ITaskHandler, DemoTaskHandler>();
-builder.Services.AddTransient<TaskProcessor>();
+builder.Services.AddRunnerServices();
 builder.Services.AddHostedService<RunnerService>();
 
 var host = builder.Build();

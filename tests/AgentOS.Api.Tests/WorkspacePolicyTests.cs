@@ -67,6 +67,23 @@ public sealed class WorkspacePolicyTests : IDisposable
     }
 
     [SkippableFact]
+    public void Root_case_variant_is_rejected_on_case_sensitive_filesystems()
+    {
+        Skip.If(OperatingSystem.IsWindows(), "Windows filesystems are case-insensitive by default.");
+
+        var policy = new WorkspacePolicy(Options.Create(new RunnerOptions
+        {
+            WorkspaceRoots = [_root.ToUpperInvariant()],
+            Projects = [new ProjectWorkspace { Slug = "demo", Path = _workspace }]
+        }));
+
+        var decision = policy.Validate("demo");
+
+        Assert.False(decision.Allowed);
+        Assert.Equal("workspace-outside-roots", decision.Reason);
+    }
+
+    [SkippableFact]
     public void Symlinked_workspace_is_rejected()
     {
         var outside = Path.Combine(Path.GetTempPath(), "agentos-link-target-" + Guid.NewGuid().ToString("N"));

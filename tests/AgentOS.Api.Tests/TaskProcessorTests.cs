@@ -109,7 +109,34 @@ public sealed class TaskProcessorTests
         Assert.Empty(_api.Failed);
     }
 
-    private TaskProcessor CreateProcessor(int heartbeatSeconds = 20) => new(
+    [Fact]
+    public async Task Heartbeat_failure_is_reported_as_retryable_not_cancelled()
+    {
+        _api.HeartbeatFailuresRemaining = 3;
+        _handler.CancelUntilCancelled = true;
+        var task = NewTask();
+
+        await CreateProcessor(heartbeatSeconds: 1).ProcessAsync(task, CancellationToken.None);
+
+        Assert.Empty(_api.Completed);
+        var failure = Assert.Single(_api.Failed);
+        Assert.Equal("heartbeat-lost", failure.Code);
+        Assert.True(failure.Retryable);
+        Assert.False(failure.Cancelled);
+    }
+
+    [Fact]
+    public async Task Filled_log_batches_are_drained_before_completion()
+    {
+        _api.LogUploadDelay = TimeSpan.FromMilliseconds(250);
+
+        await CreateProcessor(logBatchSize: 1).ProcessAsync(NewTask(), CancellationToken.None);
+
+        Assert.NotEmpty(_api.LogBatches);
+        Assert.Contains(_api.LogBatches.SelectMany(batch => batch), entry => entry.Message == "fake handler started");
+    }
+
+    private TaskProcessor CreateProcessor(int heartbeatSeconds = 20, int logBatchSize = 2) => new(
         _api,
         new WorkspacePolicy(Options.Create(new RunnerOptions
         {
@@ -121,7 +148,7 @@ public sealed class TaskProcessorTests
         Options.Create(new RunnerOptions
         {
             HeartbeatIntervalSeconds = heartbeatSeconds,
-            MaxLogEntriesPerBatch = 2
+            MaxLogEntriesPerBatch = logBatchSize
         }),
         new ManualTimeProvider(Now),
         NullLogger<TaskProcessor>.Instance);

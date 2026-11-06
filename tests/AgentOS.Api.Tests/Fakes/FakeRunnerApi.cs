@@ -25,6 +25,12 @@ public sealed class FakeRunnerApi : IRunnerApi
 
     public bool CancelOnHeartbeat { get; set; }
 
+    public int RegisterFailuresBeforeSuccess { get; set; }
+
+    public int HeartbeatFailuresRemaining { get; set; }
+
+    public TimeSpan LogUploadDelay { get; set; }
+
     public Exception? ClaimException { get; set; }
 
     /// <summary>Number of claim calls that fail with <see cref="ClaimException"/> before succeeding.</summary>
@@ -33,7 +39,16 @@ public sealed class FakeRunnerApi : IRunnerApi
     public Exception? CompleteException { get; set; }
 
     public Task<RunnerRegistrationResponse> RegisterAsync(string registrationKey, CancellationToken cancellationToken)
-        => Task.FromResult(Registration);
+    {
+        if (RegisterFailuresBeforeSuccess > 0)
+        {
+            RegisterFailuresBeforeSuccess--;
+            return Task.FromException<RunnerRegistrationResponse>(
+                new RunnerApiException(503, "unavailable", "registration unavailable"));
+        }
+
+        return Task.FromResult(Registration);
+    }
 
     public Task HeartbeatWorkerAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
@@ -68,6 +83,13 @@ public sealed class FakeRunnerApi : IRunnerApi
         string leaseToken,
         CancellationToken cancellationToken)
     {
+        if (HeartbeatFailuresRemaining > 0)
+        {
+            HeartbeatFailuresRemaining--;
+            return Task.FromException<RunnerTaskResponse>(
+                new RunnerApiException(503, "unavailable", "heartbeat unavailable"));
+        }
+
         Heartbeats.Add((taskId, leaseToken));
         return Task.FromResult(Response(taskId, "Running", cancelRequested: CancelOnHeartbeat));
     }
@@ -102,15 +124,19 @@ public sealed class FakeRunnerApi : IRunnerApi
         return Task.FromResult(Response(taskId, cancelled ? "Cancelled" : "Failed"));
     }
 
-    public Task AppendLogsAsync(
+    public async Task AppendLogsAsync(
         Guid taskId,
         Guid attemptId,
         string leaseToken,
         IReadOnlyList<TaskLogEntry> entries,
         CancellationToken cancellationToken)
     {
+        if (LogUploadDelay > TimeSpan.Zero)
+        {
+            await Task.Delay(LogUploadDelay, cancellationToken);
+        }
+
         LogBatches.Add(entries.ToArray());
-        return Task.CompletedTask;
     }
 
     private static RunnerTaskResponse Response(

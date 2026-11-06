@@ -13,6 +13,9 @@ public sealed class TaskQueueStore(AgentOSDbContext dbContext) : ITaskQueueStore
     public Task<Worker?> FindWorkerByCodeAsync(string workerCode, CancellationToken cancellationToken)
         => dbContext.Workers.FirstOrDefaultAsync(worker => worker.WorkerCode == workerCode, cancellationToken);
 
+    public Task<Worker?> FindWorkerByIdAsync(Guid workerId, CancellationToken cancellationToken)
+        => dbContext.Workers.AsNoTracking().FirstOrDefaultAsync(worker => worker.Id == workerId, cancellationToken);
+
     public async Task<bool> TouchWorkerAsync(
         Guid workerId,
         DateTime nowUtc,
@@ -23,8 +26,10 @@ public sealed class TaskQueueStore(AgentOSDbContext dbContext) : ITaskQueueStore
             .ExecuteUpdateAsync(
                 setters => setters
                     .SetProperty(worker => worker.LastHeartbeatAtUtc, nowUtc)
-                    .SetProperty(worker => worker.Status, WorkerStatus.Online)
-                    .SetProperty(worker => worker.UpdatedAtUtc, nowUtc),
+                    .SetProperty(worker => worker.UpdatedAtUtc, nowUtc)
+                    .SetProperty(worker => worker.Status, worker => worker.Status == WorkerStatus.Disabled
+                        ? WorkerStatus.Disabled
+                        : WorkerStatus.Online),
                 cancellationToken);
 
         return updated > 0;

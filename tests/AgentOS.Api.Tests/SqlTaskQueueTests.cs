@@ -312,6 +312,34 @@ public sealed class SqlTaskQueueTests
     }
 
     [SkippableFact]
+    public async Task Disabled_worker_cannot_claim_and_heartbeat_keeps_it_disabled()
+    {
+        var connectionString = RequireConnectionString();
+        await MigrateAsync(connectionString);
+        await ResetQueueAsync(connectionString);
+
+        await using var setup = NewContext(connectionString);
+        var project = await SeedProjectAsync(setup);
+        var worker = await SeedWorkerAsync(setup);
+        await SeedTaskAsync(setup, project, "normal", Now);
+
+        worker.Status = WorkerStatus.Disabled;
+        await setup.SaveChangesAsync();
+
+        Assert.Empty(await ClaimAsync(connectionString, worker.Id, capacity: 5));
+
+        await using (var storeContext = NewContext(connectionString))
+        {
+            var store = new TaskQueueStore(storeContext);
+            Assert.True(await store.TouchWorkerAsync(worker.Id, Now, CancellationToken.None));
+        }
+
+        await using var verify = NewContext(connectionString);
+        var stored = await verify.Workers.SingleAsync(candidate => candidate.Id == worker.Id);
+        Assert.Equal(WorkerStatus.Disabled, stored.Status);
+    }
+
+    [SkippableFact]
     public async Task Task_logs_are_idempotent_per_attempt_sequence()
     {
         var connectionString = RequireConnectionString();

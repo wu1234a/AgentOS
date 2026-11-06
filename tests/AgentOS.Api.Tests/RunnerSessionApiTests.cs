@@ -101,6 +101,37 @@ public sealed class RunnerSessionApiTests
     }
 
     [Fact]
+    public async Task Client_credentials_reject_a_disabled_worker()
+    {
+        using var factory = new AgentOSApiFactory(HealthStatus.Healthy);
+        var worker = SeedWorker(factory);
+        worker.Status = WorkerStatus.Disabled;
+
+        var secret = "disabled-secret";
+        factory.ApiClients.Clients.Add(new ApiClient
+        {
+            Id = Guid.NewGuid(),
+            ClientCode = "disabled-client",
+            ClientType = ApiClientType.Runner,
+            WorkerId = worker.Id,
+            SecretHash = ClientSecretHasher.Hash(secret),
+            ScopesJson = "[]",
+            IsEnabled = true,
+            CreatedAtUtc = DateTime.UtcNow,
+            UpdatedAtUtc = DateTime.UtcNow
+        });
+
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-AgentOS-Client-Id", "disabled-client");
+        client.DefaultRequestHeaders.Add("X-AgentOS-Client-Secret", secret);
+
+        using var response = await client.PostAsJsonAsync("/api/v1/runners/claim", new { capacity = 1 });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(0, factory.Claimer.Calls);
+    }
+
+    [Fact]
     public async Task Invalid_client_secret_is_rejected()
     {
         using var factory = new AgentOSApiFactory(HealthStatus.Healthy);

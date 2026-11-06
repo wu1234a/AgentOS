@@ -83,8 +83,8 @@ dotnet test backend/AgentOS.slnx
 | 检查 | 结果 |
 |---|---|
 | 后端构建 | ✅ 0 错误 |
-| 全量测试（含 SQL） | ✅ **205 通过 / 1 跳过 / 0 失败**（跳过项为当前 Windows 环境不允许创建符号链接） |
-| SQL 队列/Runner 用例 | ✅ 8/8（并发领取、优先级、续租、恢复、重试、取消、注册轮换、日志幂等） |
+| 全量测试（含 SQL） | ✅ **211 通过 / 2 跳过 / 0 失败**（跳过项为当前 Windows 环境不允许创建符号链接/大小写敏感用例；CI Linux 会执行大小写用例） |
+| SQL 队列/Runner 用例 | ✅ 9/9（并发领取、优先级、续租、恢复、重试、取消、注册轮换、日志幂等、禁用 Worker） |
 | 迁移 | ✅ `AddRunnerClientsAndLogs` 已应用到 `AgentOS_Dev` |
 | 前端 | 无改动 |
 
@@ -108,7 +108,7 @@ dotnet test backend/AgentOS.slnx
 6. 注册密钥为共享 Bootstrap 凭证，不是一次性令牌；生产建议短时启用后关闭。
 7. Runner 未做自更新/版本协商。
 
-## 8. 下一任务建议
+### 7.1 独立代码审查\n\nCodex CLI 审查 commit `3589bc2`：2 个 P1（Runner 宿主缺少 TimeProvider、禁用 Worker 可绕过认证/被心跳复活）与 4 个 P2（心跳失败误判为取消、日志批次未 drain、注册不重试、Linux 路径大小写），全部修复并新增回归测试，详见 `docs/reports/AOS-006-CODE-REVIEW.md`。\n\n## 8. 下一任务建议
 
 AOS-007 Codex Adapter：
 

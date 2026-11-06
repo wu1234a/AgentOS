@@ -53,7 +53,8 @@ public sealed class TaskProcessor(
         var logs = new LogBuffer(api, task, Math.Max(1, options.Value.MaxLogEntriesPerBatch), timeProvider, logger);
 
         using var taskCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
-        var heartbeatTask = RunHeartbeatAsync(task, logs, taskCts, logger);
+        var interruption = new InterruptionState();
+        var heartbeatTask = RunHeartbeatAsync(task, logs, taskCts, interruption, logger);
 
         try
         {
@@ -77,14 +78,7 @@ public sealed class TaskProcessor(
                     break;
 
                 case HandlerOutcome.Cancelled:
-                    var shuttingDown = stoppingToken.IsCancellationRequested;
-                    await FailBestEffortAsync(
-                        task,
-                        shuttingDown ? "runner-shutdown" : "cancelled",
-                        shuttingDown ? "Runner is shutting down." : "Cancelled by AgentOS.",
-                        retryable: shuttingDown,
-                        cancelled: !shuttingDown,
-                        stoppingToken);
+                    await ReportInterruptionAsync(task, interruption, stoppingToken, logs, logger);
                     break;
 
                 default:
@@ -100,16 +94,7 @@ public sealed class TaskProcessor(
         }
         catch (OperationCanceledException) when (taskCts.IsCancellationRequested)
         {
-            await logs.FlushAsync(CancellationToken.None);
-
-            var shuttingDown = stoppingToken.IsCancellationRequested;
-            await FailBestEffortAsync(
-                task,
-                shuttingDown ? "runner-shutdown" : "cancelled",
-                shuttingDown ? "Runner is shutting down." : "Cancelled by AgentOS.",
-                retryable: shuttingDown,
-                cancelled: !shuttingDown,
-                CancellationToken.None);
+            await ReportInterruptionAsync(task, interruption, stoppingToken, logs, logger);
         }
         catch (Exception exception)
         {
@@ -142,6 +127,7 @@ public sealed class TaskProcessor(
         ClaimedTask task,
         LogBuffer logs,
         CancellationTokenSource taskCts,
+        InterruptionState interruption,
         ILogger<TaskProcessor> runLogger)
     {
         var interval = TimeSpan.FromSeconds(Math.Max(1, options.Value.HeartbeatIntervalSeconds));
@@ -173,6 +159,7 @@ public sealed class TaskProcessor(
                 if (response.CancelRequested)
                 {
                     runLogger.LogInformation("Cancellation requested for task {TaskId}.", task.TaskId);
+                    interruption.Set(InterruptionReason.Requested);
                     taskCts.Cancel();
                     return;
                 }
@@ -184,6 +171,7 @@ public sealed class TaskProcessor(
                     "Lease lost for task {TaskId}: {Code}.",
                     task.TaskId,
                     exception.Code);
+                interruption.Set(InterruptionReason.LeaseLost);
                 taskCts.Cancel();
                 return;
             }
@@ -201,10 +189,51 @@ public sealed class TaskProcessor(
                     runLogger.LogError(
                         "Stopping task {TaskId}: heartbeat failed three times in a row.",
                         task.TaskId);
+                    interruption.Set(InterruptionReason.HeartbeatFailure);
                     taskCts.Cancel();
                     return;
                 }
             }
+        }
+    }
+
+    /// <summary>Maps the reason the task was interrupted to the correct terminal report.</summary>
+    private async Task ReportInterruptionAsync(
+        ClaimedTask task,
+        InterruptionState interruption,
+        CancellationToken stoppingToken,
+        LogBuffer logs,
+        ILogger<TaskProcessor> runLogger)
+    {
+        await logs.FlushAsync(CancellationToken.None);
+
+        switch (interruption.Value)
+        {
+            case InterruptionReason.LeaseLost:
+                // The lease is gone, so any report would be rejected; let recovery handle it.
+                runLogger.LogWarning("Not reporting task {TaskId}: the lease was already lost.", task.TaskId);
+                return;
+
+            case InterruptionReason.HeartbeatFailure:
+                await FailBestEffortAsync(
+                    task,
+                    "heartbeat-lost",
+                    "Runner could not renew the lease; the task will be retried.",
+                    retryable: true,
+                    cancelled: false,
+                    CancellationToken.None);
+                return;
+
+            default:
+                var shuttingDown = stoppingToken.IsCancellationRequested;
+                await FailBestEffortAsync(
+                    task,
+                    shuttingDown ? "runner-shutdown" : "cancelled",
+                    shuttingDown ? "Runner is shutting down." : "Cancelled by AgentOS.",
+                    retryable: shuttingDown,
+                    cancelled: !shuttingDown,
+                    CancellationToken.None);
+                return;
         }
     }
 
@@ -273,6 +302,23 @@ public sealed class TaskProcessor(
     }
 
     /// <summary>Bounded, best-effort log uploader; control-plane failures never fail the task.</summary>
+    private enum InterruptionReason
+    {
+        None = 0,
+        Requested = 1,
+        HeartbeatFailure = 2,
+        LeaseLost = 3
+    }
+
+    private sealed class InterruptionState
+    {
+        private int _value;
+
+        public InterruptionReason Value => (InterruptionReason)Volatile.Read(ref _value);
+
+        public void Set(InterruptionReason reason) => Volatile.Write(ref _value, (int)reason);
+    }
+
     private sealed class LogBuffer(
         IRunnerApi api,
         ClaimedTask task,
@@ -282,6 +328,7 @@ public sealed class TaskProcessor(
     {
         private readonly object _gate = new();
         private readonly List<TaskLogEntry> _entries = [];
+        private readonly List<Task> _uploads = [];
         private int _sequence;
 
         public void Add(string level, string message)
@@ -301,12 +348,24 @@ public sealed class TaskProcessor(
 
             if (batch is not null)
             {
-                _ = SendAsync(batch, CancellationToken.None);
+                StartUpload(batch);
             }
         }
 
         public async Task FlushAsync(CancellationToken cancellationToken)
         {
+            Task[] pending;
+
+            lock (_gate)
+            {
+                pending = [.. _uploads];
+                _uploads.Clear();
+            }
+
+            // A filled batch may still be in flight; drain it before the terminal report so its
+            // lines are stored while the lease is still valid.
+            await Task.WhenAll(pending);
+
             TaskLogEntry[] batch;
 
             lock (_gate)
@@ -321,6 +380,16 @@ public sealed class TaskProcessor(
             }
 
             await SendAsync(batch, cancellationToken);
+        }
+
+        private void StartUpload(TaskLogEntry[] batch)
+        {
+            var upload = SendAsync(batch, CancellationToken.None);
+
+            lock (_gate)
+            {
+                _uploads.Add(upload);
+            }
         }
 
         private async Task SendAsync(TaskLogEntry[] batch, CancellationToken cancellationToken)

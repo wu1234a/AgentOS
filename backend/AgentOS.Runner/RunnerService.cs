@@ -138,14 +138,34 @@ public sealed class RunnerService(
                 "Configure RegistrationKey (one-time bootstrap) or ClientId/ClientSecret (or DevApiKey for development).");
         }
 
-        var registration = await api.RegisterAsync(options.Value.RegistrationKey, cancellationToken);
-        options.Value.ClientId = registration.ClientId;
-        options.Value.ClientSecret = registration.ClientSecret;
+        var backoff = TimeSpan.FromSeconds(2);
 
-        logger.LogInformation(
-            "Registered worker {WorkerId} as client {ClientId}; the bootstrap key is no longer needed.",
-            registration.WorkerId,
-            registration.ClientId);
+        while (true)
+        {
+            try
+            {
+                var registration = await api.RegisterAsync(options.Value.RegistrationKey, cancellationToken);
+                options.Value.ClientId = registration.ClientId;
+                options.Value.ClientSecret = registration.ClientSecret;
+
+                logger.LogInformation(
+                    "Registered worker {WorkerId} as client {ClientId}; the bootstrap key is no longer needed.",
+                    registration.WorkerId,
+                    registration.ClientId);
+                return;
+            }
+            catch (RunnerApiException exception) when (exception.IsTransient)
+            {
+                // Starting before the API is reachable must not kill the host; keep retrying.
+                logger.LogWarning(
+                    "Registration failed ({Code}); retrying in {Delay}s.",
+                    exception.Code,
+                    backoff.TotalSeconds);
+
+                await Task.Delay(backoff, cancellationToken);
+                backoff = TimeSpan.FromSeconds(Math.Min(backoff.TotalSeconds * 2, MaxBackoff.TotalSeconds));
+            }
+        }
     }
 
     private async Task WorkerHeartbeatLoopAsync(CancellationToken cancellationToken)

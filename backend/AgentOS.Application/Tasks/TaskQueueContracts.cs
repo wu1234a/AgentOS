@@ -73,6 +73,8 @@ public interface ITaskQueueStore
 {
     Task<Worker?> FindWorkerByCodeAsync(string workerCode, CancellationToken cancellationToken);
 
+    Task<Worker?> FindWorkerByIdAsync(Guid workerId, CancellationToken cancellationToken);
+
     /// <summary>Updates the worker's last-seen time and marks it online.</summary>
     Task<bool> TouchWorkerAsync(Guid workerId, DateTime nowUtc, CancellationToken cancellationToken);
 

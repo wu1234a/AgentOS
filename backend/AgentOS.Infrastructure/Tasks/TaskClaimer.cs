@@ -1,6 +1,7 @@
 using System.Data.Common;
 using AgentOS.Application.Tasks;
 using AgentOS.Domain.Tasks;
+using AgentOS.Domain.Workers;
 using AgentOS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -72,6 +73,19 @@ public sealed class TaskClaimer(
         var limit = Math.Clamp(capacity, 1, Math.Max(1, options.Value.ClaimBatchLimit));
         var now = timeProvider.GetUtcNow().UtcDateTime;
         var leaseExpiresAtUtc = now.Add(options.Value.LeaseDuration);
+
+        // Defence in depth: the API filter already rejects disabled runners, but a disabled
+        // worker must never be able to take work even if a new caller bypasses the filter.
+        var workerStatus = await dbContext.Workers
+            .AsNoTracking()
+            .Where(worker => worker.Id == workerId)
+            .Select(worker => (WorkerStatus?)worker.Status)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (workerStatus is null || workerStatus == WorkerStatus.Disabled)
+        {
+            return [];
+        }
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         var dbTransaction = transaction.GetDbTransaction();

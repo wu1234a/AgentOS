@@ -19,6 +19,9 @@ public sealed class FakeTaskQueueStore : ITaskQueueStore
     public Task<Worker?> FindWorkerByCodeAsync(string workerCode, CancellationToken cancellationToken)
         => Task.FromResult(Workers.FirstOrDefault(worker => worker.WorkerCode == workerCode));
 
+    public Task<Worker?> FindWorkerByIdAsync(Guid workerId, CancellationToken cancellationToken)
+        => Task.FromResult(Workers.FirstOrDefault(worker => worker.Id == workerId));
+
     public Task<bool> TouchWorkerAsync(Guid workerId, DateTime nowUtc, CancellationToken cancellationToken)
     {
         var worker = Workers.FirstOrDefault(candidate => candidate.Id == workerId);
@@ -28,7 +31,11 @@ public sealed class FakeTaskQueueStore : ITaskQueueStore
         }
 
         worker.LastHeartbeatAtUtc = nowUtc;
-        worker.Status = WorkerStatus.Online;
+        if (worker.Status != WorkerStatus.Disabled)
+        {
+            worker.Status = WorkerStatus.Online;
+        }
+
         worker.UpdatedAtUtc = nowUtc;
         return Task.FromResult(true);
     }

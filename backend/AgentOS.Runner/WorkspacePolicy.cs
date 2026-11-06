@@ -16,6 +16,9 @@ public sealed record WorkspaceDecision(bool Allowed, string? Reason, string? Wor
 /// </summary>
 public sealed class WorkspacePolicy(IOptions<RunnerOptions> options)
 {
+    private static readonly StringComparison PathComparison = OperatingSystem.IsWindows()
+        ? StringComparison.OrdinalIgnoreCase
+        : StringComparison.Ordinal;
     public WorkspaceDecision Validate(string projectSlug)
     {
         var configured = options.Value.Projects
@@ -80,14 +83,14 @@ public sealed class WorkspacePolicy(IOptions<RunnerOptions> options)
         var normalizedRoot = root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         var normalizedCandidate = candidate.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
-        if (string.Equals(normalizedRoot, normalizedCandidate, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(normalizedRoot, normalizedCandidate, PathComparison))
         {
             return true;
         }
 
         return normalizedCandidate.StartsWith(
             normalizedRoot + Path.DirectorySeparatorChar,
-            StringComparison.OrdinalIgnoreCase);
+            PathComparison);
     }
 
     private static bool HasReparsePoint(string root, string target)
@@ -104,7 +107,7 @@ public sealed class WorkspacePolicy(IOptions<RunnerOptions> options)
             if (string.Equals(
                     current.FullName.TrimEnd(Path.DirectorySeparatorChar),
                     root.TrimEnd(Path.DirectorySeparatorChar),
-                    StringComparison.OrdinalIgnoreCase))
+                    PathComparison))
             {
                 return false;
             }
