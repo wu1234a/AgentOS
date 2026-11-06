@@ -15,6 +15,9 @@ const loading = ref(false)
 const error = ref('')
 const codeFilter = ref('')
 const includeDisabled = ref(false)
+const total = ref(0)
+const page = ref(1)
+const pageSize = 50
 
 const dialogVisible = ref(false)
 const contentVisible = ref(false)
@@ -28,9 +31,12 @@ async function load() {
   try {
     const data = await listSkills({
       code: codeFilter.value || undefined,
-      includeDisabled: includeDisabled.value
+      includeDisabled: includeDisabled.value,
+      limit: pageSize,
+      offset: (page.value - 1) * pageSize
     })
     items.value = data.items
+    total.value = data.total
   } catch (exception) {
     error.value = exception.message
   } finally {
@@ -93,8 +99,13 @@ onMounted(load)
         <p class="muted">版本化 SOP 与 Markdown 内容</p>
       </div>
       <div class="actions">
-        <el-input v-model="codeFilter" placeholder="按 Code 过滤" style="width: 200px" @keyup.enter="load" />
-        <el-checkbox v-model="includeDisabled" @change="load">包含禁用</el-checkbox>
+        <el-input
+          v-model="codeFilter"
+          placeholder="按 Code 过滤"
+          style="width: 200px"
+          @keyup.enter="() => { page = 1; load() }"
+        />
+        <el-checkbox v-model="includeDisabled" @change="() => { page = 1; load() }">包含禁用</el-checkbox>
         <el-button type="primary" @click="openCreate">新建版本</el-button>
       </div>
     </div>
@@ -130,6 +141,15 @@ onMounted(load)
         </template>
       </el-table-column>
     </el-table>
+
+    <el-pagination
+      class="pager"
+      layout="prev, pager, next, total"
+      :total="total"
+      :page-size="pageSize"
+      :current-page="page"
+      @current-change="(value) => { page = value; load() }"
+    />
 
     <el-dialog v-model="dialogVisible" title="新建 Skill 版本" width="680px">
       <el-form label-width="100px">
@@ -174,6 +194,11 @@ onMounted(load)
   color: #6b7280;
   margin: 4px 0 0;
 }
+.pager {
+  margin-top: 16px;
+  justify-content: flex-end;
+}
+
 .markdown {
   white-space: pre-wrap;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;

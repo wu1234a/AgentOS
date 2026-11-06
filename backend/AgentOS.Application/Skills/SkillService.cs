@@ -64,6 +64,15 @@ public sealed class SkillService(ISkillRepository repository, ISkillStore store,
             return SkillResult.Invalid(errors);
         }
 
+        if (request.ProjectId is { } projectId
+            && !await repository.ProjectEnabledAsync(projectId, cancellationToken))
+        {
+            return SkillResult.Invalid(new Dictionary<string, string[]>
+            {
+                ["projectId"] = ["Project does not exist or is disabled."]
+            });
+        }
+
         if (await repository.VersionExistsAsync(request.ProjectId, code!, version!, cancellationToken))
         {
             return SkillResult.Conflict("skill-version-conflict");

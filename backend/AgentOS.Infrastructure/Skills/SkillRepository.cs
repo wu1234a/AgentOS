@@ -88,6 +88,11 @@ public sealed class SkillRepository(AgentOSDbContext dbContext) : ISkillReposito
         return ToView(skill, slug);
     }
 
+    public Task<bool> ProjectEnabledAsync(Guid projectId, CancellationToken cancellationToken)
+        => dbContext.Projects
+            .AsNoTracking()
+            .AnyAsync(project => project.Id == projectId && project.IsEnabled, cancellationToken);
+
     public Task<bool> VersionExistsAsync(
         Guid? projectId,
         string code,

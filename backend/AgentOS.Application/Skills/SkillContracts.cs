@@ -96,6 +96,8 @@ public interface ISkillRepository
 
     Task<SkillView?> GetViewAsync(Guid skillId, CancellationToken cancellationToken);
 
+    Task<bool> ProjectEnabledAsync(Guid projectId, CancellationToken cancellationToken);
+
     Task<bool> VersionExistsAsync(
         Guid? projectId,
         string code,

@@ -54,6 +54,9 @@ public sealed class SqlSkillTests
         Assert.Equal(SkillOutcome.Conflict, duplicate.Outcome);
         Assert.Equal("skill-version-conflict", duplicate.ErrorCode);
 
+        // A losing duplicate must not overwrite or delete the committed version content.
+        Assert.Equal("# Bugfix\n1. Reproduce", await service.GetContentAsync(created.Skill.Id, CancellationToken.None));
+
         var second = await service.CreateAsync(
             new CreateSkillRequest
             {
@@ -157,11 +160,59 @@ public sealed class SqlSkillTests
             CancellationToken.None);
         Assert.Equal(SkillOutcome.ValidationFailed, emptyContent.Outcome);
 
+        var missingProject = await service.CreateAsync(
+            new CreateSkillRequest
+            {
+                ProjectId = Guid.NewGuid(),
+                Code = "missing-project",
+                Version = "1.0.0",
+                Content = "x"
+            },
+            CancellationToken.None);
+        Assert.Equal(SkillOutcome.ValidationFailed, missingProject.Outcome);
+        Assert.Contains("projectId", missingProject.Errors.Keys);
+
         var unavailable = CreateService(context, root, configured: false);
         var noStorage = await unavailable.CreateAsync(
             new CreateSkillRequest { Code = "ok-code", Version = "1.0.0", Content = "x" },
             CancellationToken.None);
         Assert.Equal(SkillOutcome.StorageUnavailable, noStorage.Outcome);
+    }
+
+    [SkippableFact]
+    public async Task Symlinked_scope_directory_is_rejected()
+    {
+        var connectionString = RequireConnectionString();
+        await MigrateAsync(connectionString);
+
+        await using var context = NewContext(connectionString);
+        var root = Path.Combine(Path.GetTempPath(), "agentos-skill-tests", Guid.NewGuid().ToString("N"));
+        var outside = Path.Combine(Path.GetTempPath(), "agentos-skill-outside", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        Directory.CreateDirectory(outside);
+        var link = Path.Combine(root, "_global");
+
+        try
+        {
+            Directory.CreateSymbolicLink(link, outside);
+        }
+        catch (Exception exception) when (exception is UnauthorizedAccessException or IOException)
+        {
+            Skip.If(true, "Creating symlinks is not permitted in this environment.");
+        }
+
+        var service = CreateService(context, root);
+        var result = await service.CreateAsync(
+            new CreateSkillRequest
+            {
+                Code = "symlink-skill",
+                Version = "1.0.0",
+                Content = "must not be written outside"
+            },
+            CancellationToken.None);
+
+        Assert.Equal(SkillOutcome.ValidationFailed, result.Outcome);
+        Assert.Empty(Directory.GetFiles(outside, "*", SearchOption.AllDirectories));
     }
 
     private static SkillService CreateService(
