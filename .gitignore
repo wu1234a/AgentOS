@@ -1,7 +1,7 @@
 # ==== .NET / ASP.NET Core ====
 bin/
 obj/
-artifacts/
+/artifacts/
 publish/
 TestResults/
 coverage/
