@@ -287,3 +287,59 @@ dotnet test backend/AgentOS.slnx --filter FullyQualifiedName~Rule
 
 覆盖：通配匹配与顺序确定性、JSON 校验、禁用引用、规则 CRUD/版本号、任务派发幂等、
 `LogicalTaskKey` 唯一索引、Agent 禁用时跳过、事件状态 `Processed`/`Ignored`。
+
+## 10. Codex 审查与 Windows 沙箱排障
+
+### 10.1 症状
+
+在本机用 Codex 的只读/工作区沙箱执行任何命令都会失败：
+
+```text
+windows sandbox failed: CreateProcessAsUserW failed: 5 (拒绝访问。)
+```
+
+同一命令用 `-s danger-full-access` 可以执行，说明问题出在 Codex 的 Windows 沙箱
+（受限令牌）而不是仓库或命令本身。
+
+### 10.2 根因
+
+Codex 在 Windows 上优先使用 `pwsh.exe`；本机 PATH 里的 `pwsh` 是 **Microsoft Store 版**
+（`%LOCALAPPDATA%\Microsoft\WindowsApps\...\pwsh.exe`，AppExecutionAlias）。受限令牌无法
+启动打包应用别名，于是 `CreateProcessAsUserW` 在命令真正执行前就返回 access denied。
+这与 openai/codex#39276、#35871 描述的场景一致。
+
+### 10.3 本机修复
+
+`%APPDATA%\npm\codex.cmd`（Codex 的启动垫片）在启动 `codex.exe` 之前，把 `WindowsApps`
+从**该进程**的 PATH 中移除，Codex 于是回退到桌面版 `powershell.exe`：
+
+```bat
+for /f "usebackq delims=" %%i in (`powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ^
+  "[string]::Join(';', ($env:PATH -split ';' | Where-Object { $_ -and $_ -notmatch 'WindowsApps' }))"`) do set "PATH=%%i"
+```
+
+验证：
+
+```powershell
+codex exec -s read-only "Run exactly: git rev-parse --short HEAD. Reply with only the raw stdout."
+```
+
+修复只影响 `codex` 及其子进程，不改变普通终端里的 `pwsh`。如果以后卸载/安装 Store 版
+PowerShell 或 PATH 变化，重新检查这一节。
+
+### 10.4 网络与 MCP
+
+- Codex 访问模型 API 需要代理：`$env:HTTPS_PROXY='http://127.0.0.1:7897'`（本机 Clash）。
+- 沙箱修好后，审查通过**本地 git** 读取仓库，不再依赖 GitHub MCP；即使
+  `chatgpt.com/backend-api/ps/mcp` 断连也不影响 `codex exec review`。
+
+### 10.5 常用命令
+
+```powershell
+$env:HTTPS_PROXY='http://127.0.0.1:7897'
+codex exec review --commit <sha>          # 审查某个提交（含修复）
+codex exec -s read-only "<问题>"           # 只读问答
+codex exec -s workspace-write "<任务>"     # 允许写工作区
+```
+
+> 本机仍需注意：`dotnet test` 受 DSH 工作区沙箱限制（见 §5），与 Codex 的沙箱问题相互独立。

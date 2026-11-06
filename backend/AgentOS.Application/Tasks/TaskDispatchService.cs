@@ -88,6 +88,8 @@ public sealed class TaskDispatchService(
             $"Could not dispatch event '{evt.Id}' after {MaxAttempts} attempts because of repeated logical-key conflicts.");
     }
 
+    private const int MaxTitleLength = 200;
+
     private static AutomationTask BuildTask(
         Event evt,
         RuleSnapshot rule,
@@ -96,11 +98,14 @@ public sealed class TaskDispatchService(
         DateTime nowUtc)
     {
         var id = Guid.CreateVersion7();
+        var title = $"{evt.EventType} · {rule.Name}";
 
         return new AutomationTask
         {
             Id = id,
-            TaskCode = $"TASK-{id.ToString("N")[..12].ToUpperInvariant()}",
+            // The full id keeps the code unique even when several tasks are built in the same
+            // millisecond; a UUIDv7 prefix alone is only a timestamp and would collide.
+            TaskCode = $"TASK-{id:N}".ToUpperInvariant(),
             EventId = evt.Id,
             ProjectId = projectId,
             RuleId = rule.Id,
@@ -111,7 +116,7 @@ public sealed class TaskDispatchService(
             LogicalTaskKey = logicalKey,
             Status = TaskStatus.Queued,
             Priority = rule.TaskPriority,
-            Title = $"{evt.EventType} · {rule.Name}",
+            Title = title.Length <= MaxTitleLength ? title : title[..MaxTitleLength],
             Description = evt.Summary,
             InputJson = evt.PayloadJson,
             MaxAttempts = rule.MaxAttempts,

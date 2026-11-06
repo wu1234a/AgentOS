@@ -89,7 +89,7 @@
 | 检查 | 命令 | 结果 |
 |---|---|---|
 | 后端构建 | `dotnet build backend/AgentOS.slnx` | ✅ 0 错误 |
-| 后端测试（含真实 SQL Server） | 工作区外 `dotnet vstest` / CI `dotnet test` | ✅ **137 通过 / 0 失败**（本机，工作区外运行） |
+| 后端测试（含真实 SQL Server） | 工作区外 `dotnet vstest` / CI `dotnet test` | ✅ **139 通过 / 0 失败**（本机，工作区外运行） |
 | 模型一致性 | `dotnet ef migrations has-pending-model-changes` | ✅ No changes |
 | 前端 lint | `npm run lint` | ✅ 通过 |
 | 前端构建 | `npm run build` | ✅ 成功（Element Plus 包体偏大的既有告警） |
@@ -134,6 +134,9 @@
 7. `PUT /api/v1/rules/{id}` 是完整替换；唯一例外是省略 `isEnabled` 时保留当前状态。
    `sourcePattern` 上限 64 字符（与列宽一致），`eventTypePattern` 上限 120。
 8. `Tasks.ParentTaskId` 已建模但未建外键/索引，留给 AOS-016 的多阶段任务；AOS-004 不设置该字段。
+9. 规则更新没有乐观并发控制（无 rowversion）：两个并发 PUT 可能写入相同 `Version`。当前
+   `LogicalTaskKey` 仍能阻止重复任务，但版本追溯在极端并发下可能不唯一；后续任务应加
+   `rowversion` 并对冲突返回 409。
 
 ## 7. 未完成事项
 

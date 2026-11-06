@@ -69,6 +69,35 @@ public sealed class TaskDispatchServiceTests
 
         Assert.Equal(2, result.CreatedTaskCount);
         Assert.Equal([high.Id, low.Id], _store.SavedTasks.Select(task => task.RuleId));
+        Assert.Equal(2, _store.SavedTasks.Select(task => task.TaskCode).Distinct(StringComparer.Ordinal).Count());
+    }
+
+    [Fact]
+    public async Task Generated_title_is_truncated_to_the_persisted_limit()
+    {
+        var longEventType = "development." + new string('a', 106) + ".created"; // 120 chars
+        var longRuleName = new string('r', 120);
+        _store.Rules.Add(Rule(name: longRuleName, eventTypePattern: "*"));
+
+        await _service.DispatchAsync(Event(eventType: longEventType), CancellationToken.None);
+
+        var task = Assert.Single(_store.SavedTasks);
+        Assert.Equal(200, task.Title.Length);
+    }
+
+    [Fact]
+    public async Task Task_codes_stay_unique_within_one_dispatch_batch()
+    {
+        _store.Rules.Add(Rule(name: "one", priority: 2));
+        _store.Rules.Add(Rule(name: "two", priority: 1));
+
+        await _service.DispatchAsync(Event(), CancellationToken.None);
+
+        Assert.Equal(2, _store.SavedTasks.Count);
+        Assert.Equal(
+            2,
+            _store.SavedTasks.Select(task => task.TaskCode).Distinct(StringComparer.Ordinal).Count());
+        Assert.All(_store.SavedTasks, task => Assert.True(task.TaskCode.Length <= 40));
     }
 
     [Fact]
@@ -127,12 +156,15 @@ public sealed class TaskDispatchServiceTests
 
     private static readonly Guid EventId = Guid.Parse("0199c0de-0000-7000-8000-0000000000e1");
 
-    private static Event Event(Guid? projectId = null, bool noProject = false) => new()
+    private static Event Event(
+        Guid? projectId = null,
+        bool noProject = false,
+        string eventType = "development.task.created") => new()
     {
         Id = EventId,
         ProjectId = noProject ? null : projectId ?? ProjectId,
         Source = "3derp",
-        EventType = "development.task.created",
+        EventType = eventType,
         SchemaVersion = "1.0",
         DedupeKey = "3derp:DEV-1",
         Summary = "DEV-1 created",

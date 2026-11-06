@@ -37,3 +37,21 @@
 
 - 审查为只读，且本机 testhost 仍受工作区沙箱限制，审查者未能独立运行 `dotnet test`；
   测试结论来自代码阅读。本次修复后的实际执行结果见上文。
+
+## 4. 第二轮（Codex CLI，修复沙箱后）
+
+修复 Codex 在 Windows 上的沙箱启动问题后（见 `docs/DEVELOPMENT.md` §10），用
+`codex exec review --commit 2700396` 重新审查了 AOS-004 功能提交。
+
+发现 2 个新缺陷 + 3 条已在前一提交修复的问题（Codex 审查的是修复前的提交）：
+
+| # | 级别 | 问题 | 处理 |
+|---|---|---|---|
+| 1 | P1 | `TaskCode` 取 UUIDv7 前 12 位（只有时间戳），同一毫秒生成的多条任务会碰撞唯一索引，整批派发失败 | **已修复**：改为完整 GUID（`TASK-{32 hex}`，37 字符），新增批次内唯一性测试 |
+| 2 | P2 | 任务标题 `${eventType} · ${ruleName}` 最长 243 字符，超过 `Tasks.Title` 的 200 列宽，派发事务会被 SQL 拒绝 | **已修复**：生成时截断到 200，新增测试 |
+| 3 | P2 | 并发 PUT 可能让两个请求写入相同 `Version`（无 rowversion/乐观并发） | **记录为已知限制**：后续任务给 `AutomationRules` 加乐观并发并返回 409；当前版本记录仍能防止事件重复建任务 |
+| 4 | P1（已修） | 列表页编辑会重置 `matchJson`/`dispatchJson` | 已在 `168c7e7` 修复（先取详情） |
+| 5 | P2（已修） | `{"subjectTypes":null}` 触发 NRE；`sourcePattern` 超 64 字符会 500 | 已在 `168c7e7` 修复 |
+
+**修复后验证：** 后端全量测试 **139 通过 / 0 失败**（含 SQL）；前端 `lint`/`build` 通过；
+CI 见对应 run。
