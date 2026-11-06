@@ -34,7 +34,7 @@
 - Provider/ExecutionMode 不匹配直接拒绝，不降级为未受控执行。
 - 模型名来自受信 Profile，仍通过 `ArgumentList` 传递，无 shell 拼接。
 
-## 4. 已知限制
+### 3.1 独立代码审查\n\nCodex CLI 审查发现 1 个 P2（Claim 测试依赖共享队列数据），已清理队列并断言 TaskId，详见 `docs/reports/AOS-010b-CODE-REVIEW.md`。\n\n## 4. 已知限制
 
 1. 仅支持 Codex CLI Provider；Kimi/OpenAI API 需要通用 API Adapter（AOS-012 前置）。
 2. `ConfigurationJson` 尚未映射到 Adapter 参数（如 reasoning effort），仅随 Claim 传输。

@@ -335,6 +335,13 @@ public sealed class SqlModelProfileTests
         return project;
     }
 
+    private static async Task ResetQueueAsync(string connectionString)
+    {
+        await using var context = NewContext(connectionString);
+        await context.Database.ExecuteSqlRawAsync(
+            "DELETE FROM [TaskLogs]; DELETE FROM [UsageRecords]; DELETE FROM [Artifacts]; DELETE FROM [TaskAttempts]; DELETE FROM [Tasks];");
+    }
+
     private static async Task MigrateAsync(string connectionString)
     {
         await using var context = NewContext(connectionString);
