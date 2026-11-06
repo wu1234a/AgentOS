@@ -8,6 +8,7 @@ import TasksView from '../views/TasksView.vue'
 import TaskDetailView from '../views/TaskDetailView.vue'
 import RunnersView from '../views/RunnersView.vue'
 import AgentsView from '../views/AgentsView.vue'
+import ModelProfilesView from '../views/ModelProfilesView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -47,6 +48,12 @@ const router = createRouter({
       name: 'task-detail',
       component: TaskDetailView,
       meta: { title: 'Task Detail' }
+    },
+    {
+      path: '/models',
+      name: 'model-profiles',
+      component: ModelProfilesView,
+      meta: { title: 'Model Profiles' }
     },
     {
       path: '/agents',

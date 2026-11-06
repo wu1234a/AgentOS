@@ -3,6 +3,7 @@ using AgentOS.Application.Projects;
 using AgentOS.Application.Rules;
 using AgentOS.Application.Runners;
 using AgentOS.Application.Agents;
+using AgentOS.Application.ModelProfiles;
 using AgentOS.Application.Observability;
 using AgentOS.Application.Security;
 using AgentOS.Application.Tasks;
@@ -12,6 +13,7 @@ using AgentOS.Infrastructure.Repositories;
 using AgentOS.Infrastructure.Rules;
 using AgentOS.Infrastructure.Agents;
 using AgentOS.Infrastructure.Artifacts;
+using AgentOS.Infrastructure.ModelProfiles;
 using AgentOS.Infrastructure.Observability;
 using AgentOS.Infrastructure.Runners;
 using AgentOS.Infrastructure.Security;
@@ -49,6 +51,7 @@ public static class DependencyInjection
         services.AddScoped<IObservabilityQueryStore, ObservabilityQueryStore>();
         services.AddScoped<IArtifactStore, ArtifactStore>();
         services.AddScoped<IAgentRepository, AgentRepository>();
+        services.AddScoped<IModelProfileRepository, ModelProfileRepository>();
 
         // Stateless and thread-safe; shared so payload hashing and duplicate log sampling stay
         // consistent across requests.

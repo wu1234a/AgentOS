@@ -500,3 +500,12 @@ Client 是否存在。
 - 唯一约束保持：`(ProjectId, Code)` 项目内唯一；`ProjectId IS NULL` 的全局 Agent 全局唯一。
 - 禁用只影响后续规则校验/任务派发，不回收已领取或运行中的任务。
 - 归档前必须没有 `Queued` / `Running` / `RetryWait` 任务（409 `agent-has-active-tasks`）。
+
+### 3.22 AOS-010 Model Router
+
+- 复用既有 `ModelProfiles` 表，无需迁移：`Code` 全局唯一，`Provider`/`Model`/`ExecutionMode`
+  (`cli`/`api`)/`ConfigurationJson`/`SecretReference`/`TimeoutSeconds`/`MaxCostPerTask`。
+- `SecretReference` 只保存环境变量名，绝不保存密钥值；`ConfigurationJson` 禁止
+  `api_key`/`apikey`/`secret`/`password`/`access_token`/`client_secret` 字段。
+- 解析优先级：`Tasks.ModelProfileId` → `AutomationRules.ModelProfileId` →
+  `Agents.DefaultModelProfileId`；仅使用 `IsEnabled = true` 的 Profile，全部不可用则未解析。

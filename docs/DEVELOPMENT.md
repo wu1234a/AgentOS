@@ -610,3 +610,29 @@ Runner 上传产物：`POST /api/v1/runners/tasks/{taskId}/artifacts?attemptId&n
 
 `/agents` 页面支持列表、角色/归档过滤、创建/编辑、启用/禁用/归档。项目级 Agent
 需通过 API 指定 ProjectId（当前 UI 只创建全局 Agent）。
+
+## 16. AOS-010 Model Router / Provider Profiles
+
+### 16.1 API
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/v1/model-profiles?enabled&limit&offset` | 列表 |
+| GET/POST | `/api/v1/model-profiles` / `/{id}` | 详情/创建 |
+| PUT | `/api/v1/model-profiles/{id}` | 更新（Code 不可变） |
+| POST | `/api/v1/model-profiles/{id}/enable\|disable` | 启停 |
+| GET | `/api/v1/model-profiles/resolve?taskId&ruleId&agentId` | 解析有效配置 |
+
+### 16.2 规则与安全
+
+- 解析顺序 Task → Rule → Agent；禁用 Profile 自动跳过，全部不可用返回
+  `404 model-profile-unresolved`。
+- `SecretReference` 必须是环境变量名（`^[A-Z][A-Z0-9_]{2,80}$`）；`ConfigurationJson`
+  必须是 JSON 对象且不含密钥字段。
+- `TimeoutSeconds` 1–7200；`MaxCostPerTask` ≥ 0。
+- 管理 API 需要开发 API Key；前端 `/models` 页面提供 CRUD 与启停。
+
+### 16.3 Runner 集成边界
+
+AOS-010 只提供注册表与解析 API；Claim/Adapter 尚未自动使用解析结果（AOS-010b 将把
+Model/Provider/ExecutionMode 下发到 Runner，并传给 Codex `-m`）。
