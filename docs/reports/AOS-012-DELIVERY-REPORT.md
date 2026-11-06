@@ -22,7 +22,7 @@
 ## 3. Kimi 配置
 
 - ModelProfile：`provider=kimi`、`executionMode=api`、`model=<Kimi 模型 ID>`、
-  `configurationJson={"baseUrl":"https://api.moonshot.cn/v1"}`、`secretReference=KIMI_API_KEY`。
+  `configurationJson={"baseUrl":"https://api.moonshot.cn/v1"}`（K3 系列仅允许 temperature=1，建议省略）、`secretReference=KIMI_API_KEY`。
 - 环境变量 `KIMI_API_KEY` 只在 API 进程读取；不入库、不写日志。
 - `Planner:DefaultModelProfileCode`（默认 `kimi-planner`）与
   `Planner:AllowedProviderHosts`（默认 Moonshot/OpenAI）。

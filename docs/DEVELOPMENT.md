@@ -689,7 +689,7 @@ Model/Provider/ExecutionMode 下发到 Runner，并传给 Codex `-m`）。
 
 1. 创建 ModelProfile（`/models` 或 API）：
    - `provider=kimi`、`executionMode=api`、`model=<Kimi 控制台模型 ID>`
-   - `configurationJson={"baseUrl":"https://api.moonshot.cn/v1","temperature":0.2}`
+   - `configurationJson={"baseUrl":"https://api.moonshot.cn/v1"}`（K3 系列只接受 temperature=1，建议不配）
    - `secretReference=KIMI_API_KEY`
 2. 设置环境变量 `KIMI_API_KEY`（API 进程）。
 3. `Planner:DefaultModelProfileCode` 指向该 Profile（默认 `kimi-planner`）；
@@ -711,3 +711,25 @@ Model/Provider/ExecutionMode 下发到 Runner，并传给 Codex `-m`）。
 
 - 仅 HTTPS + 主机白名单；密钥只从环境变量读取，不落库/日志。
 - 生成失败返回 502 且不保存草案；非 API 模式/缺密钥返回 400/503。
+
+## 21. AOS-013 Coding Run
+
+### 21.1 流程
+
+1. `/planner` 生成草案并人工批准。
+2. `/coding-runs` 选择已批准草案与同项目的编码 Agent，创建 Run。
+3. 服务端冻结快照并创建 Queued 任务；Runner 领取后按现有 Codex 流程执行。
+4. Run 读取时投影任务状态；取消调用任务取消，重试创建新任务并保留历史。
+
+### 21.2 API
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/v1/coding-runs` | 列表（status/limit/offset） |
+| GET | `/api/v1/coding-runs/{id}` | 详情 + 事件 |
+| POST | `/api/v1/coding-runs` | `{ draftId, projectId, agentId, priority?, timeoutSeconds? }` |
+| POST | `/{id}/cancel` | 取消 |
+| POST | `/{id}/retry` | 仅 Failed/Canceled |
+
+- 一份草案只能创建一个 Run（唯一索引）。
+- 成功/失败以任务终态为准；当前不执行草案校验命令，也不为每个 Attempt 建独立工作区。

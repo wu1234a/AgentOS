@@ -32,6 +32,27 @@ public sealed class ApiCompletionClientTests
         Assert.Contains("kimi-k2", capturedBody);
         Assert.Contains("system", capturedBody);
         Assert.Contains("user", capturedBody);
+        Assert.Contains("max_completion_tokens", capturedBody);
+        Assert.DoesNotContain("\"max_tokens\"", capturedBody);
+    }
+
+    [Fact]
+    public async Task Unset_optional_parameters_are_omitted_from_the_request()
+    {
+        string? body = null;
+        var handler = new StubHandler(async (request, cancellationToken) =>
+        {
+            body = request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken);
+            return JsonResponse("""{"choices":[{"message":{"content":"ok"}}]}""");
+        });
+
+        await CreateClient(handler).CompleteAsync(
+            Request() with { Temperature = null, MaxTokens = null },
+            CancellationToken.None);
+
+        Assert.DoesNotContain("temperature", body);
+        Assert.DoesNotContain("max_completion_tokens", body);
+        Assert.DoesNotContain("max_tokens", body);
     }
 
     [Fact]
@@ -56,9 +77,16 @@ public sealed class ApiCompletionClientTests
     public async Task Provider_errors_and_invalid_responses_are_reported()
     {
         var httpError = await CreateClient(new StubHandler((_, _) =>
-                Task.FromResult(new HttpResponseMessage(HttpStatusCode.TooManyRequests))))
+                Task.FromResult(new HttpResponseMessage(HttpStatusCode.TooManyRequests)
+                {
+                    Content = new StringContent(
+                        """{"error":{"message":"invalid temperature"}}""",
+                        Encoding.UTF8,
+                        "application/json")
+                })))
             .CompleteAsync(Request(), CancellationToken.None);
         Assert.Equal("planner-provider-http", httpError.ErrorCode);
+        Assert.Contains("invalid temperature", httpError.ErrorMessage);
 
         var invalid = await CreateClient(new StubHandler((_, _) =>
                 Task.FromResult(JsonResponse("""{"choices":[]}"""))))

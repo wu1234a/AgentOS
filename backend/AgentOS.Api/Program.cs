@@ -5,6 +5,7 @@ using AgentOS.Api.Health;
 using AgentOS.Api.Security;
 using AgentOS.Application.Events;
 using AgentOS.Application.Agents;
+using AgentOS.Application.CodingRuns;
 using AgentOS.Application.ModelProfiles;
 using AgentOS.Application.Observability;
 using AgentOS.Application.Planning;
@@ -50,6 +51,7 @@ builder.Services.AddScoped<AgentService>();
 builder.Services.AddScoped<ModelProfileService>();
 builder.Services.AddScoped<SkillService>();
 builder.Services.AddScoped<PlannerService>();
+builder.Services.AddScoped<CodingRunService>();
 builder.Services.AddScoped<ApiClientAuthenticationFilter>();
 builder.Services.AddScoped<RunnerAuthenticationFilter>();
 
@@ -117,6 +119,7 @@ app.MapAgentEndpoints();
 app.MapModelProfileEndpoints();
 app.MapSkillEndpoints();
 app.MapPlannerEndpoints();
+app.MapCodingRunEndpoints();
 app.MapHub<TaskHub>("/hubs/tasks");
 
 app.MapGet("/", () => Results.Ok(new

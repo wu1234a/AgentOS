@@ -1,4 +1,5 @@
 using AgentOS.Domain.Agents;
+using AgentOS.Domain.CodingRuns;
 using AgentOS.Domain.Artifacts;
 using AgentOS.Domain.Events;
 using AgentOS.Domain.ModelProfiles;
@@ -47,6 +48,8 @@ public sealed class AgentOSDbContext(DbContextOptions<AgentOSDbContext> options)
     public DbSet<UsageRecord> UsageRecords => Set<UsageRecord>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
     public DbSet<PlanningDraft> PlanningDrafts => Set<PlanningDraft>();
+    public DbSet<CodingRun> CodingRuns => Set<CodingRun>();
+    public DbSet<CodingRunEvent> CodingRunEvents => Set<CodingRunEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

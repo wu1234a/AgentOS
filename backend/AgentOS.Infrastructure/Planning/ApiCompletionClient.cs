@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using AgentOS.Application.Planning;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -39,17 +40,27 @@ public sealed class ApiCompletionClient(
         var endpoint = new Uri(
             baseUri.ToString().TrimEnd('/') + "/chat/completions");
 
-        var payload = new
+        var payload = new Dictionary<string, object>
         {
-            model = request.Model,
-            messages = new object[]
+            ["model"] = request.Model,
+            ["messages"] = new object[]
             {
                 new { role = "system", content = request.SystemPrompt },
                 new { role = "user", content = request.UserPrompt }
-            },
-            temperature = request.Temperature,
-            max_tokens = request.MaxTokens
+            }
         };
+
+        // Omit unset optional fields; some OpenAI-compatible providers reject nulls.
+        if (request.Temperature is { } temperature)
+        {
+            payload["temperature"] = temperature;
+        }
+
+        if (request.MaxTokens is { } maxTokens)
+        {
+            // Kimi/OpenAI-compatible APIs use max_completion_tokens for newer models.
+            payload["max_completion_tokens"] = maxTokens;
+        }
 
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, endpoint)
         {
@@ -67,13 +78,16 @@ public sealed class ApiCompletionClient(
             using var response = await client.SendAsync(httpRequest, linked.Token);
             if (!response.IsSuccessStatusCode)
             {
+                var errorBody = await response.Content.ReadAsStringAsync(linked.Token);
+                var snippet = Sanitize(errorBody);
                 logger.LogWarning(
-                    "Planner provider {Provider} returned HTTP {Status}.",
+                    "Planner provider {Provider} returned HTTP {Status}: {Detail}",
                     request.Provider,
-                    (int)response.StatusCode);
+                    (int)response.StatusCode,
+                    snippet);
                 return Failure(
                     "planner-provider-http",
-                    $"Provider returned HTTP {(int)response.StatusCode}.");
+                    $"Provider returned HTTP {(int)response.StatusCode}: {snippet}");
             }
 
             var body = await response.Content.ReadAsStringAsync(linked.Token);
@@ -115,6 +129,13 @@ public sealed class ApiCompletionClient(
         {
             return Failure("planner-invalid-response", "Provider response was not valid JSON.");
         }
+    }
+
+    private static string Sanitize(string body)
+    {
+        var text = body.Length > 500 ? body[..500] : body;
+        text = Regex.Replace(text, "sk-[A-Za-z0-9_\\-]{8,}", "[REDACTED]");
+        return text.Replace("\r", " ").Replace("\n", " ").Trim();
     }
 
     private static ApiCompletionResult Failure(string code, string message)

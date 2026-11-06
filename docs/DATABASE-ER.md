@@ -531,3 +531,10 @@ Client 是否存在。
 - 草案只能由 API 生成与人工决策，不自动创建任务或文件；Provider 失败不落草案。
 - Kimi 通过 `ModelProfiles` 的 `provider=kimi`、`executionMode=api`、`SecretReference`
   接入，密钥值来自环境变量。
+
+### 3.26 AOS-013 Coding Run
+
+- `CodingRuns`：DraftId（唯一）、DraftContentHash、SnapshotJson（不可变草案快照）、
+  ProjectId/AgentId、TaskId、Status、AttemptCount、错误与时间戳、RowVersion。
+- `CodingRunEvents`：RunId + Sequence 唯一，记录 created/task-status/retrying 等审计事件。
+- 执行仍复用 `Tasks`/`TaskAttempts`；Run 只做编排与状态投影，不复制执行日志。

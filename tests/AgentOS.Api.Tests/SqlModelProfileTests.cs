@@ -339,7 +339,7 @@ public sealed class SqlModelProfileTests
     {
         await using var context = NewContext(connectionString);
         await context.Database.ExecuteSqlRawAsync(
-            "DELETE FROM [TaskLogs]; DELETE FROM [UsageRecords]; DELETE FROM [Artifacts]; DELETE FROM [TaskAttempts]; DELETE FROM [Tasks];");
+            "DELETE FROM [CodingRunEvents]; DELETE FROM [CodingRuns]; DELETE FROM [TaskLogs]; DELETE FROM [UsageRecords]; DELETE FROM [Artifacts]; DELETE FROM [TaskAttempts]; DELETE FROM [Tasks];");
     }
 
     private static async Task MigrateAsync(string connectionString)

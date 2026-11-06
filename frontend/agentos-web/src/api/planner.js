@@ -7,7 +7,7 @@ export function listDrafts({ status, limit = 50, offset = 0 } = {}) {
 }
 
 export function createDraft(payload) {
-  return http.post('/api/v1/planner/drafts', payload, { timeout: 120000 }).then((response) => response.data)
+  return http.post('/api/v1/planner/drafts', payload, { timeout: 600000 }).then((response) => response.data)
 }
 
 export function approveDraft(draftId) {
