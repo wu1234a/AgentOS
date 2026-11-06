@@ -1,3 +1,4 @@
+using AgentOS.Application.Observability;
 using AgentOS.Application.Tasks;
 using AgentOS.Domain.Tasks;
 using AgentOS.Infrastructure.Persistence;
@@ -14,6 +15,8 @@ public sealed class TaskLogStore(AgentOSDbContext dbContext) : ITaskLogStore
     private const int MaxMessageLength = 4000;
 
     public async Task AddAsync(
+        Guid? projectId,
+        Guid? eventId,
         Guid taskId,
         Guid attemptId,
         Guid workerId,
@@ -31,12 +34,15 @@ public sealed class TaskLogStore(AgentOSDbContext dbContext) : ITaskLogStore
             var entity = new TaskLog
             {
                 Id = Guid.CreateVersion7(),
+                ProjectId = projectId,
+                EventId = eventId,
                 TaskId = taskId,
                 AttemptId = attemptId,
                 WorkerId = workerId,
+                Component = "runner",
                 Sequence = entry.Sequence,
                 Level = NormalizeLevel(entry.Level),
-                Message = message.Length <= MaxMessageLength ? message : message[..MaxMessageLength],
+                Message = TaskLogSanitizer.Redact(message.Length <= MaxMessageLength ? message : message[..MaxMessageLength]),
                 CreatedAtUtc = entry.TimestampUtc?.ToUniversalTime() ?? DateTime.UtcNow
             };
 

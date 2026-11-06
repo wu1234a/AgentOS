@@ -1,11 +1,14 @@
 using AgentOS.Domain.Agents;
+using AgentOS.Domain.Artifacts;
 using AgentOS.Domain.Events;
 using AgentOS.Domain.ModelProfiles;
 using AgentOS.Domain.Projects;
+using AgentOS.Domain.Outbox;
 using AgentOS.Domain.Rules;
 using AgentOS.Domain.Security;
 using AgentOS.Domain.Skills;
 using AgentOS.Domain.Tasks;
+using AgentOS.Domain.Usage;
 using AgentOS.Domain.Workers;
 using Microsoft.EntityFrameworkCore;
 
@@ -39,6 +42,9 @@ public sealed class AgentOSDbContext(DbContextOptions<AgentOSDbContext> options)
     public DbSet<TaskLog> TaskLogs => Set<TaskLog>();
 
     public DbSet<ApiClient> ApiClients => Set<ApiClient>();
+    public DbSet<Artifact> Artifacts => Set<Artifact>();
+    public DbSet<UsageRecord> UsageRecords => Set<UsageRecord>();
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

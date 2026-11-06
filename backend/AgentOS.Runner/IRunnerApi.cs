@@ -74,6 +74,15 @@ public interface IRunnerApi
         bool cancelled,
         CancellationToken cancellationToken);
 
+    Task UploadArtifactAsync(
+        Guid taskId,
+        Guid attemptId,
+        string leaseToken,
+        string name,
+        string mediaType,
+        string filePath,
+        CancellationToken cancellationToken);
+
     Task AppendLogsAsync(
         Guid taskId,
         Guid attemptId,

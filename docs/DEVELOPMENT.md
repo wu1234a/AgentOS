@@ -529,3 +529,51 @@ C:\AgentOS\runner\AgentOS.Runner.exe
 - 只允许 `read-only` / `workspace-write`；沙箱模式来自受信配置。
 - 工作目录必须通过 Runner 白名单；Adapter 不额外放宽路径。
 - 超时/取消会终止整个进程树；输出按行脱敏后写 artifact 与日志。
+
+## 14. AOS-008 可观测性
+
+### 14.1 管理 API
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/v1/dashboard/stats` | 事件/任务统计、成功率、平均等待与执行、在线 Runner、租约超时、最近失败 |
+| GET | `/api/v1/events?page&pageSize` | 事件列表（沿用 AOS-002 契约） |
+| GET | `/api/v1/events/{id}` | 事件详情与 payload |
+| GET | `/api/v1/events/{id}/tasks` | 事件关联任务 |
+| GET | `/api/v1/tasks?status&projectId&limit&offset` | 任务列表（分页） |
+| GET | `/api/v1/tasks/{id}` | 任务详情：Attempts、最近日志、Artifacts、Usage |
+| GET | `/api/v1/tasks/{id}/logs?level&afterSequence&limit` | 日志分页（limit ≤ 500） |
+| GET | `/api/v1/tasks/{id}/attempts/{attemptId}/logs` | 单次 Attempt 日志 |
+| GET | `/api/v1/workers` | Runner 状态与最后心跳 |
+| GET | `/api/v1/artifacts/{id}/download` | 授权下载产物（需要 Dev Key） |
+
+Runner 上传产物：`POST /api/v1/runners/tasks/{taskId}/artifacts?attemptId&name&mediaType`，
+请求头 `X-AgentOS-Lease-Token`，body 为文件内容；media type 与大小受服务端限制。
+
+### 14.2 配置
+
+```json
+"Artifacts": {
+  "RootPath": "",
+  "MaxBytes": 10485760,
+  "AllowedMediaTypes": ["text/plain","text/markdown","application/json","application/octet-stream","image/png","image/jpeg"]
+}
+```
+
+`RootPath` 为空时使用系统临时目录 `agentos-artifacts`，生产必须配置持久目录。文件按
+`<project>/<task>/<attempt>/` 分层，文件名由服务端安全化，客户端不能指定存储路径。
+
+### 14.3 前端与 SignalR
+
+- 页面：Dashboard、Events、Event Detail、Tasks、Task Detail（Attempts/Logs/Artifacts/Usage）、Runners。
+- `VITE_DEV_API_KEY` 同时用于 REST 与 SignalR（`/hubs/tasks?api_key=...`）。
+- SignalR 只推送 `taskChanged` / `tasksClaimed`；断线重连后前端重新调用 REST 拉取，
+  数据库始终是事实来源。
+- 日志按 `afterSequence` 增量加载；UI 只渲染当前页，避免一次性加载全部日志。
+
+### 14.4 日志与脱敏
+
+- Runner 端按完整行脱敏后上传；服务端 `TaskLogSanitizer` 再做一次兜底（sk-*、Bearer、
+  password/token/secret、Cookie）。
+- 大段 stdout/stderr 通过 Artifact 保存，数据库只保留摘要与引用。
+- 保留策略/自动清理尚未实现（见交付报告限制）。

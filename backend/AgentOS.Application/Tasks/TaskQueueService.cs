@@ -181,6 +181,19 @@ public sealed class TaskQueueService(
         return TaskQueueResult.Ok(task, attempt);
     }
 
+    /// <summary>Validates a lease without changing state (used before artifact upload).</summary>
+    public async Task<TaskQueueResult> AuthorizeLeaseAsync(
+        Guid workerId,
+        Guid taskId,
+        Guid attemptId,
+        string leaseToken,
+        CancellationToken cancellationToken)
+    {
+        var validated = await ValidateLeaseAsync(workerId, taskId, attemptId, leaseToken, cancellationToken);
+        return validated.Failure
+            ?? TaskQueueResult.Ok(validated.Task!, validated.Attempt!, validated.Task!.LeaseExpiresAtUtc);
+    }
+
     /// <summary>
     /// Appends a batch of runner log lines. Requires a valid lease; entries are keyed by
     /// (attempt, sequence) so a retried batch cannot duplicate or reorder the stream.
@@ -201,7 +214,7 @@ public sealed class TaskQueueService(
 
         if (entries.Count > 0)
         {
-            await logStore.AddAsync(taskId, attemptId, workerId, entries, cancellationToken);
+            await logStore.AddAsync(validated.Task!.ProjectId, validated.Task.EventId, taskId, attemptId, workerId, entries, cancellationToken);
         }
 
         return TaskQueueResult.Ok(validated.Task!, validated.Attempt!, validated.Task!.LeaseExpiresAtUtc);

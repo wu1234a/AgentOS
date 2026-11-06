@@ -75,7 +75,11 @@ public sealed class CodexTaskHandler(
                     context.Log("info", $"codex summary: {result.Summary}");
                 }
 
-                return TaskHandlerResult.Succeeded(result.ExitCode ?? 0, result.Summary);
+                return TaskHandlerResult.Succeeded(result.ExitCode ?? 0, result.Summary)
+                    with
+                    {
+                        Artifacts = BuildArtifacts(result)
+                    };
 
             case AgentExecutionStatus.Cancelled:
                 context.Log("warn", "codex execution was cancelled");
@@ -104,5 +108,22 @@ public sealed class CodexTaskHandler(
                     result.ErrorMessage ?? "Codex failed.",
                     retryable: true);
         }
+    }
+
+    private static IReadOnlyList<TaskArtifactFile>? BuildArtifacts(AgentExecutionResult result)
+    {
+        var artifacts = new List<TaskArtifactFile>();
+
+        if (!string.IsNullOrWhiteSpace(result.StdoutArtifactPath))
+        {
+            artifacts.Add(new TaskArtifactFile("stdout.log", "text/plain", result.StdoutArtifactPath));
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.StderrArtifactPath))
+        {
+            artifacts.Add(new TaskArtifactFile("stderr.log", "text/plain", result.StderrArtifactPath));
+        }
+
+        return artifacts.Count == 0 ? null : artifacts;
     }
 }

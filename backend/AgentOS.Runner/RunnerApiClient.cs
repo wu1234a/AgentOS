@@ -101,6 +101,32 @@ public sealed class RunnerApiClient(
             new { attemptId, leaseToken, errorCode, errorMessage, retryable, cancelled },
             cancellationToken);
 
+    public async Task UploadArtifactAsync(
+        Guid taskId,
+        Guid attemptId,
+        string leaseToken,
+        string name,
+        string mediaType,
+        string filePath,
+        CancellationToken cancellationToken)
+    {
+        var query = string.Join(
+            "&",
+            $"attemptId={attemptId}",
+            $"name={Uri.EscapeDataString(name)}",
+            $"mediaType={Uri.EscapeDataString(mediaType)}");
+        using var request = CreateRequest(
+            HttpMethod.Post,
+            $"api/v1/runners/tasks/{taskId}/artifacts?{query}");
+        request.Headers.Add("X-AgentOS-Lease-Token", leaseToken);
+
+        await using var stream = File.OpenRead(filePath);
+        request.Content = new StreamContent(stream);
+        request.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(mediaType);
+
+        await SendAsync<JsonElement>(request, cancellationToken);
+    }
+
     public async Task AppendLogsAsync(
         Guid taskId,
         Guid attemptId,

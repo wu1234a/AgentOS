@@ -77,6 +77,7 @@ public sealed class TaskProcessor(
 
             var result = await handler.ExecuteAsync(context, taskCts.Token);
 
+            await UploadArtifactsAsync(task, result.Artifacts, logger);
             await logs.FlushAsync(stoppingToken);
 
             switch (result.Outcome)
@@ -242,6 +243,41 @@ public sealed class TaskProcessor(
                     cancelled: !shuttingDown,
                     CancellationToken.None);
                 return;
+        }
+    }
+
+    private async Task UploadArtifactsAsync(
+        ClaimedTask task,
+        IReadOnlyList<TaskArtifactFile>? artifacts,
+        ILogger<TaskProcessor> runLogger)
+    {
+        if (artifacts is null || artifacts.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var artifact in artifacts)
+        {
+            try
+            {
+                await api.UploadArtifactAsync(
+                    task.TaskId,
+                    task.Lease.AttemptId,
+                    task.Lease.Token,
+                    artifact.Name,
+                    artifact.MediaType,
+                    artifact.Path,
+                    CancellationToken.None);
+            }
+            catch (Exception exception)
+            {
+                // Artifact upload is best effort; it must not change the task outcome.
+                runLogger.LogWarning(
+                    exception,
+                    "Could not upload artifact {Name} for task {TaskId}.",
+                    artifact.Name,
+                    task.TaskId);
+            }
         }
     }
 

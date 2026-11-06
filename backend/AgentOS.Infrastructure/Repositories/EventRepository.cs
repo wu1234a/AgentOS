@@ -31,6 +31,21 @@ public sealed class EventRepository(AgentOSDbContext dbContext) : IEventReposito
                 throw;
             }
 
+            try
+            {
+                await dbContext.Events
+                    .Where(candidate => candidate.Id == existing.Id)
+                    .ExecuteUpdateAsync(
+                        setters => setters.SetProperty(
+                            candidate => candidate.DuplicateCount,
+                            candidate => candidate.DuplicateCount + 1),
+                        cancellationToken);
+            }
+            catch (DbUpdateException)
+            {
+                // The duplicate response is still correct; the counter is a best-effort metric.
+            }
+
             return EventWriteResult.DuplicateKey(existing);
         }
     }

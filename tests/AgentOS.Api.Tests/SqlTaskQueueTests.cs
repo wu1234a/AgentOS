@@ -361,10 +361,10 @@ public sealed class SqlTaskQueueTests
         await using (var logContext = NewContext(connectionString))
         {
             var store = new TaskLogStore(logContext);
-            await store.AddAsync(taskId, claimed.Lease.AttemptId, worker.Id, batch, CancellationToken.None);
+            await store.AddAsync(project.Id, null, taskId, claimed.Lease.AttemptId, worker.Id, batch, CancellationToken.None);
 
             // A retried upload must not duplicate the stream.
-            await store.AddAsync(taskId, claimed.Lease.AttemptId, worker.Id, batch, CancellationToken.None);
+            await store.AddAsync(project.Id, null, taskId, claimed.Lease.AttemptId, worker.Id, batch, CancellationToken.None);
         }
 
         await using var verify = NewContext(connectionString);
@@ -587,7 +587,7 @@ public sealed class SqlTaskQueueTests
     {
         // The database is disposable; clear queue state so each test starts from a known slate.
         await using var context = NewContext(connectionString);
-        await context.Database.ExecuteSqlRawAsync("DELETE FROM [TaskLogs]; DELETE FROM [TaskAttempts]; DELETE FROM [Tasks];");
+        await context.Database.ExecuteSqlRawAsync("DELETE FROM [TaskLogs]; DELETE FROM [UsageRecords]; DELETE FROM [Artifacts]; DELETE FROM [TaskAttempts]; DELETE FROM [Tasks];");
     }
 
     private static async Task MigrateAsync(string connectionString)

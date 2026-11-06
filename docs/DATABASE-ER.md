@@ -481,3 +481,14 @@ Client 是否存在。
   `Skills.RelativePath` 从配置的 `Skills:RootPath` 读取（必须位于根目录内、≤
   `Skills:MaxBytes`，默认 64KB），读取失败时为 null 并在日志中告警。
 - Prompt 与 Codex 参数不进入数据库；Adapter 配置只来自 Runner 受信配置。
+
+### 3.20 AOS-008 可观测性
+
+- `TaskLogs` 增加 `ProjectId`、`EventId`、`Component`、`PropertiesJson`；迁移会从 `Tasks`
+  回填 ProjectId/EventId。日志按 `(AttemptId, Sequence)` 唯一，支持按级别与 Sequence 分页。
+- `Artifacts`：`Name`、`RelativePath`（唯一，由服务端生成）、`Sha256`、`SizeBytes`、
+  `MediaType`、`CreatedAtUtc`，关联 Project/Task/Attempt/Worker；文件位于
+  `Artifacts:RootPath/<project>/<task>/<attempt>/`。
+- `UsageRecords`：Adapter 上报的 token 用量（当前 Codex Adapter 尚未提供，UI 显示“未提供/估算”）。
+- `OutboxMessages`：为后续可靠副作用预留的 Outbox 表（Status/AvailableAtUtc 索引）。
+- `Events` 增加 `DuplicateCount`：重复投递时递增，用于 Dashboard 的重复事件指标。

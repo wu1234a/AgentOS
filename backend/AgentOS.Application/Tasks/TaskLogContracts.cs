@@ -11,6 +11,8 @@ public sealed record TaskLogEntry(
 public interface ITaskLogStore
 {
     Task AddAsync(
+        Guid? projectId,
+        Guid? eventId,
         Guid taskId,
         Guid attemptId,
         Guid workerId,

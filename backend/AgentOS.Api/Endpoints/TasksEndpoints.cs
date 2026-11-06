@@ -1,5 +1,7 @@
 using AgentOS.Api.Filters;
+using AgentOS.Api.Realtime;
 using AgentOS.Application.Tasks;
+using Microsoft.AspNetCore.SignalR;
 
 namespace AgentOS.Api.Endpoints;
 
@@ -19,6 +21,11 @@ public static class TasksEndpoints
     private static async Task<IResult> CancelAsync(
         Guid taskId,
         TaskQueueService service,
+        IHubContext<TaskHub> hub,
         CancellationToken cancellationToken)
-        => RunnerEndpoints.MapResult(await service.CancelAsync(taskId, cancellationToken));
+    {
+        var result = await service.CancelAsync(taskId, cancellationToken);
+        await TaskEventPublisher.PublishAsync(hub, result, cancellationToken);
+        return RunnerEndpoints.MapResult(result);
+    }
 }

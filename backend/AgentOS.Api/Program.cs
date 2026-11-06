@@ -1,8 +1,10 @@
 using AgentOS.Api.Endpoints;
 using AgentOS.Api.Filters;
+using AgentOS.Api.Realtime;
 using AgentOS.Api.Health;
 using AgentOS.Api.Security;
 using AgentOS.Application.Events;
+using AgentOS.Application.Observability;
 using AgentOS.Application.Rules;
 using AgentOS.Application.Runners;
 using AgentOS.Application.Security;
@@ -23,6 +25,7 @@ builder.Host.UseSerilog((context, services, configuration) => configuration
     .WriteTo.Console(new CompactJsonFormatter()));
 
 builder.Services.AddProblemDetails();
+builder.Services.AddSignalR();
 builder.Services.AddAgentOSInfrastructure(builder.Configuration);
 
 builder.Services.AddSingleton<CreateEventValidator>();
@@ -33,6 +36,7 @@ builder.Services.AddScoped<ITaskDispatcher, TaskDispatchService>();
 builder.Services.Configure<TaskQueueOptions>(builder.Configuration.GetSection("TaskQueue"));
 builder.Services.Configure<RunnerRegistrationOptions>(builder.Configuration.GetSection("Runner"));
 builder.Services.Configure<SkillContentOptions>(builder.Configuration.GetSection("Skills"));
+builder.Services.Configure<ArtifactOptions>(builder.Configuration.GetSection("Artifacts"));
 builder.Services.AddScoped<TaskQueueService>();
 builder.Services.AddScoped<RunnerRegistrationService>();
 builder.Services.AddScoped<ApiClientAuthenticationFilter>();
@@ -97,6 +101,8 @@ app.MapRuleEndpoints();
 app.MapRunnerEndpoints();
 app.MapRunnerRegistrationEndpoints();
 app.MapTaskEndpoints();
+app.MapObservabilityEndpoints();
+app.MapHub<TaskHub>("/hubs/tasks");
 
 app.MapGet("/", () => Results.Ok(new
 {

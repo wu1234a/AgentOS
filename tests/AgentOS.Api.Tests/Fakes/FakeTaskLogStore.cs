@@ -8,6 +8,8 @@ public sealed class FakeTaskLogStore : ITaskLogStore
     public List<TaskLogEntry> Entries { get; } = [];
 
     public Task AddAsync(
+        Guid? projectId,
+        Guid? eventId,
         Guid taskId,
         Guid attemptId,
         Guid workerId,

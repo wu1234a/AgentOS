@@ -2,6 +2,7 @@ using AgentOS.Api.Tests.Fakes;
 using AgentOS.Application.Events;
 using AgentOS.Application.Projects;
 using AgentOS.Application.Rules;
+using AgentOS.Application.Observability;
 using AgentOS.Application.Runners;
 using AgentOS.Application.Security;
 using AgentOS.Application.Tasks;
@@ -44,6 +45,10 @@ public sealed class AgentOSApiFactory(HealthStatus healthStatus, string environm
 
     public FakeRunnerRegistrationStore RunnerRegistration => new(Queue, ApiClients);
 
+    public FakeObservabilityQueryStore Observability { get; } = new();
+
+    public FakeArtifactStore Artifacts { get; } = new();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment(environment);
@@ -71,6 +76,8 @@ public sealed class AgentOSApiFactory(HealthStatus healthStatus, string environm
             services.RemoveAll<ITaskLogStore>();
             services.RemoveAll<IApiClientStore>();
             services.RemoveAll<IRunnerRegistrationStore>();
+            services.RemoveAll<IObservabilityQueryStore>();
+            services.RemoveAll<IArtifactStore>();
             services.AddSingleton<IEventRepository>(Events);
             services.AddSingleton<IProjectLookup>(Projects);
             services.AddSingleton<IAutomationRuleRepository>(Rules);
@@ -81,6 +88,8 @@ public sealed class AgentOSApiFactory(HealthStatus healthStatus, string environm
             services.AddSingleton<ITaskLogStore>(Logs);
             services.AddSingleton<IApiClientStore>(ApiClients);
             services.AddSingleton<IRunnerRegistrationStore>(RunnerRegistration);
+            services.AddSingleton<IObservabilityQueryStore>(Observability);
+            services.AddSingleton<IArtifactStore>(Artifacts);
 
             services.Configure<HealthCheckServiceOptions>(options =>
             {

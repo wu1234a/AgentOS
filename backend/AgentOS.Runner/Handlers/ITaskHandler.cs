@@ -25,6 +25,9 @@ public enum HandlerOutcome
     Cancelled = 2
 }
 
+/// <summary>Local file a handler wants uploaded as a task artifact.</summary>
+public sealed record TaskArtifactFile(string Name, string MediaType, string Path);
+
 /// <summary>Standardized handler result; the runner maps it to complete/fail.</summary>
 public sealed record TaskHandlerResult(
     HandlerOutcome Outcome,
@@ -32,7 +35,8 @@ public sealed record TaskHandlerResult(
     string? ErrorCode = null,
     string? ErrorMessage = null,
     bool Retryable = false,
-    string? Summary = null)
+    string? Summary = null,
+    IReadOnlyList<TaskArtifactFile>? Artifacts = null)
 {
     public static TaskHandlerResult Succeeded(int exitCode = 0, string? summary = null)
         => new(HandlerOutcome.Succeeded, exitCode, Summary: summary);

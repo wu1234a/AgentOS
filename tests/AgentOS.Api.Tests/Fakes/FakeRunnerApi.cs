@@ -124,6 +124,21 @@ public sealed class FakeRunnerApi : IRunnerApi
         return Task.FromResult(Response(taskId, cancelled ? "Cancelled" : "Failed"));
     }
 
+    public List<(Guid TaskId, string Name, string MediaType)> UploadedArtifacts { get; } = [];
+
+    public Task UploadArtifactAsync(
+        Guid taskId,
+        Guid attemptId,
+        string leaseToken,
+        string name,
+        string mediaType,
+        string filePath,
+        CancellationToken cancellationToken)
+    {
+        UploadedArtifacts.Add((taskId, name, mediaType));
+        return Task.CompletedTask;
+    }
+
     public async Task AppendLogsAsync(
         Guid taskId,
         Guid attemptId,

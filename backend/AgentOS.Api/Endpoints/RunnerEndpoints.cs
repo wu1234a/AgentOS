@@ -1,5 +1,8 @@
 using AgentOS.Api.Filters;
+using AgentOS.Api.Realtime;
+using AgentOS.Application.Observability;
 using AgentOS.Application.Tasks;
+using Microsoft.AspNetCore.SignalR;
 
 namespace AgentOS.Api.Endpoints;
 
@@ -22,6 +25,7 @@ public static class RunnerEndpoints
         group.MapPost("/tasks/{taskId:guid}/complete", CompleteAsync).WithName("CompleteTask");
         group.MapPost("/tasks/{taskId:guid}/fail", FailAsync).WithName("FailTask");
         group.MapPost("/tasks/{taskId:guid}/logs", AppendLogsAsync).WithName("AppendTaskLogs");
+        group.MapPost("/tasks/{taskId:guid}/artifacts", UploadArtifactAsync).WithName("UploadTaskArtifact");
 
         return app;
     }
@@ -107,6 +111,7 @@ public static class RunnerEndpoints
         ClaimTasksRequest? request,
         HttpContext httpContext,
         ITaskClaimer claimer,
+        IHubContext<TaskHub> hub,
         CancellationToken cancellationToken)
     {
         var capacity = request?.Capacity ?? 1;
@@ -120,6 +125,7 @@ public static class RunnerEndpoints
 
         var workerId = (Guid)httpContext.Items[RunnerAuthenticationFilter.WorkerIdItemKey]!;
         var claimed = await claimer.ClaimAsync(workerId, capacity, cancellationToken);
+        await TaskEventPublisher.PublishClaimAsync(hub, claimed, cancellationToken);
 
         return Results.Ok(new { tasks = claimed });
     }
@@ -171,6 +177,7 @@ public static class RunnerEndpoints
         CompleteTaskRequest request,
         HttpContext httpContext,
         TaskQueueService service,
+        IHubContext<TaskHub> hub,
         CancellationToken cancellationToken)
     {
         if (!TryGetLease(request.AttemptId, request.LeaseToken, out var attemptId, out var token, out var error))
@@ -187,6 +194,7 @@ public static class RunnerEndpoints
             request.ExitCode,
             cancellationToken);
 
+        await TaskEventPublisher.PublishAsync(hub, result, cancellationToken);
         return MapResult(result);
     }
 
@@ -195,6 +203,7 @@ public static class RunnerEndpoints
         FailTaskRequest request,
         HttpContext httpContext,
         TaskQueueService service,
+        IHubContext<TaskHub> hub,
         CancellationToken cancellationToken)
     {
         if (!TryGetLease(request.AttemptId, request.LeaseToken, out var attemptId, out var token, out var error))
@@ -214,7 +223,80 @@ public static class RunnerEndpoints
             request.Cancelled,
             cancellationToken);
 
+        await TaskEventPublisher.PublishAsync(hub, result, cancellationToken);
         return MapResult(result);
+    }
+
+    private static async Task<IResult> UploadArtifactAsync(
+        Guid taskId,
+        HttpContext httpContext,
+        TaskQueueService queue,
+        IArtifactStore artifacts,
+        string? attemptId,
+        string? name,
+        string? mediaType,
+        CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(attemptId, out var resolvedAttemptId))
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["attemptId"] = ["attemptId must be a GUID."]
+            });
+        }
+
+        var leaseToken = httpContext.Request.Headers["X-AgentOS-Lease-Token"].FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(leaseToken))
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["leaseToken"] = ["The X-AgentOS-Lease-Token header is required."]
+            });
+        }
+
+        var workerId = (Guid)httpContext.Items[RunnerAuthenticationFilter.WorkerIdItemKey]!;
+        var authorized = await queue.AuthorizeLeaseAsync(
+            workerId,
+            taskId,
+            resolvedAttemptId,
+            leaseToken,
+            cancellationToken);
+
+        if (authorized.Outcome != TaskQueueOutcome.Ok)
+        {
+            return MapResult(authorized);
+        }
+
+        try
+        {
+            var artifact = await artifacts.SaveAsync(
+                authorized.Task!.ProjectId,
+                taskId,
+                resolvedAttemptId,
+                workerId,
+                string.IsNullOrWhiteSpace(name) ? "artifact" : name,
+                string.IsNullOrWhiteSpace(mediaType) ? "application/octet-stream" : mediaType,
+                httpContext.Request.Body,
+                cancellationToken);
+
+            return Results.Created(
+                $"/api/v1/artifacts/{artifact.Id}/download",
+                new ArtifactView(
+                    artifact.Id,
+                    artifact.Name,
+                    artifact.MediaType,
+                    artifact.SizeBytes,
+                    artifact.Sha256,
+                    artifact.CreatedAtUtc));
+        }
+        catch (ArtifactValidationException exception)
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["artifact"] = [exception.Message]
+            });
+        }
+
     }
 
     internal static IResult MapResult(TaskQueueResult result)

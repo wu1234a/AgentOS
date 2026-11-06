@@ -49,6 +49,9 @@ public sealed class Event
 
     public DateTime? ProcessedAtUtc { get; set; }
 
+    /// <summary>Number of duplicate deliveries observed for this event (idempotency metric).</summary>
+    public int DuplicateCount { get; set; }
+
     public DateTime OccurredAtUtc { get; init; }
 
     public DateTime ReceivedAtUtc { get; init; }
