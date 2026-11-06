@@ -374,6 +374,68 @@ namespace AgentOS.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AgentOS.Domain.Security.ApiClient", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ClientCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ClientType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<DateTime?>("ExpiresAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("LastUsedAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<Guid?>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ScopesJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("SecretHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<Guid?>("WorkerId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClientCode")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ApiClients_ClientCode");
+
+                    b.HasIndex("ProjectId");
+
+                    b.HasIndex("WorkerId");
+
+                    b.ToTable("ApiClients", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ApiClients_ScopesJson_IsJson", "ISJSON([ScopesJson]) = 1");
+                        });
+                });
+
             modelBuilder.Entity("AgentOS.Domain.Skills.Skill", b =>
                 {
                     b.Property<Guid>("Id")
@@ -639,6 +701,50 @@ namespace AgentOS.Infrastructure.Migrations
                     b.ToTable("TaskAttempts", (string)null);
                 });
 
+            modelBuilder.Entity("AgentOS.Domain.Tasks.TaskLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AttemptId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("Level")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<int>("Sequence")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TaskId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("WorkerId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WorkerId");
+
+                    b.HasIndex("AttemptId", "Sequence")
+                        .IsUnique()
+                        .HasDatabaseName("UX_TaskLogs_Attempt_Sequence");
+
+                    b.HasIndex("TaskId", "CreatedAtUtc");
+
+                    b.ToTable("TaskLogs", (string)null);
+                });
+
             modelBuilder.Entity("AgentOS.Domain.Workers.Worker", b =>
                 {
                     b.Property<Guid>("Id")
@@ -752,6 +858,19 @@ namespace AgentOS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
+            modelBuilder.Entity("AgentOS.Domain.Security.ApiClient", b =>
+                {
+                    b.HasOne("AgentOS.Domain.Projects.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AgentOS.Domain.Workers.Worker", null)
+                        .WithMany()
+                        .HasForeignKey("WorkerId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("AgentOS.Domain.Skills.Skill", b =>
                 {
                     b.HasOne("AgentOS.Domain.Projects.Project", null)
@@ -802,6 +921,27 @@ namespace AgentOS.Infrastructure.Migrations
 
             modelBuilder.Entity("AgentOS.Domain.Tasks.TaskAttempt", b =>
                 {
+                    b.HasOne("AgentOS.Domain.Tasks.AutomationTask", null)
+                        .WithMany()
+                        .HasForeignKey("TaskId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AgentOS.Domain.Workers.Worker", null)
+                        .WithMany()
+                        .HasForeignKey("WorkerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AgentOS.Domain.Tasks.TaskLog", b =>
+                {
+                    b.HasOne("AgentOS.Domain.Tasks.TaskAttempt", null)
+                        .WithMany()
+                        .HasForeignKey("AttemptId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("AgentOS.Domain.Tasks.AutomationTask", null)
                         .WithMany()
                         .HasForeignKey("TaskId")

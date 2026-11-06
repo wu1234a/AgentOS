@@ -2,6 +2,8 @@ using AgentOS.Api.Tests.Fakes;
 using AgentOS.Application.Events;
 using AgentOS.Application.Projects;
 using AgentOS.Application.Rules;
+using AgentOS.Application.Runners;
+using AgentOS.Application.Security;
 using AgentOS.Application.Tasks;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -36,6 +38,12 @@ public sealed class AgentOSApiFactory(HealthStatus healthStatus, string environm
 
     public FakeTaskClaimer Claimer { get; } = new();
 
+    public FakeApiClientStore ApiClients { get; } = new();
+
+    public FakeTaskLogStore Logs { get; } = new();
+
+    public FakeRunnerRegistrationStore RunnerRegistration => new(Queue, ApiClients);
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment(environment);
@@ -45,6 +53,7 @@ public sealed class AgentOSApiFactory(HealthStatus healthStatus, string environm
             configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Authentication:DevelopmentApiKey"] = "test-dev-key",
+                ["Runner:RegistrationKey"] = "test-registration-key",
                 ["ConnectionStrings:AgentOS"] =
                     "Server=.;Database=AgentOS_Dev;Trusted_Connection=True;TrustServerCertificate=True;Connect Timeout=3"
             });
@@ -59,6 +68,9 @@ public sealed class AgentOSApiFactory(HealthStatus healthStatus, string environm
             services.RemoveAll<ITaskDispatcher>();
             services.RemoveAll<ITaskQueueStore>();
             services.RemoveAll<ITaskClaimer>();
+            services.RemoveAll<ITaskLogStore>();
+            services.RemoveAll<IApiClientStore>();
+            services.RemoveAll<IRunnerRegistrationStore>();
             services.AddSingleton<IEventRepository>(Events);
             services.AddSingleton<IProjectLookup>(Projects);
             services.AddSingleton<IAutomationRuleRepository>(Rules);
@@ -66,6 +78,9 @@ public sealed class AgentOSApiFactory(HealthStatus healthStatus, string environm
             services.AddSingleton<ITaskDispatcher>(Dispatcher);
             services.AddSingleton<ITaskQueueStore>(Queue);
             services.AddSingleton<ITaskClaimer>(Claimer);
+            services.AddSingleton<ITaskLogStore>(Logs);
+            services.AddSingleton<IApiClientStore>(ApiClients);
+            services.AddSingleton<IRunnerRegistrationStore>(RunnerRegistration);
 
             services.Configure<HealthCheckServiceOptions>(options =>
             {

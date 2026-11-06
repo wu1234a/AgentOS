@@ -3,24 +3,104 @@ using AgentOS.Application.Tasks;
 
 namespace AgentOS.Api.Endpoints;
 
-/// <summary>Runner-facing task queue endpoints introduced by AOS-005.</summary>
+/// <summary>Runner-facing task queue endpoints (AOS-005) and runner session/logs (AOS-006).</summary>
 public static class RunnerEndpoints
 {
     private const int MaxClaimCapacity = 100;
+    private const int MaxLogEntriesPerBatch = 200;
+    private const int MaxLogMessageLength = 4000;
 
     public static IEndpointRouteBuilder MapRunnerEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/v1/runners")
-            .AddEndpointFilter<ApiClientAuthenticationFilter>()
             .AddEndpointFilter<RunnerAuthenticationFilter>();
 
         group.MapPost("/claim", ClaimAsync).WithName("ClaimTasks");
+        group.MapPost("/heartbeat", WorkerHeartbeatAsync).WithName("RunnerHeartbeat");
         group.MapPost("/tasks/{taskId:guid}/start", StartAsync).WithName("StartTask");
         group.MapPost("/tasks/{taskId:guid}/heartbeat", HeartbeatAsync).WithName("HeartbeatTask");
         group.MapPost("/tasks/{taskId:guid}/complete", CompleteAsync).WithName("CompleteTask");
         group.MapPost("/tasks/{taskId:guid}/fail", FailAsync).WithName("FailTask");
+        group.MapPost("/tasks/{taskId:guid}/logs", AppendLogsAsync).WithName("AppendTaskLogs");
 
         return app;
+    }
+
+    private static async Task<IResult> WorkerHeartbeatAsync(
+        HttpContext httpContext,
+        ITaskQueueStore store,
+        TimeProvider timeProvider,
+        CancellationToken cancellationToken)
+    {
+        var workerId = (Guid)httpContext.Items[RunnerAuthenticationFilter.WorkerIdItemKey]!;
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+
+        if (!await store.TouchWorkerAsync(workerId, now, cancellationToken))
+        {
+            return Results.Problem(statusCode: StatusCodes.Status404NotFound, title: "Worker not found");
+        }
+
+        return Results.Ok(new { workerId, serverTimeUtc = now });
+    }
+
+    private static async Task<IResult> AppendLogsAsync(
+        Guid taskId,
+        RunnerLogsRequest request,
+        HttpContext httpContext,
+        TaskQueueService service,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetLease(request.AttemptId, request.LeaseToken, out var attemptId, out var token, out var leaseError))
+        {
+            return leaseError!;
+        }
+
+        var errors = new Dictionary<string, string[]>(StringComparer.Ordinal);
+        var entries = new List<TaskLogEntry>();
+
+        if (request.Entries is null || request.Entries.Count == 0)
+        {
+            errors["entries"] = ["entries must contain at least one log line."];
+        }
+        else if (request.Entries.Count > MaxLogEntriesPerBatch)
+        {
+            errors["entries"] = [$"entries must contain at most {MaxLogEntriesPerBatch} lines."];
+        }
+        else
+        {
+            foreach (var entry in request.Entries)
+            {
+                if (entry.Sequence <= 0)
+                {
+                    errors["entries"] = ["every entry needs a positive sequence."];
+                    break;
+                }
+
+                if (string.IsNullOrWhiteSpace(entry.Message) || entry.Message.Length > MaxLogMessageLength)
+                {
+                    errors["entries"] = [$"every message must be 1-{MaxLogMessageLength} characters."];
+                    break;
+                }
+
+                entries.Add(new TaskLogEntry(entry.Sequence, entry.Level, entry.Message, entry.TimestampUtc));
+            }
+        }
+
+        if (errors.Count > 0)
+        {
+            return Results.ValidationProblem(errors);
+        }
+
+        var workerId = (Guid)httpContext.Items[RunnerAuthenticationFilter.WorkerIdItemKey]!;
+        var result = await service.AppendLogsAsync(
+            workerId,
+            taskId,
+            attemptId,
+            token,
+            entries,
+            cancellationToken);
+
+        return MapResult(result);
     }
 
     private static async Task<IResult> ClaimAsync(

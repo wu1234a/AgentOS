@@ -45,3 +45,23 @@ public sealed class FailTaskRequest
 
     public bool Cancelled { get; init; }
 }
+
+public sealed class RunnerLogsRequest
+{
+    public Guid? AttemptId { get; init; }
+
+    public string? LeaseToken { get; init; }
+
+    public List<RunnerLogEntry>? Entries { get; init; }
+}
+
+public sealed class RunnerLogEntry
+{
+    public int Sequence { get; init; }
+
+    public string? Level { get; init; }
+
+    public string? Message { get; init; }
+
+    public DateTime? TimestampUtc { get; init; }
+}

@@ -1,4 +1,7 @@
 using AgentOS.Api.Tests.Fakes;
+using AgentOS.Application.Runners;
+using AgentOS.Application.Security;
+using AgentOS.Infrastructure.Runners;
 using AgentOS.Application.Tasks;
 using AgentOS.Domain.Agents;
 using AgentOS.Domain.Projects;
@@ -261,6 +264,93 @@ public sealed class SqlTaskQueueTests
     }
 
     [SkippableFact]
+    public async Task Registration_rotates_runner_credentials()
+    {
+        var connectionString = RequireConnectionString();
+        await MigrateAsync(connectionString);
+
+        var workerCode = $"runner-{Guid.NewGuid():N}"[..24];
+        var request = new RunnerRegistrationRequest(
+            workerCode,
+            "SQL Runner",
+            "localhost",
+            "Windows",
+            "x64",
+            "1.0.0",
+            "{}");
+
+        RunnerRegistrationResult first;
+        RunnerRegistrationResult second;
+
+        await using (var context = NewContext(connectionString))
+        {
+            var service = new RunnerRegistrationService(
+                new RunnerRegistrationStore(context),
+                Options.Create(new RunnerRegistrationOptions { RegistrationKey = "sql-key" }),
+                new ManualTimeProvider(Now),
+                NullLogger<RunnerRegistrationService>.Instance);
+
+            first = await service.RegisterAsync("sql-key", request, CancellationToken.None);
+            second = await service.RegisterAsync("sql-key", request, CancellationToken.None);
+        }
+
+        Assert.Equal(RunnerRegistrationOutcome.Registered, first.Outcome);
+        Assert.Equal(RunnerRegistrationOutcome.Registered, second.Outcome);
+        Assert.NotEqual(first.Registration!.ClientSecret, second.Registration!.ClientSecret);
+
+        await using var verify = NewContext(connectionString);
+        var clients = await verify.ApiClients
+            .Where(client => client.WorkerId == first.Registration.WorkerId)
+            .ToListAsync();
+
+        // Re-registration rotates the secret of the single stable runner client.
+        var client = Assert.Single(clients);
+        Assert.True(client.IsEnabled);
+        Assert.Equal(ClientSecretHasher.Hash(second.Registration.ClientSecret), client.SecretHash);
+        Assert.False(ClientSecretHasher.Matches(client.SecretHash, first.Registration.ClientSecret));
+        Assert.NotEqual(second.Registration.ClientSecret, client.SecretHash);
+    }
+
+    [SkippableFact]
+    public async Task Task_logs_are_idempotent_per_attempt_sequence()
+    {
+        var connectionString = RequireConnectionString();
+        await MigrateAsync(connectionString);
+        await ResetQueueAsync(connectionString);
+
+        await using var setup = NewContext(connectionString);
+        var project = await SeedProjectAsync(setup);
+        var worker = await SeedWorkerAsync(setup);
+        var taskId = await SeedTaskAsync(setup, project, "normal", Now);
+
+        var claimed = (await ClaimAsync(connectionString, worker.Id, capacity: 1)).Single();
+        var batch = new[]
+        {
+            new TaskLogEntry(1, "info", "first line", Now),
+            new TaskLogEntry(2, "warn", "second line", Now)
+        };
+
+        await using (var logContext = NewContext(connectionString))
+        {
+            var store = new TaskLogStore(logContext);
+            await store.AddAsync(taskId, claimed.Lease.AttemptId, worker.Id, batch, CancellationToken.None);
+
+            // A retried upload must not duplicate the stream.
+            await store.AddAsync(taskId, claimed.Lease.AttemptId, worker.Id, batch, CancellationToken.None);
+        }
+
+        await using var verify = NewContext(connectionString);
+        var logs = await verify.TaskLogs
+            .Where(log => log.TaskId == taskId)
+            .OrderBy(log => log.Sequence)
+            .ToListAsync();
+
+        Assert.Equal(2, logs.Count);
+        Assert.Equal([1, 2], logs.Select(log => log.Sequence));
+        Assert.Equal("second line", logs[1].Message);
+    }
+
+    [SkippableFact]
     public async Task Fail_retries_until_max_attempts_then_marks_the_task_failed()
     {
         var connectionString = RequireConnectionString();
@@ -325,6 +415,7 @@ public sealed class SqlTaskQueueTests
 
     private static TaskQueueService CreateQueueService(AgentOSDbContext context, TimeProvider clock) => new(
         new TaskQueueStore(context),
+        new TaskLogStore(context),
         clock,
         Options.Create(QueueOptions),
         NullLogger<TaskQueueService>.Instance);
@@ -467,7 +558,7 @@ public sealed class SqlTaskQueueTests
     {
         // The database is disposable; clear queue state so each test starts from a known slate.
         await using var context = NewContext(connectionString);
-        await context.Database.ExecuteSqlRawAsync("DELETE FROM [TaskAttempts]; DELETE FROM [Tasks];");
+        await context.Database.ExecuteSqlRawAsync("DELETE FROM [TaskLogs]; DELETE FROM [TaskAttempts]; DELETE FROM [Tasks];");
     }
 
     private static async Task MigrateAsync(string connectionString)

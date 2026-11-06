@@ -1,11 +1,15 @@
 using AgentOS.Application.Events;
 using AgentOS.Application.Projects;
 using AgentOS.Application.Rules;
+using AgentOS.Application.Runners;
+using AgentOS.Application.Security;
 using AgentOS.Application.Tasks;
 using AgentOS.Infrastructure.Persistence;
 using AgentOS.Infrastructure.Projects;
 using AgentOS.Infrastructure.Repositories;
 using AgentOS.Infrastructure.Rules;
+using AgentOS.Infrastructure.Runners;
+using AgentOS.Infrastructure.Security;
 using AgentOS.Infrastructure.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -32,6 +36,9 @@ public static class DependencyInjection
         services.AddScoped<ITaskDispatchStore, TaskDispatchStore>();
         services.AddScoped<ITaskClaimer, TaskClaimer>();
         services.AddScoped<ITaskQueueStore, TaskQueueStore>();
+        services.AddScoped<ITaskLogStore, TaskLogStore>();
+        services.AddScoped<IApiClientStore, ApiClientStore>();
+        services.AddScoped<IRunnerRegistrationStore, RunnerRegistrationStore>();
 
         // Stateless and thread-safe; shared so payload hashing and duplicate log sampling stay
         // consistent across requests.

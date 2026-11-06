@@ -404,6 +404,22 @@ AOS-004 已创建：`ModelProfiles`、`Skills`、`Agents`、`AutomationRules`、
 - 任务状态流转：Queued → Running → Succeeded / RetryWait → Running → … / Failed / Cancelled；
   Running 取消先置 `CancelRequestedAtUtc`，Runner 停止后以 `fail(cancelled=true)` 落为 Cancelled。
 
+### 3.18 AOS-006 Runner 凭证与日志
+
+- `ApiClients`：机器身份。`ClientCode` 唯一，`ClientType` 为 Runner / EventSource / Service，
+  `WorkerId` 绑定 Worker，`SecretHash` 只存 SHA-256，`ScopesJson` 记录授权范围，
+  `ExpiresAtUtc` 可选。Runner 端点使用 `X-AgentOS-Client-Id` + `X-AgentOS-Client-Secret`；
+  开发环境仍可用 Dev Key + Worker Code 回退。
+- 注册：`POST /api/v1/runners/register`，请求头 `X-AgentOS-Registration-Key`（服务端
+  `Runner:RegistrationKey`）。成功返回一次性 `clientSecret`；重复注册会**就地轮换**同一
+  `runner-{WorkerCode}` 客户端的密钥并重新启用，不会产生重复 ClientCode。
+  未配置 RegistrationKey 时返回 503，只允许预置客户端连接。
+- `TaskLogs`：`(AttemptId, Sequence)` 唯一，保证网络重试不会重复写日志；字段
+  `Level`（debug/info/warn/error）、`Message`（≤4000）、`CreatedAtUtc`。
+  写入接口 `POST /api/v1/runners/tasks/{taskId}/logs`，必须持有有效租约。
+- Worker 心跳：`POST /api/v1/runners/heartbeat` 更新 `Workers.LastHeartbeatAtUtc` 与
+  `Status=Online`，供“Runner 在线状态”展示。
+
 ## 4. 关系与删除策略
 
 - Projects 对 Events、Tasks、Agents 使用

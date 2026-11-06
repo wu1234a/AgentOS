@@ -30,7 +30,7 @@ public sealed class TaskClaimer(
     private const int SelectionRounds = 4;
 
     private const string SelectCandidatesSql = """
-        SELECT TOP (@capacity) t.[Id]
+        SELECT TOP (@capacity) t.[Id], p.[Slug]
         FROM [Tasks] AS t
         INNER JOIN [Projects] AS p ON p.[Id] = t.[ProjectId] AND p.[IsEnabled] = 1
         WHERE t.[Status] IN (N'Queued', N'RetryWait')
@@ -81,21 +81,21 @@ public sealed class TaskClaimer(
 
         for (var round = 0; round < SelectionRounds && claimed.Count < limit; round++)
         {
-            var candidateIds = await SelectCandidatesAsync(
+            var candidates = await SelectCandidatesAsync(
                 connection,
                 dbTransaction,
                 limit - claimed.Count,
                 now,
                 cancellationToken);
 
-            if (candidateIds.Count == 0)
+            if (candidates.Count == 0)
             {
                 break;
             }
 
             var progress = 0;
 
-            foreach (var candidateId in candidateIds)
+            foreach (var candidate in candidates)
             {
                 if (claimed.Count == limit)
                 {
@@ -106,7 +106,7 @@ public sealed class TaskClaimer(
                 var claimedRow = await TryClaimAsync(
                     connection,
                     dbTransaction,
-                    candidateId,
+                    candidate.Id,
                     workerId,
                     tokenHash,
                     leaseExpiresAtUtc,
@@ -134,6 +134,7 @@ public sealed class TaskClaimer(
 
                 claimed.Add(new ClaimedTask(
                     claimedRow.Id,
+                    candidate.ProjectSlug,
                     claimedRow.TaskCode,
                     claimedRow.Title,
                     claimedRow.Priority,
@@ -172,14 +173,14 @@ public sealed class TaskClaimer(
         return claimed;
     }
 
-    private static async Task<List<Guid>> SelectCandidatesAsync(
+    private static async Task<List<Candidate>> SelectCandidatesAsync(
         DbConnection connection,
         DbTransaction transaction,
         int capacity,
         DateTime now,
         CancellationToken cancellationToken)
     {
-        var ids = new List<Guid>(capacity);
+        var candidates = new List<Candidate>(capacity);
 
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
@@ -190,10 +191,10 @@ public sealed class TaskClaimer(
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
-            ids.Add(reader.GetGuid(0));
+            candidates.Add(new Candidate(reader.GetGuid(0), reader.GetString(1)));
         }
 
-        return ids;
+        return candidates;
     }
 
     private static async Task<ClaimedRow?> TryClaimAsync(
@@ -244,6 +245,8 @@ public sealed class TaskClaimer(
         parameter.Value = value;
         command.Parameters.Add(parameter);
     }
+
+    private sealed record Candidate(Guid Id, string ProjectSlug);
 
     private sealed record ClaimedRow(
         Guid Id,

@@ -413,3 +413,69 @@ dotnet test backend/AgentOS.slnx --filter FullyQualifiedName~TaskQueue
 
 SQL 用例会并发领取（4 个 Runner × 容量 4）、验证无重复领取、Attempt 一致性、优先级顺序、
 租约续期/过期拒绝、失败重试与最大次数、过期租约恢复与二次领取。
+
+## 12. AOS-006 本地 Runner
+
+### 12.1 前置条件
+
+- .NET 10 SDK；AgentOS API 与 SQL Server 已启动。
+- 服务端配置一次性注册密钥（不要提交到 Git）：
+
+```powershell
+$env:Runner__RegistrationKey = '<random-bootstrap-key>'
+dotnet run --project backend/AgentOS.Api
+```
+
+也可以用已存在的 Runner 客户端凭证（`Runner__ClientId` / `Runner__ClientSecret`）跳过注册。
+
+### 12.2 配置
+
+复制 `backend/AgentOS.Runner/appsettings.example.json` 为 `appsettings.json`，至少配置：
+
+- `BaseUrl`：API 地址（只发出站请求）；
+- `WorkerCode`、`DisplayName`、`Platform`、`Architecture`、`Version`；
+- `WorkspaceRoots`：允许的工作区根目录；
+- `Projects`：项目 slug → 工作区路径（不在列表中的项目一律拒绝执行）；
+- `PollIntervalSeconds`、`HeartbeatIntervalSeconds`、`MaxConcurrentTasks`；
+- `RegistrationKey`（首次注册用，注册成功后会被轮换的 ClientSecret 取代）。
+
+密钥优先用环境变量：`Runner__RegistrationKey`、`Runner__ClientId`、`Runner__ClientSecret`。
+
+### 12.3 启动与停止
+
+```powershell
+dotnet run --project backend/AgentOS.Runner
+# 或发布后
+dotnet publish backend/AgentOS.Runner -c Release -o C:\AgentOS\runner
+C:\AgentOS\runner\AgentOS.Runner.exe
+```
+
+- 控制台 `Ctrl+C` 触发优雅关闭：停止领取，最多等待 15 秒让运行中的 Handler 收尾，
+  未完成任务以 `runner-shutdown`（可重试）回传。
+- Runner 启动后先注册/心跳，再按 `PollIntervalSeconds` 轮询，并发不超过 `MaxConcurrentTasks`。
+- API 不可用时指数退避（2s → 60s），不会把任务误标成功；租约到期由 Worker 恢复。
+
+### 12.4 Windows 服务 / WSL2
+
+- Windows 服务：用 `sc.exe create AgentOSRunner binPath= "...\AgentOS.Runner.exe" start= auto`
+  或 NSSM；工作目录设为发布目录，Secrets 用机器级环境变量。AOS-006 不要求开机自启。
+- WSL2：同一二进制可在 Linux 运行；`Platform` 改为 `Linux`，`WorkspaceRoots` 用
+  `/mnt/d/...` 或 WSL 文件系统路径；注意大小写敏感与换行差异。
+
+### 12.5 故障排查
+
+| 现象 | 原因 / 处理 |
+|---|---|
+| 注册 401 | `X-AgentOS-Registration-Key` 与服务端 `Runner:RegistrationKey` 不一致 |
+| 注册 503 | 服务端未配置注册密钥；改用预置 ClientId/Secret |
+| 领取 401 | ClientSecret 已轮换/禁用；重启 Runner 重新注册，或核对 DevKey 回退 |
+| `workspace-rejected` | 任务项目不在 `Projects` 白名单，或路径不在 `WorkspaceRoots` 内 / 是符号链接 |
+| Runner 显示离线 | Worker 心跳失败；检查网络、API 日志与 `HeartbeatIntervalSeconds` |
+| 任务一直 Running | Runner 崩溃或断网；租约到期后由 `AgentOS.Worker` 恢复（AOS-005） |
+| 日志缺失 | 日志上传是尽力而为；检查 `TaskLogs` 与 API 的 403（租约失效） |
+
+### 12.6 安全
+
+- Runner 只使用 Runner Scope 的客户端凭证；Secret 只存哈希，轮换后旧 Secret 立即失效。
+- `RegistrationKey` 仅用于首次绑定，不应长期保留在配置中。
+- Handler 只能访问校验通过的工作区；路径穿越、符号链接逃逸与未授权项目都会被拒绝。

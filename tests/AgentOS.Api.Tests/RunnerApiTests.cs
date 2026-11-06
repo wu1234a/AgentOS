@@ -54,6 +54,7 @@ public sealed class RunnerApiTests
         var taskId = Guid.NewGuid();
         factory.Claimer.Claims.Add(new ClaimedTask(
             taskId,
+            "queue-test",
             "TASK-ABC",
             "Test task",
             "normal",

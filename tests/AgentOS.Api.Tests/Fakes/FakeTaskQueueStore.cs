@@ -19,6 +19,20 @@ public sealed class FakeTaskQueueStore : ITaskQueueStore
     public Task<Worker?> FindWorkerByCodeAsync(string workerCode, CancellationToken cancellationToken)
         => Task.FromResult(Workers.FirstOrDefault(worker => worker.WorkerCode == workerCode));
 
+    public Task<bool> TouchWorkerAsync(Guid workerId, DateTime nowUtc, CancellationToken cancellationToken)
+    {
+        var worker = Workers.FirstOrDefault(candidate => candidate.Id == workerId);
+        if (worker is null)
+        {
+            return Task.FromResult(false);
+        }
+
+        worker.LastHeartbeatAtUtc = nowUtc;
+        worker.Status = WorkerStatus.Online;
+        worker.UpdatedAtUtc = nowUtc;
+        return Task.FromResult(true);
+    }
+
     public Task<AutomationTask?> GetTaskAsync(Guid taskId, CancellationToken cancellationToken)
         => Task.FromResult(Tasks.FirstOrDefault(task => task.Id == taskId));
 

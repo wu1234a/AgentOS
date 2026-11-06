@@ -13,6 +13,7 @@ public sealed record TaskLease(
 /// <summary>Task details the Runner needs to execute the work.</summary>
 public sealed record ClaimedTask(
     Guid TaskId,
+    string ProjectSlug,
     string TaskCode,
     string Title,
     string Priority,
@@ -71,6 +72,9 @@ public sealed record TaskQueueResult(
 public interface ITaskQueueStore
 {
     Task<Worker?> FindWorkerByCodeAsync(string workerCode, CancellationToken cancellationToken);
+
+    /// <summary>Updates the worker's last-seen time and marks it online.</summary>
+    Task<bool> TouchWorkerAsync(Guid workerId, DateTime nowUtc, CancellationToken cancellationToken);
 
     /// <summary>Tracked task entity.</summary>
     Task<AutomationTask?> GetTaskAsync(Guid taskId, CancellationToken cancellationToken);

@@ -4,6 +4,7 @@ using AgentOS.Api.Health;
 using AgentOS.Api.Security;
 using AgentOS.Application.Events;
 using AgentOS.Application.Rules;
+using AgentOS.Application.Runners;
 using AgentOS.Application.Security;
 using AgentOS.Application.Tasks;
 using AgentOS.Infrastructure;
@@ -30,7 +31,9 @@ builder.Services.AddScoped<RuleValidator>();
 builder.Services.AddScoped<RuleService>();
 builder.Services.AddScoped<ITaskDispatcher, TaskDispatchService>();
 builder.Services.Configure<TaskQueueOptions>(builder.Configuration.GetSection("TaskQueue"));
+builder.Services.Configure<RunnerRegistrationOptions>(builder.Configuration.GetSection("Runner"));
 builder.Services.AddScoped<TaskQueueService>();
+builder.Services.AddScoped<RunnerRegistrationService>();
 builder.Services.AddScoped<ApiClientAuthenticationFilter>();
 builder.Services.AddScoped<RunnerAuthenticationFilter>();
 
@@ -91,6 +94,7 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 app.MapEventEndpoints();
 app.MapRuleEndpoints();
 app.MapRunnerEndpoints();
+app.MapRunnerRegistrationEndpoints();
 app.MapTaskEndpoints();
 
 app.MapGet("/", () => Results.Ok(new

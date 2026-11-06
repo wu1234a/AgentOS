@@ -11,6 +11,7 @@ namespace AgentOS.Application.Tasks;
 /// </summary>
 public sealed class TaskQueueService(
     ITaskQueueStore store,
+    ITaskLogStore logStore,
     TimeProvider timeProvider,
     IOptions<TaskQueueOptions> options,
     ILogger<TaskQueueService> logger)
@@ -178,6 +179,32 @@ public sealed class TaskQueueService(
 
         await store.SaveAsync(cancellationToken);
         return TaskQueueResult.Ok(task, attempt);
+    }
+
+    /// <summary>
+    /// Appends a batch of runner log lines. Requires a valid lease; entries are keyed by
+    /// (attempt, sequence) so a retried batch cannot duplicate or reorder the stream.
+    /// </summary>
+    public async Task<TaskQueueResult> AppendLogsAsync(
+        Guid workerId,
+        Guid taskId,
+        Guid attemptId,
+        string leaseToken,
+        IReadOnlyList<TaskLogEntry> entries,
+        CancellationToken cancellationToken)
+    {
+        var validated = await ValidateLeaseAsync(workerId, taskId, attemptId, leaseToken, cancellationToken);
+        if (validated.Failure is not null)
+        {
+            return validated.Failure;
+        }
+
+        if (entries.Count > 0)
+        {
+            await logStore.AddAsync(taskId, attemptId, workerId, entries, cancellationToken);
+        }
+
+        return TaskQueueResult.Ok(validated.Task!, validated.Attempt!, validated.Task!.LeaseExpiresAtUtc);
     }
 
     /// <summary>

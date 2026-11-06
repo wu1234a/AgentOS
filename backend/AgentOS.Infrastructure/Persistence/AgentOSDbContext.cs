@@ -3,6 +3,7 @@ using AgentOS.Domain.Events;
 using AgentOS.Domain.ModelProfiles;
 using AgentOS.Domain.Projects;
 using AgentOS.Domain.Rules;
+using AgentOS.Domain.Security;
 using AgentOS.Domain.Skills;
 using AgentOS.Domain.Tasks;
 using AgentOS.Domain.Workers;
@@ -34,6 +35,10 @@ public sealed class AgentOSDbContext(DbContextOptions<AgentOSDbContext> options)
     public DbSet<Worker> Workers => Set<Worker>();
 
     public DbSet<TaskAttempt> TaskAttempts => Set<TaskAttempt>();
+
+    public DbSet<TaskLog> TaskLogs => Set<TaskLog>();
+
+    public DbSet<ApiClient> ApiClients => Set<ApiClient>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -291,6 +291,7 @@ public sealed class TaskQueueServiceTests
 
     private TaskQueueService CreateService() => new(
         _store,
+        new FakeTaskLogStore(),
         _time,
         Options.Create(_options),
         NullLogger<TaskQueueService>.Instance);
