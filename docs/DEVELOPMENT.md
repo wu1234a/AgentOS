@@ -920,3 +920,8 @@ Model/Provider/ExecutionMode 下发到 Runner，并传给 Codex `-m`）。
 
 - `KnowledgeDocuments` + `/api/v1/knowledge` CRUD/关键词搜索。
 - 项目过滤、片段返回；无语义/向量检索/前端。
+
+## 47. AOS-034 流水线视图
+
+- `GET /api/v1/pipelines` 最近任务；`/tasks/{id}` 聚合 task/attempt/coding/review/qa。
+- 只读；无前端/实时推送/DAG。
