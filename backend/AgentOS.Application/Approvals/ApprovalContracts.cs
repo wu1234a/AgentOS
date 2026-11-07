@@ -51,6 +51,14 @@ public interface IApprovalRepository
     Task<ApprovalRequest?> GetPendingAsync(ApprovalTargetType type, string targetId, CancellationToken cancellationToken);
     Task<IReadOnlyList<ApprovalRequest>> ListAsync(string? status, string? targetType, int limit, int offset, CancellationToken cancellationToken);
     Task<int> CountAsync(string? status, string? targetType, CancellationToken cancellationToken);
-    Task AddAsync(ApprovalRequest request, CancellationToken cancellationToken);
+    Task<bool> TryAddAsync(ApprovalRequest request, CancellationToken cancellationToken);
+
+    Task<bool> TryDecideAsync(
+        Guid id,
+        ApprovalStatus status,
+        string decidedBy,
+        string? reason,
+        DateTime decidedAtUtc,
+        CancellationToken cancellationToken);
     Task SaveAsync(CancellationToken cancellationToken);
 }

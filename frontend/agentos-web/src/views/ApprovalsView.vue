@@ -8,6 +8,8 @@ const items = ref([])
 const total = ref(0)
 const loading = ref(false)
 const error = ref('')
+const page = ref(1)
+const pageSize = 50
 const createVisible = ref(false)
 const decision = reactive({ visible: false, id: '', action: 'Approved', reason: '', saving: false })
 const form = reactive({ targetType: 'CodingRun', targetId: '', requestReason: '' })
@@ -16,7 +18,7 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const data = await listApprovals()
+    const data = await listApprovals({ limit: pageSize, offset: (page.value - 1) * pageSize })
     items.value = data.items
     total.value = data.total
   } catch (exception) {
@@ -88,6 +90,15 @@ onMounted(load)
       </el-table-column>
     </el-table>
 
+    <el-pagination
+      class="pager"
+      layout="prev, pager, next, total"
+      :total="total"
+      :page-size="pageSize"
+      :current-page="page"
+      @current-change="(value) => { page = value; load() }"
+    />
+
     <el-dialog v-model="createVisible" title="发起审批" width="560px">
       <el-form label-width="100px">
         <el-form-item label="目标类型">
@@ -125,5 +136,6 @@ onMounted(load)
 
 <style scoped>
 .page-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.pager { margin-top: 16px; justify-content: flex-end; }
 .muted { color: #6b7280; margin: 4px 0 0; }
 </style>

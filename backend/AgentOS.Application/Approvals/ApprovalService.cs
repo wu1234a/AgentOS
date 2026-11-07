@@ -36,6 +36,11 @@ public sealed class ApprovalService(
         }
 
         var targetId = request.TargetId?.Trim() ?? string.Empty;
+        if (Guid.TryParse(targetId, out var normalizedTarget))
+        {
+            targetId = normalizedTarget.ToString("D");
+        }
+
         if (targetId.Length is 0 or > 128)
         {
             return ApprovalResult.Invalid("target-id-invalid", "targetId", "Target id is required.");
@@ -63,8 +68,10 @@ public sealed class ApprovalService(
             RequestedAtUtc = now
         };
 
-        await repository.AddAsync(entity, cancellationToken);
-        await repository.SaveAsync(cancellationToken);
+        if (!await repository.TryAddAsync(entity, cancellationToken))
+        {
+            return ApprovalResult.Conflict("approval-already-pending");
+        }
         logger.LogInformation("Approval {ApprovalId} created for {Type}/{Target}.", entity.Id, type, targetId);
         return ApprovalResult.Ok(ToView(entity));
     }
@@ -80,15 +87,10 @@ public sealed class ApprovalService(
             return ApprovalResult.Invalid("decision-invalid", "decision", "Use Approved or Rejected.");
         }
 
-        var entity = await repository.GetTrackedAsync(id, cancellationToken);
-        if (entity is null)
+        var existing = await repository.GetByIdAsync(id, cancellationToken);
+        if (existing is null)
         {
             return ApprovalResult.NotFound();
-        }
-
-        if (entity.Status != ApprovalStatus.Pending)
-        {
-            return ApprovalResult.Conflict("approval-already-decided");
         }
 
         var reason = Truncate(request.Reason, 2000);
@@ -98,11 +100,12 @@ public sealed class ApprovalService(
         }
 
         var now = timeProvider.GetUtcNow().UtcDateTime;
-        entity.Status = decision;
-        entity.DecidedByUserId = "dev-user";
-        entity.DecidedAtUtc = now;
-        entity.DecisionReason = reason;
-        await repository.SaveAsync(cancellationToken);
+        if (!await repository.TryDecideAsync(id, decision, "dev-user", reason, now, cancellationToken))
+        {
+            return ApprovalResult.Conflict("approval-already-decided");
+        }
+
+        var entity = await repository.GetByIdAsync(id, cancellationToken)!;
 
         logger.LogInformation("Approval {ApprovalId} decided {Decision}.", id, decision);
         return ApprovalResult.Ok(ToView(entity));

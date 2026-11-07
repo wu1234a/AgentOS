@@ -59,8 +59,38 @@ public sealed class ApprovalRepository(AgentOSDbContext dbContext) : IApprovalRe
     public Task<int> CountAsync(string? status, string? targetType, CancellationToken cancellationToken)
         => Filter(status, targetType).CountAsync(cancellationToken);
 
-    public async Task AddAsync(ApprovalRequest request, CancellationToken cancellationToken)
-        => await dbContext.ApprovalRequests.AddAsync(request, cancellationToken);
+    public async Task<bool> TryAddAsync(ApprovalRequest request, CancellationToken cancellationToken)
+    {
+        dbContext.ApprovalRequests.Add(request);
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+        catch (DbUpdateException)
+        {
+            dbContext.Entry(request).State = EntityState.Detached;
+            return false;
+        }
+    }
+
+    public async Task<bool> TryDecideAsync(
+        Guid id,
+        ApprovalStatus status,
+        string decidedBy,
+        string? reason,
+        DateTime decidedAtUtc,
+        CancellationToken cancellationToken)
+    {
+        var updated = await dbContext.ApprovalRequests
+            .Where(request => request.Id == id && request.Status == ApprovalStatus.Pending)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(request => request.Status, status)
+                .SetProperty(request => request.DecidedByUserId, decidedBy)
+                .SetProperty(request => request.DecidedAtUtc, decidedAtUtc)
+                .SetProperty(request => request.DecisionReason, reason), cancellationToken);
+        return updated > 0;
+    }
 
     public Task SaveAsync(CancellationToken cancellationToken) => dbContext.SaveChangesAsync(cancellationToken);
 

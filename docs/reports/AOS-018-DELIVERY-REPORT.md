@@ -27,7 +27,7 @@
 | 前端 lint/build | ✅ 通过 |
 | CI | 见对应 run |
 
-## 4. 已知限制
+### 3.1 独立代码审查\n\nCodex CLI 审查发现 1 个 P1（并发决策覆盖）与 3 个 P2（并发创建 500、GUID 格式、前端分页），全部修复，详见 `docs/reports/AOS-018-CODE-REVIEW.md`。\n\n## 4. 已知限制
 
 1. 无细粒度 RBAC，仅有开发 Key。
 2. 无 rowversion 乐观并发；并发决策依赖状态检查。
