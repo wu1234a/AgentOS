@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using AgentOS.Api.GitHub;
 using AgentOS.Application.Events;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Options;
 
 namespace AgentOS.Api.Endpoints;
@@ -52,6 +53,12 @@ public static class GitHubWebhookEndpoints
             return Results.BadRequest(new { error = "missing-required-header" });
         }
 
+        var sizeFeature = request.HttpContext.Features.Get<IHttpMaxRequestBodySizeFeature>();
+        if (sizeFeature is { IsReadOnly: false })
+        {
+            sizeFeature.MaxRequestBodySize = MaxBodyBytes;
+        }
+
         using var buffer = new MemoryStream();
         await request.Body.CopyToAsync(buffer, cancellationToken);
         if (buffer.Length > MaxBodyBytes)
@@ -95,11 +102,31 @@ public static class GitHubWebhookEndpoints
                 return Results.Ok(new { deliveryId = delivery, status = "ignored" });
             }
 
-            var normalized = Normalize(root, eventName, repository);
+            if (!configuration.RepositoryProjects.TryGetValue(repository, out var projectSlug)
+                || string.IsNullOrWhiteSpace(projectSlug))
+            {
+                logger.LogWarning("GitHub repository {Repository} has no project mapping.", repository);
+                return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+            }
+
+            (string SubjectId, string Summary, string? ResourceUrl, JsonElement Payload) normalized;
+            try
+            {
+                normalized = Normalize(root, eventName, repository);
+            }
+            catch (Exception exception) when (exception is KeyNotFoundException
+                or InvalidOperationException
+                or FormatException
+                or ArgumentException)
+            {
+                return Results.BadRequest(new { error = "invalid-payload" });
+            }
+
             var eventRequest = new CreateEventRequest
             {
                 SchemaVersion = "1.0",
                 Source = "github",
+                Project = projectSlug,
                 EventType = $"github.{eventName}",
                 ExternalEventId = delivery,
                 DedupeKey = $"github:{delivery}",

@@ -6,4 +6,5 @@ public sealed class GitHubOptions
     public string? WebhookSecret { get; set; }
     public string[] AllowedRepositories { get; set; } = [];
     public string[] AllowedEvents { get; set; } = ["pull_request", "push", "workflow_run"];
+    public Dictionary<string, string> RepositoryProjects { get; set; } = [];
 }

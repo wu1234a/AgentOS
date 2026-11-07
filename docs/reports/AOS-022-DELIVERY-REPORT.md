@@ -36,7 +36,7 @@
 | 验签用例 | ✅ 有效/篡改/SHA-1 拒绝 |
 | CI | 见对应 run |
 
-## 4. 已知限制
+### 3.1 独立代码审查\n\nCodex CLI 审查发现 1 个 P1（事件缺少项目映射）与 2 个 P2（请求体上限、非法 payload 500），全部修复，详见 `docs/reports/AOS-022-CODE-REVIEW.md`。\n\n## 4. 已知限制
 
 1. 未单独测试完整 HTTP 端点（仅验签单元测试）。
 2. 无独立 delivery 处理状态/失败重试表；依赖 Event Hub 的 DedupeKey。
