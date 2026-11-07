@@ -6,7 +6,7 @@ public sealed record VersionInfo(string Version, string GitCommit, string BuildT
 
 public static class BuildMetadata
 {
-    public static VersionInfo Get()
+    public static VersionInfo Get(string? environmentName = null)
     {
         var assembly = Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly();
         var version = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
@@ -31,7 +31,9 @@ public static class BuildMetadata
             }
         }
 
-        var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production";
+        var environment = environmentName
+            ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
+            ?? "Production";
         return new VersionInfo(version, commit, buildTime, environment);
     }
 }

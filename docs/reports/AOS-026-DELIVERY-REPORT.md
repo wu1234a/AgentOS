@@ -30,7 +30,7 @@
 | 版本元数据用例 | ✅ 四个字段非空 |
 | CI | 见对应 run |
 
-## 4. 已知限制
+### 3.1 独立代码审查\n\nCodex CLI 审查发现 1 个 P2（环境名读取不一致），已改用 `IHostEnvironment`，详见 `docs/reports/AOS-026-CODE-REVIEW.md`。\n\n## 4. 已知限制
 
 1. 未在 CI 构建时自动写入 commit/buildTime；运行环境需设置或显示 Unknown/文件时间。
 2. 无自动部署/容器/回滚。
