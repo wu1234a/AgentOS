@@ -904,3 +904,8 @@ Model/Provider/ExecutionMode 下发到 Runner，并传给 Codex `-m`）。
 - 死信 = Failed/Blocked/Rejected；API 查询/retry/takeover/cancel。
 - 自动恢复 Failed 超 15 分钟、最多 3 次，每 5 分钟最多 20 个。
 - 无独立死信表/审计/前端。
+
+## 44. AOS-031 Worker 管理
+
+- `GET /api/v1/workers`、`/stats`；enable/disable。
+- Disabled 不领取新任务；无扩缩容/前端/审计。
