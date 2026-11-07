@@ -78,17 +78,25 @@ public sealed class GitHubPullRequestClient(HttpClient httpClient, Microsoft.Ext
 
     public async Task<int?> GetApprovalCountAsync(string repository, int number, CancellationToken cancellationToken)
     {
-        using var request = CreateRequest(HttpMethod.Get, repository, number, "reviews");
-        using var response = await httpClient.SendAsync(request, cancellationToken);
-        if (!response.IsSuccessStatusCode) return null;
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
-        if (document.RootElement.ValueKind != JsonValueKind.Array) return null;
         var latest = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var review in document.RootElement.EnumerateArray())
+        for (var page = 1; page <= 10; page++)
         {
-            var user = review.TryGetProperty("user", out var userElement) && userElement.TryGetProperty("login", out var login) ? login.GetString() : null;
-            var state = review.TryGetProperty("state", out var stateElement) ? stateElement.GetString() : null;
-            if (user is not null && state is not null) latest[user] = state;
+            var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"https://api.github.com/repos/{repository}/pulls/{number}/reviews?per_page=100&page={page}");
+            AddHeaders(request);
+            using var response = await httpClient.SendAsync(request, cancellationToken);
+            if (!response.IsSuccessStatusCode) return null;
+            using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+            if (document.RootElement.ValueKind != JsonValueKind.Array) return null;
+            var reviews = document.RootElement.EnumerateArray().ToList();
+            foreach (var review in reviews)
+            {
+                var user = review.TryGetProperty("user", out var userElement) && userElement.TryGetProperty("login", out var login) ? login.GetString() : null;
+                var state = review.TryGetProperty("state", out var stateElement) ? stateElement.GetString() : null;
+                if (user is not null && state is not null) latest[user] = state;
+            }
+            if (reviews.Count < 100) break;
         }
         return latest.Values.Count(state => state == "APPROVED");
     }

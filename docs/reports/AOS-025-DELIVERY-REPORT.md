@@ -38,7 +38,7 @@
 | Merge readiness 用例 | ✅ PR + 审批 + 门禁通过 → Ready |
 | CI | 见对应 run |
 
-## 4. 已知限制
+### 3.1 独立代码审查\n\nCodex CLI 审查发现 1 个 P1（mergeable 未知被放行）与 1 个 P2（reviews 未分页），全部修复，详见 `docs/reports/AOS-025-CODE-REVIEW.md`。\n\n## 4. 已知限制
 
 1. 只读评估；没有合并动作/合并队列。
 2. 审批计数按 reviewer 最新 review，忽略 CODEOWNERS/团队审批语义。

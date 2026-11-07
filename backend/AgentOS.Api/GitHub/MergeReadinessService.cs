@@ -41,7 +41,7 @@ public sealed class MergeReadinessService(
         {
             new("pr-open", mergeInfo.State == "open", $"PR state is {mergeInfo.State}."),
             new("not-draft", !mergeInfo.Draft, mergeInfo.Draft ? "PR is a draft." : "PR is ready for review."),
-            new("mergeable", mergeInfo.Mergeable != false, mergeInfo.Mergeable == false ? "PR is not mergeable." : $"mergeable_state={mergeInfo.MergeableState ?? "unknown"}.")
+            new("mergeable", mergeInfo.Mergeable == true, mergeInfo.Mergeable != true ? "PR mergeability is unavailable or false." : $"mergeable_state={mergeInfo.MergeableState ?? "unknown"}.")
         };
 
         var approvals = await client.GetApprovalCountAsync(repository, number, cancellationToken);
