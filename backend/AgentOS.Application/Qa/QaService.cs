@@ -99,6 +99,10 @@ public sealed class QaService(
             CommandCount = commands.Count,
             PassedCount = passed,
             FailedCount = failed,
+            ReportStatus = parsed.ReportStatus,
+            LineCoverage = parsed.LineCoverage,
+            BranchCoverage = parsed.BranchCoverage,
+            ReportIssues = parsed.Issues.Count == 0 ? null : Truncate(string.Join("; ", parsed.Issues), 2000),
             CreatedAtUtc = now
         };
 

@@ -180,6 +180,11 @@ public sealed class QaRepository(
         IReadOnlyList<QaTestCase> testCases,
         CancellationToken cancellationToken)
     {
+        foreach (var testCase in testCases)
+        {
+            testCase.QaRunId = run.Id;
+        }
+
         await dbContext.QaRuns.AddAsync(run, cancellationToken);
         await dbContext.QaCommandResults.AddRangeAsync(commands, cancellationToken);
         await dbContext.QaTestCases.AddRangeAsync(testCases, cancellationToken);

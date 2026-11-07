@@ -21,7 +21,8 @@ public static class QaReportParser
 {
     private const int MaxJunitFiles = 20;
     private const int MaxTestCases = 5000;
-    private const int MaxReportBytes = 2 * 1024 * 1024;
+    private const int MaxJunitBytes = 2 * 1024 * 1024;
+    private const int MaxCoverageBytes = 4 * 1024 * 1024;
 
     public static QaReportParseResult Parse(IReadOnlyList<QaReportFile> reports)
     {
@@ -35,9 +36,13 @@ public static class QaReportParser
 
         foreach (var report in reports)
         {
-            if (report.Content.Length > MaxReportBytes)
+            var limit = report.Name.StartsWith("junit-", StringComparison.Ordinal)
+                ? MaxJunitBytes
+                : MaxCoverageBytes;
+
+            if (report.Content.Length > limit)
             {
-                issues.Add($"{report.Name}: report exceeds 2 MiB.");
+                issues.Add($"{report.Name}: report exceeds {(limit / (1024 * 1024))} MiB.");
                 continue;
             }
 
@@ -52,7 +57,7 @@ public static class QaReportParser
                     break;
                 }
 
-                if (TryParseJunit(report, cases, out var error))
+                if (TryParseJunit(report, limit, cases, out var error))
                 {
                     validFiles++;
                 }
@@ -66,7 +71,7 @@ public static class QaReportParser
 
             if (string.Equals(report.Name, "coverage.cobertura.xml", StringComparison.Ordinal))
             {
-                if (TryParseCobertura(report.Content, out var line, out var branch, out var error))
+                if (TryParseCobertura(report.Content, limit, out var line, out var branch, out var error))
                 {
                     lineCoverage = line ?? lineCoverage;
                     branchCoverage = branch ?? branchCoverage;
@@ -96,7 +101,7 @@ public static class QaReportParser
         return new QaReportParseResult(cases, lineCoverage, branchCoverage, status, issues);
     }
 
-    private static bool TryParseJunit(QaReportFile report, List<QaTestCase> cases, out string? error)
+    private static bool TryParseJunit(QaReportFile report, int maxChars, List<QaTestCase> cases, out string? error)
     {
         error = null;
 
@@ -104,7 +109,7 @@ public static class QaReportParser
         {
             using var reader = XmlReader.Create(
                 new StringReader(report.Content),
-                SecureSettings());
+                SecureSettings(maxChars));
             var document = XDocument.Load(reader);
 
             foreach (var testCase in document.Descendants().Where(element => element.Name.LocalName == "testcase"))
@@ -148,6 +153,7 @@ public static class QaReportParser
 
     private static bool TryParseCobertura(
         string content,
+        int maxChars,
         out decimal? lineCoverage,
         out decimal? branchCoverage,
         out string? error)
@@ -158,7 +164,7 @@ public static class QaReportParser
 
         try
         {
-            using var reader = XmlReader.Create(new StringReader(content), SecureSettings());
+            using var reader = XmlReader.Create(new StringReader(content), SecureSettings(maxChars));
             var document = XDocument.Load(reader);
             var root = document.Root;
 
@@ -179,12 +185,12 @@ public static class QaReportParser
         }
     }
 
-    private static XmlReaderSettings SecureSettings() => new()
+    private static XmlReaderSettings SecureSettings(int maxChars) => new()
     {
         DtdProcessing = DtdProcessing.Prohibit,
         XmlResolver = null,
         IgnoreComments = true,
-        MaxCharactersInDocument = MaxReportBytes
+        MaxCharactersInDocument = maxChars
     };
 
     private static decimal? ParseRate(string? value)

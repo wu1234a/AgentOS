@@ -48,7 +48,7 @@ public sealed class QaTestCase
 {
     public Guid Id { get; init; }
 
-    public Guid QaRunId { get; init; }
+    public Guid QaRunId { get; set; }
 
     public int Ordinal { get; init; }
 
@@ -75,7 +75,7 @@ public sealed class QaCommandResult
 {
     public Guid Id { get; init; }
 
-    public Guid QaRunId { get; init; }
+    public Guid QaRunId { get; set; }
 
     public int Ordinal { get; init; }
 
