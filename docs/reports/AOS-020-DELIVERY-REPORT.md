@@ -20,7 +20,7 @@
 | Telegram 用例 | ✅ 4（含 Outbox） |
 | CI | 见对应 run |
 
-## 3. 已知限制
+### 2.1 独立代码审查\n\nCodex CLI 审查发现 1 个 P1（同一 chat/user 多个拒绝会话导致理由串审批），已修复，详见 `docs/reports/AOS-020-CODE-REVIEW.md`。\n\n## 3. 已知限制
 
 1. 未实现 429 `retry_after` 精确处理。
 2. 拒绝理由会话为 DB 表，但无过期清理任务。

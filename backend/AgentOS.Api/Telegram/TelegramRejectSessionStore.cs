@@ -32,7 +32,8 @@ public sealed class TelegramRejectSessionStore(AgentOSDbContext dbContext, TimeP
         CancellationToken cancellationToken)
     {
         var existing = await dbContext.TelegramRejectSessions
-            .Where(session => session.ApprovalId == approvalId)
+            .Where(session => session.ApprovalId == approvalId
+                || (session.ChatId == chatId && session.UserId == userId))
             .ToListAsync(cancellationToken);
         dbContext.TelegramRejectSessions.RemoveRange(existing);
 
