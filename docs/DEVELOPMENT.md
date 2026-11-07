@@ -784,3 +784,11 @@ Model/Provider/ExecutionMode 下发到 Runner，并传给 Codex `-m`）。
 - 安全：禁用 DTD/外部实体；JUnit ≤20 个/单个 2MB，覆盖率 ≤4MB，用例 ≤5000。
 - 缺失报告 → not_provided；部分损坏 → partial + issues；全部损坏 → failed。
 - QA 面板展示用例计数与行/分支覆盖率；未知显示 `—`。
+
+## 26. AOS-017 Git Worktree 隔离
+
+- 配置 `Runner:WorktreeRoot` 为绝对路径；不配置时声明 worktree 的任务失败。
+- 任务 InputJson：`{"codingRunId":"...","baseRevision":"<完整 commit>","workspace":{"mode":"git-worktree"}}`。
+- Runner 从 base commit 创建独立目录/分支，执行、校验、changeset 采集都在 worktree 内；结束后清理。
+- 不 fetch、不切换共享分支、不 merge/push；清理失败保留现场。
+- 限制：无清单/崩溃恢复、无 API/UI 状态、无 per-repo 管理锁（后续 017b）。

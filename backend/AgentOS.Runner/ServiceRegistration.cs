@@ -21,6 +21,7 @@ public static class RunnerServiceRegistration
         services.AddSingleton<IAgentAdapter, CodexCliAdapter>();
         services.AddSingleton<IValidationCommandRunner, ValidationCommandRunner>();
         services.AddSingleton<IChangeSetCapture, GitChangeSetCapture>();
+        services.AddSingleton<IWorktreeManager, GitWorktreeManager>();
         services.AddSingleton<DemoTaskHandler>();
         services.AddSingleton<ITaskHandler>(provider =>
         {

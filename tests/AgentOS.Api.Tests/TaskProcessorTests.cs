@@ -7,6 +7,25 @@ using Microsoft.Extensions.Options;
 
 namespace AgentOS.Api.Tests;
 
+public sealed class NoOpWorktreeManager : IWorktreeManager
+{
+    public bool TryParseRequest(string inputJson, out WorktreeRequest? request, out string? error)
+    {
+        request = null;
+        error = null;
+        return false;
+    }
+
+    public Task<WorktreeCreateResult> CreateAsync(
+        string projectPath,
+        WorktreeRequest request,
+        CancellationToken cancellationToken)
+        => throw new NotSupportedException();
+
+    public Task RemoveAsync(WorktreeContext context, CancellationToken cancellationToken)
+        => Task.CompletedTask;
+}
+
 public sealed class TaskProcessorTests
 {
     private static readonly DateTime Now = new(2026, 11, 7, 12, 0, 0, DateTimeKind.Utc);
@@ -144,6 +163,7 @@ public sealed class TaskProcessorTests
             Projects = [new ProjectWorkspace { Slug = "demo", Path = _workspace }],
             HeartbeatIntervalSeconds = heartbeatSeconds
         })),
+        new NoOpWorktreeManager(),
         _handler,
         Options.Create(new RunnerOptions
         {

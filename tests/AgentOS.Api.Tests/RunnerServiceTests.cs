@@ -48,6 +48,7 @@ public sealed class RunnerServiceTests
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<WorkspacePolicy>();
         services.AddSingleton<ITaskHandler, FakeTaskHandler>();
+        services.AddSingleton<IWorktreeManager>(new NoOpWorktreeManager());
         services.AddTransient<TaskProcessor>();
 
         await using var provider = services.BuildServiceProvider();
@@ -92,6 +93,7 @@ public sealed class RunnerServiceTests
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<WorkspacePolicy>();
         services.AddSingleton<ITaskHandler, FakeTaskHandler>();
+        services.AddSingleton<IWorktreeManager>(new NoOpWorktreeManager());
         services.AddTransient<TaskProcessor>();
 
         await using var provider = services.BuildServiceProvider();

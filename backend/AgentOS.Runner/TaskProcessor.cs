@@ -12,6 +12,7 @@ namespace AgentOS.Runner;
 public sealed class TaskProcessor(
     IRunnerApi api,
     WorkspacePolicy workspace,
+    IWorktreeManager worktrees,
     ITaskHandler handler,
     IOptions<RunnerOptions> options,
     TimeProvider timeProvider,
@@ -34,6 +35,44 @@ public sealed class TaskProcessor(
                 cancelled: false,
                 stoppingToken);
             return;
+        }
+
+        WorktreeContext? worktree = null;
+        var workspacePath = decision.WorkspacePath!;
+
+        if (worktrees.TryParseRequest(task.InputJson, out var worktreeRequest, out var requestError))
+        {
+            if (worktreeRequest is null)
+            {
+                await FailBestEffortAsync(
+                    task,
+                    "worktree-invalid",
+                    requestError ?? "Worktree request is invalid.",
+                    retryable: false,
+                    cancelled: false,
+                    stoppingToken);
+                return;
+            }
+
+            var created = await worktrees.CreateAsync(workspacePath, worktreeRequest, stoppingToken);
+            if (!created.Success || created.Context is null)
+            {
+                logger.LogWarning(
+                    "Worktree creation failed for task {TaskId}: {Code}.",
+                    task.TaskId,
+                    created.ErrorCode);
+                await FailBestEffortAsync(
+                    task,
+                    created.ErrorCode ?? "worktree-create-failed",
+                    created.ErrorMessage ?? "Worktree creation failed.",
+                    retryable: false,
+                    cancelled: false,
+                    stoppingToken);
+                return;
+            }
+
+            worktree = created.Context;
+            workspacePath = created.Context.Path;
         }
 
         try
@@ -69,7 +108,7 @@ public sealed class TaskProcessor(
                 task.AgentRole,
                 task.SkillCode,
                 task.SkillContent,
-                decision.WorkspacePath!,
+                workspacePath,
                 task.InputJson,
                 task.Lease.AttemptNumber,
                 task.TimeoutSeconds,
@@ -129,6 +168,11 @@ public sealed class TaskProcessor(
             catch (OperationCanceledException)
             {
                 // Expected when the task finished first.
+            }
+
+            if (worktree is not null)
+            {
+                await worktrees.RemoveAsync(worktree, CancellationToken.None);
             }
         }
     }

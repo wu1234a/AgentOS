@@ -20,6 +20,9 @@ public sealed class RunnerOptions
 
     public string Version { get; set; } = "1.0.0";
 
+    /// <summary>Optional root for isolated per-Attempt Git worktrees.</summary>
+    public string? WorktreeRoot { get; set; }
+
     /// <summary>Directories that may contain project workspaces.</summary>
     public string[] WorkspaceRoots { get; set; } = [];
 
