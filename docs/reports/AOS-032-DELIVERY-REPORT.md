@@ -31,7 +31,7 @@
 | 浏览器用例 | ✅ 禁用/白名单拒绝 |
 | CI | 见对应 run |
 
-## 4. 已知限制
+### 3.1 独立代码审查\n\nCodex CLI 审查发现 1 个 P1（子资源绕过白名单）与 2 个 P2（异常日志泄露、取消），全部修复，详见 `docs/reports/AOS-032-CODE-REVIEW.md`。\n\n## 4. 已知限制
 
 1. 仅 extracttext/screenshot/click；无表单/等待/多页。
 2. 无登录/凭据/下载。
