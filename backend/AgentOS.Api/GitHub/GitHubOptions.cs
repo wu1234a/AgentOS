@@ -11,4 +11,5 @@ public sealed class GitHubOptions
     public string? ReviewToken { get; set; }
     public int MaxReviewAttempts { get; set; } = 5;
     public Dictionary<string, QualityGateRepositoryOptions> QualityGates { get; set; } = [];
+    public Dictionary<string, MergePolicyRepositoryOptions> MergePolicies { get; set; } = [];
 }

@@ -58,6 +58,7 @@ builder.Services.Configure<GitHubOptions>(builder.Configuration.GetSection("GitH
 builder.Services.AddHttpClient<IGitHubPullRequestClient, GitHubPullRequestClient>();
 builder.Services.AddHttpClient<IGitHubCommitStatusClient, GitHubCommitStatusClient>();
 builder.Services.AddScoped<QualityGateService>();
+builder.Services.AddScoped<MergeReadinessService>();
 builder.Services.AddScoped<IGitHubReviewQueue, GitHubReviewQueue>();
 builder.Services.AddHostedService<GitHubReviewWorker>();
 builder.Services.AddHttpClient<ITelegramClient, HttpTelegramClient>()
@@ -159,6 +160,7 @@ app.MapApprovalEndpoints();
 app.MapDecisionMemoryEndpoints();
 app.MapGitHubWebhookEndpoints();
 app.MapQualityGateEndpoints();
+app.MapMergeReadinessEndpoints();
 app.MapHub<TaskHub>("/hubs/tasks");
 
 app.MapGet("/", () => Results.Ok(new

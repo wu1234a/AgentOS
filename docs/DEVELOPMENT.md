@@ -867,3 +867,9 @@ Model/Provider/ExecutionMode 下发到 Runner，并传给 Codex `-m`）。
 - `POST /api/v1/quality-gates/reevaluate` 按 head_sha 查询 Actions runs 重评并发布。
 - `GET /api/v1/quality-gates/branch-protection` 只读核验 `agentos/quality-gate`。
 - 仅经典保护；Rulesets/权限不足返回 unverified。
+
+## 38. AOS-025 合并就绪
+
+- `GET /api/v1/merge-readiness` 检查 PR 状态、审批数、质量门禁、可选分支保护。
+- 仅只读；不自动 merge/approve、不改保护。
+- 配置 `GitHub:MergePolicies`；审批按最新 review。
