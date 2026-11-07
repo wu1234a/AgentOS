@@ -553,3 +553,11 @@ Client 是否存在。
   （Passed/Failed/Inconclusive）、命令计数、错误摘要、创建时间。
 - `QaCommandResults`：QaRunId + Ordinal 唯一，命令文本、状态、退出码、耗时、输出摘要。
 - QA 只读取 AOS-013b 上传的 `validation-results.json`，不重跑命令。
+
+### 3.29 AOS-015b QA 报告
+
+- `QaTestCases`：QaRunId + Ordinal 唯一，报告路径、suite/class/name、status、
+  duration、failure type/message/detail。
+- `QaRuns` 增加 ReportStatus（not_provided/success/partial/failed）、LineCoverage、
+  BranchCoverage、ReportIssues。
+- Runner 固定收集 `junit/*.xml` 与 `coverage.cobertura.xml`，QA 只读解析，不重跑测试。

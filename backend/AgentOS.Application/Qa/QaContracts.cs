@@ -20,6 +20,14 @@ public sealed record QaView(
     int PassedCount,
     int FailedCount,
     string? ErrorSummary,
+    string ReportStatus,
+    decimal? LineCoverage,
+    decimal? BranchCoverage,
+    int TestTotal,
+    int TestPassed,
+    int TestFailed,
+    int TestError,
+    int TestSkipped,
     DateTime CreatedAtUtc,
     IReadOnlyList<QaCommandView> Commands);
 
@@ -40,7 +48,13 @@ public interface IQaRepository
         Guid taskId,
         CancellationToken cancellationToken);
 
-    Task AddAsync(QaRun run, IReadOnlyList<QaCommandResult> commands, CancellationToken cancellationToken);
+    Task<IReadOnlyList<QaReportFile>> GetReportsAsync(Guid taskId, CancellationToken cancellationToken);
+
+    Task AddAsync(
+        QaRun run,
+        IReadOnlyList<QaCommandResult> commands,
+        IReadOnlyList<QaTestCase> testCases,
+        CancellationToken cancellationToken);
 }
 
 public enum QaOutcome

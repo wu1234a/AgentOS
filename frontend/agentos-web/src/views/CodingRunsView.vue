@@ -368,6 +368,13 @@ onMounted(async () => {
             <el-descriptions-item label="命令">
               {{ qa.passedCount }} / {{ qa.commandCount }} 通过
             </el-descriptions-item>
+            <el-descriptions-item label="用例">
+              {{ qa.testPassed }} / {{ qa.testTotal }} 通过，失败 {{ qa.testFailed }}，错误 {{ qa.testError }}
+            </el-descriptions-item>
+            <el-descriptions-item label="覆盖率">
+              行 {{ qa.lineCoverage ?? '—' }}{{ qa.lineCoverage == null ? '' : '%' }} /
+              分支 {{ qa.branchCoverage ?? '—' }}{{ qa.branchCoverage == null ? '' : '%' }}
+            </el-descriptions-item>
           </el-descriptions>
           <el-button type="primary" :loading="qaLoading" @click="startQa(detail.run)">重新运行 QA</el-button>
           <el-table :data="qa.commands" size="small">

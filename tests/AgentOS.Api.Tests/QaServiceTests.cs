@@ -96,9 +96,15 @@ public sealed class QaServiceTests
             CancellationToken cancellationToken)
             => Task.FromResult(Commands);
 
+        public Task<IReadOnlyList<QaReportFile>> GetReportsAsync(
+            Guid taskId,
+            CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<QaReportFile>>([]);
+
         public Task AddAsync(
             QaRun run,
             IReadOnlyList<QaCommandResult> commands,
+            IReadOnlyList<QaTestCase> testCases,
             CancellationToken cancellationToken)
         {
             Latest = new QaView(
@@ -111,6 +117,14 @@ public sealed class QaServiceTests
                 run.PassedCount,
                 run.FailedCount,
                 run.ErrorSummary,
+                run.ReportStatus,
+                run.LineCoverage,
+                run.BranchCoverage,
+                0,
+                0,
+                0,
+                0,
+                0,
                 run.CreatedAtUtc,
                 commands
                     .Select(command => new QaCommandView(

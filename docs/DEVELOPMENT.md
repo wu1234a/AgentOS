@@ -775,3 +775,12 @@ Model/Provider/ExecutionMode 下发到 Runner，并传给 Codex `-m`）。
 - `GET /api/v1/coding-runs/{id}/qa-runs/latest`：最近一次 QA 与命令结果。
 - 结论：全部 Passed → Passed；任一 Failed/Timeout/Error → Failed；缺失/空结果被拒绝。
 - 限制：只做命令级结果；JUnit/Cobertura 用例级与覆盖率在 AOS-015b。
+
+## 25. AOS-015b QA 报告
+
+- validationCommands 需把 JUnit 输出写到 `junit/*.xml`，覆盖率写到根目录
+  `coverage.cobertura.xml`（仅这两个固定位置）。
+- Runner 上传 `junit-N.xml` 与 `coverage.cobertura.xml` Artifact；QA 创建时解析。
+- 安全：禁用 DTD/外部实体；JUnit ≤20 个/单个 2MB，覆盖率 ≤4MB，用例 ≤5000。
+- 缺失报告 → not_provided；部分损坏 → partial + issues；全部损坏 → failed。
+- QA 面板展示用例计数与行/分支覆盖率；未知显示 `—`。

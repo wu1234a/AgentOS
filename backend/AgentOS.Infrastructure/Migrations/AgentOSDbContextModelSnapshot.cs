@@ -624,6 +624,10 @@ namespace AgentOS.Infrastructure.Migrations
                     b.Property<int>("AttemptNo")
                         .HasColumnType("int");
 
+                    b.Property<decimal?>("BranchCoverage")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
                     b.Property<Guid>("CodingRunId")
                         .HasColumnType("uniqueidentifier");
 
@@ -644,8 +648,21 @@ namespace AgentOS.Infrastructure.Migrations
                     b.Property<int>("FailedCount")
                         .HasColumnType("int");
 
+                    b.Property<decimal?>("LineCoverage")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
                     b.Property<int>("PassedCount")
                         .HasColumnType("int");
+
+                    b.Property<string>("ReportIssues")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("ReportStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -658,6 +675,64 @@ namespace AgentOS.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("QaRuns", (string)null);
+                });
+
+            modelBuilder.Entity("AgentOS.Domain.Qa.QaTestCase", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ClassName")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<int?>("DurationMs")
+                        .HasColumnType("int");
+
+                    b.Property<string>("FailureDetail")
+                        .HasMaxLength(20000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("FailureMessage")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("FailureType")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<int>("Ordinal")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("QaRunId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ReportPath")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("SuiteName")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("QaRunId", "Ordinal")
+                        .IsUnique();
+
+                    b.ToTable("QaTestCases", (string)null);
                 });
 
             modelBuilder.Entity("AgentOS.Domain.Reviews.ReviewFinding", b =>
@@ -1473,6 +1548,15 @@ namespace AgentOS.Infrastructure.Migrations
                         .WithMany()
                         .HasForeignKey("CodingRunId")
                         .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AgentOS.Domain.Qa.QaTestCase", b =>
+                {
+                    b.HasOne("AgentOS.Domain.Qa.QaRun", null)
+                        .WithMany()
+                        .HasForeignKey("QaRunId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 

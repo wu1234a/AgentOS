@@ -313,6 +313,41 @@ public sealed class CodexTaskHandler(
         return parsed;
     }
 
+    private static TaskArtifactFile[] CollectReports(string workspacePath)
+    {
+        var artifacts = new List<TaskArtifactFile>();
+        var junitDirectory = Path.Combine(workspacePath, "junit");
+
+        try
+        {
+            if (Directory.Exists(junitDirectory))
+            {
+                var index = 1;
+                foreach (var file in Directory.GetFiles(junitDirectory, "*.xml", SearchOption.TopDirectoryOnly)
+                             .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+                             .Take(20))
+                {
+                    if (new FileInfo(file).Length <= 2 * 1024 * 1024)
+                    {
+                        artifacts.Add(new TaskArtifactFile($"junit-{index++}.xml", "application/xml", file));
+                    }
+                }
+            }
+
+            var coverage = Path.Combine(workspacePath, "coverage.cobertura.xml");
+            if (File.Exists(coverage) && new FileInfo(coverage).Length <= 4 * 1024 * 1024)
+            {
+                artifacts.Add(new TaskArtifactFile("coverage.cobertura.xml", "application/xml", coverage));
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // Report collection is best effort; command results remain authoritative.
+        }
+
+        return artifacts.ToArray();
+    }
+
     private static TaskArtifactFile? CreateValidationArtifact(
         IReadOnlyList<ValidationCommandResult> results)
     {

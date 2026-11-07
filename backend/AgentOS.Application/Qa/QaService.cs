@@ -77,6 +77,8 @@ public sealed class QaService(
             return QaResult.Conflict("validation-results-empty");
         }
 
+        var reports = await repository.GetReportsAsync(taskId, cancellationToken);
+        var parsed = QaReportParser.Parse(reports);
         var now = timeProvider.GetUtcNow().UtcDateTime;
         var attempt = await repository.NextAttemptAsync(codingRunId, cancellationToken) + 1;
         var qaId = Guid.CreateVersion7();
@@ -114,7 +116,7 @@ public sealed class QaService(
             })
             .ToList();
 
-        await repository.AddAsync(runRecord, results, cancellationToken);
+        await repository.AddAsync(runRecord, results, parsed.TestCases, cancellationToken);
         return QaResult.Ok((await repository.GetLatestAsync(codingRunId, cancellationToken))!);
     }
 

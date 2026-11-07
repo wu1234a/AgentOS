@@ -56,6 +56,7 @@ public sealed class AgentOSDbContext(DbContextOptions<AgentOSDbContext> options)
     public DbSet<ReviewFinding> ReviewFindings => Set<ReviewFinding>();
     public DbSet<QaRun> QaRuns => Set<QaRun>();
     public DbSet<QaCommandResult> QaCommandResults => Set<QaCommandResult>();
+    public DbSet<QaTestCase> QaTestCases => Set<QaTestCase>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

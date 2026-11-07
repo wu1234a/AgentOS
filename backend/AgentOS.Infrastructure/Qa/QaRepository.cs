@@ -24,6 +24,11 @@ public sealed class QaRepository(
             return null;
         }
 
+        var testCases = await dbContext.QaTestCases
+            .AsNoTracking()
+            .Where(test => test.QaRunId == run.Id)
+            .ToListAsync(cancellationToken);
+
         var commands = await dbContext.QaCommandResults
             .AsNoTracking()
             .Where(result => result.QaRunId == run.Id)
@@ -40,6 +45,14 @@ public sealed class QaRepository(
             run.PassedCount,
             run.FailedCount,
             run.ErrorSummary,
+            run.ReportStatus,
+            run.LineCoverage,
+            run.BranchCoverage,
+            testCases.Count,
+            testCases.Count(test => test.Status == "passed"),
+            testCases.Count(test => test.Status == "failed"),
+            testCases.Count(test => test.Status == "error"),
+            testCases.Count(test => test.Status == "skipped"),
             run.CreatedAtUtc,
             commands
                 .Select(command => new QaCommandView(
@@ -133,13 +146,43 @@ public sealed class QaRepository(
         }
     }
 
+    public async Task<IReadOnlyList<QaReportFile>> GetReportsAsync(
+        Guid taskId,
+        CancellationToken cancellationToken)
+    {
+        var artifacts = await dbContext.Artifacts
+            .AsNoTracking()
+            .Where(candidate => candidate.TaskId == taskId
+                && (candidate.Name.StartsWith("junit-") || candidate.Name == "coverage.cobertura.xml"))
+            .OrderBy(candidate => candidate.Name)
+            .ToListAsync(cancellationToken);
+
+        var reports = new List<QaReportFile>();
+        foreach (var artifact in artifacts)
+        {
+            var opened = await artifactStore.OpenAsync(artifact.Id, cancellationToken);
+            if (opened is null)
+            {
+                continue;
+            }
+
+            await using var stream = opened.Value.Stream;
+            using var reader = new StreamReader(stream);
+            reports.Add(new QaReportFile(artifact.Name, await reader.ReadToEndAsync(cancellationToken)));
+        }
+
+        return reports;
+    }
+
     public async Task AddAsync(
         QaRun run,
         IReadOnlyList<QaCommandResult> commands,
+        IReadOnlyList<QaTestCase> testCases,
         CancellationToken cancellationToken)
     {
         await dbContext.QaRuns.AddAsync(run, cancellationToken);
         await dbContext.QaCommandResults.AddRangeAsync(commands, cancellationToken);
+        await dbContext.QaTestCases.AddRangeAsync(testCases, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 }

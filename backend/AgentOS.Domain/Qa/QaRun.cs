@@ -33,7 +33,42 @@ public sealed class QaRun
 
     public string? ErrorSummary { get; set; }
 
+    public string ReportStatus { get; set; } = "not_provided";
+
+    public decimal? LineCoverage { get; set; }
+
+    public decimal? BranchCoverage { get; set; }
+
+    public string? ReportIssues { get; set; }
+
     public DateTime CreatedAtUtc { get; init; }
+}
+
+public sealed class QaTestCase
+{
+    public Guid Id { get; init; }
+
+    public Guid QaRunId { get; init; }
+
+    public int Ordinal { get; init; }
+
+    public string ReportPath { get; init; } = string.Empty;
+
+    public string? SuiteName { get; init; }
+
+    public string? ClassName { get; init; }
+
+    public string Name { get; init; } = string.Empty;
+
+    public string Status { get; init; } = "passed";
+
+    public int? DurationMs { get; init; }
+
+    public string? FailureType { get; init; }
+
+    public string? FailureMessage { get; init; }
+
+    public string? FailureDetail { get; init; }
 }
 
 public sealed class QaCommandResult
