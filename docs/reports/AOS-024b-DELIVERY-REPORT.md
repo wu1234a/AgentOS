@@ -20,7 +20,7 @@
 | 质量门禁用例 | ✅ 状态推进 + Actions runs 重评 success |
 | CI | 见对应 run |
 
-## 3. 已知限制
+### 2.1 独立代码审查\n\nCodex CLI 审查发现 1 个 P1（重评中间发布）与 3 个 P2（无 run 不发布 pending、404 歧义、分支未编码）。P1 与两个 P2 已修复；无 run 不发布 pending 留作限制，详见 `docs/reports/AOS-024b-CODE-REVIEW.md`。\n\n## 3. 已知限制
 
 1. 仅经典 branch protection；Rulesets 返回 unverified。
 2. 无自动修改保护规则。

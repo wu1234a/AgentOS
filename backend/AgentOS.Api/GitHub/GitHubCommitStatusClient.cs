@@ -109,12 +109,12 @@ public sealed class GitHubCommitStatusClient(
     {
         var request = new HttpRequestMessage(
             HttpMethod.Get,
-            $"https://api.github.com/repos/{repository}/branches/{branch}/protection");
+            $"https://api.github.com/repos/{repository}/branches/{Uri.EscapeDataString(branch)}/protection");
         AddHeaders(request);
         using var response = await httpClient.SendAsync(request, cancellationToken);
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
-            return ("not_protected", "Branch has no classic protection rule.");
+            return ("unverified", "Branch protection could not be confirmed (404).");
         }
 
         if (!response.IsSuccessStatusCode)

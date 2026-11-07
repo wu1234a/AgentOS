@@ -23,13 +23,14 @@ public sealed class QualityGateService(
         string status,
         string? conclusion,
         int runAttempt,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool publish = true)
     {
         var gate = Locks.GetOrAdd($"{repository}|{headSha}", _ => new SemaphoreSlim(1, 1));
         await gate.WaitAsync(cancellationToken);
         try
         {
-            await EvaluateCoreAsync(repository, headSha, workflowName, runId, status, conclusion, runAttempt, cancellationToken);
+            await EvaluateCoreAsync(repository, headSha, workflowName, runId, status, conclusion, runAttempt, publish, cancellationToken);
         }
         finally
         {
@@ -55,18 +56,19 @@ public sealed class QualityGateService(
             return (false, "github-actions-unavailable");
         }
 
-        foreach (var required in configuration.RequiredWorkflows)
-        {
-            var latest = runs
+        var selected = configuration.RequiredWorkflows
+            .Select(required => runs
                 .Where(run => string.Equals(run.Name, required, StringComparison.Ordinal))
                 .OrderByDescending(run => run.Id)
                 .ThenByDescending(run => run.RunAttempt)
-                .FirstOrDefault();
-            if (latest is null)
-            {
-                continue;
-            }
+                .FirstOrDefault())
+            .Where(run => run is not null)
+            .Select(run => run!)
+            .ToList();
 
+        for (var index = 0; index < selected.Count; index++)
+        {
+            var latest = selected[index];
             await EvaluateAsync(
                 repository,
                 headSha,
@@ -75,7 +77,8 @@ public sealed class QualityGateService(
                 latest.Status,
                 latest.Conclusion,
                 latest.RunAttempt,
-                cancellationToken);
+                cancellationToken,
+                publish: index == selected.Count - 1);
         }
 
         return (true, null);
@@ -95,6 +98,7 @@ public sealed class QualityGateService(
         string status,
         string? conclusion,
         int runAttempt,
+        bool publish,
         CancellationToken cancellationToken)
     {
         if (!options.Value.QualityGates.TryGetValue(repository, out var configuration) || !configuration.Enabled)
@@ -216,6 +220,11 @@ public sealed class QualityGateService(
         evaluation.Reason = reason;
         evaluation.UpdatedAtUtc = now;
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        if (!publish)
+        {
+            return;
+        }
 
         try
         {
