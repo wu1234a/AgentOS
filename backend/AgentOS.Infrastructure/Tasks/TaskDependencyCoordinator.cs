@@ -15,7 +15,6 @@ public sealed class TaskDependencyCoordinator(AgentOSDbContext dbContext) : ITas
             var blocked = await dbContext.Tasks
                 .Where(task => task.Status == TaskStatus.Blocked)
                 .OrderBy(task => task.CreatedAtUtc)
-                .Take(200)
                 .ToListAsync(cancellationToken);
 
             if (blocked.Count == 0)

@@ -40,6 +40,11 @@ public sealed class TaskClaimer(
         LEFT JOIN [Skills] AS s ON s.[Id] = t.[SkillId]
         WHERE t.[Status] IN (N'Queued', N'RetryWait')
           AND t.[NextRunAtUtc] <= @now
+          AND NOT EXISTS (
+              SELECT 1
+              FROM [TaskDependencies] AS d
+              INNER JOIN [Tasks] AS prerequisite ON prerequisite.[Id] = d.[PrerequisiteTaskId]
+              WHERE d.[TaskId] = t.[Id] AND prerequisite.[Status] <> N'Succeeded')
         ORDER BY CASE t.[Priority]
                    WHEN N'urgent' THEN 0
                    WHEN N'high' THEN 1
@@ -66,7 +71,12 @@ public sealed class TaskClaimer(
                inserted.[ModelProfileId]
         WHERE [Id] = @taskId
           AND [Status] IN (N'Queued', N'RetryWait')
-          AND [NextRunAtUtc] <= @now;
+          AND [NextRunAtUtc] <= @now
+          AND NOT EXISTS (
+              SELECT 1
+              FROM [TaskDependencies] AS d
+              INNER JOIN [Tasks] AS prerequisite ON prerequisite.[Id] = d.[PrerequisiteTaskId]
+              WHERE d.[TaskId] = [Id] AND prerequisite.[Status] <> N'Succeeded');
         """;
 
     public async Task<IReadOnlyList<ClaimedTask>> ClaimAsync(

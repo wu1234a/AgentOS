@@ -238,6 +238,7 @@ public sealed class TaskQueueService(
         {
             case TaskStatus.Pending:
             case TaskStatus.Queued:
+            case TaskStatus.Blocked:
             case TaskStatus.RetryWait:
                 task.Status = TaskStatus.Cancelled;
                 task.CompletedAtUtc = now;
