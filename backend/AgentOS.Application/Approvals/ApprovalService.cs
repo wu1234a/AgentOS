@@ -1,4 +1,5 @@
 using AgentOS.Domain.Approvals;
+using AgentOS.Application.Telegram;
 using Microsoft.Extensions.Logging;
 
 namespace AgentOS.Application.Approvals;
@@ -6,7 +7,8 @@ namespace AgentOS.Application.Approvals;
 public sealed class ApprovalService(
     IApprovalRepository repository,
     TimeProvider timeProvider,
-    ILogger<ApprovalService> logger)
+    ILogger<ApprovalService> logger,
+    ITelegramOutbox? telegramOutbox = null)
 {
     public async Task<(IReadOnlyList<ApprovalView> Items, int Total)> ListAsync(
         string? status,
@@ -73,6 +75,19 @@ public sealed class ApprovalService(
             return ApprovalResult.Conflict("approval-already-pending");
         }
         logger.LogInformation("Approval {ApprovalId} created for {Type}/{Target}.", entity.Id, type, targetId);
+
+        if (telegramOutbox is not null)
+        {
+            try
+            {
+                await telegramOutbox.EnqueueAsync(entity.Id, cancellationToken);
+            }
+            catch (Exception exception)
+            {
+                logger.LogWarning(exception, "Telegram notification could not be enqueued for {ApprovalId}.", entity.Id);
+            }
+        }
+
         return ApprovalResult.Ok(ToView(entity));
     }
 

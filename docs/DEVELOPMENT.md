@@ -820,3 +820,10 @@ Model/Provider/ExecutionMode 下发到 Runner，并传给 Codex `-m`）。
 - 长轮询 Worker；`/pending` 返回待审批卡片，回调批准/拒绝走 ApprovalService。
 - 白名单 chat+user 双校验；无主动推送/持久化去重（后续 019b）。
 - 不开放 Webhook/公网回调。
+
+## 31. AOS-019b Telegram Outbox
+
+- 审批创建入队 `TelegramNotifications`；Worker 主动推送，失败指数退避最多 5 次。
+- `TelegramPollerState` 持久化 offset；`TelegramProcessedUpdates` 去重。
+- 仍需配置 `Telegram:NotificationChatId`；单 Worker，无行锁/多实例。
+- 拒绝理由多轮、429 retry_after、状态 API 未实现。

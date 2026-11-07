@@ -1404,6 +1404,84 @@ namespace AgentOS.Infrastructure.Migrations
                     b.ToTable("TaskLogs", (string)null);
                 });
 
+            modelBuilder.Entity("AgentOS.Domain.Telegram.TelegramNotification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ApprovalId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("int");
+
+                    b.Property<long>("ChatId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<long?>("MessageId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("NextRetryAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<DateTime?>("SentAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApprovalId")
+                        .IsUnique();
+
+                    b.HasIndex("Status", "NextRetryAtUtc");
+
+                    b.ToTable("TelegramNotifications", (string)null);
+                });
+
+            modelBuilder.Entity("AgentOS.Domain.Telegram.TelegramPollerState", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<long>("NextOffset")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("TelegramPollerState", (string)null);
+                });
+
+            modelBuilder.Entity("AgentOS.Domain.Telegram.TelegramProcessedUpdate", b =>
+                {
+                    b.Property<long>("UpdateId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("UpdateId"));
+
+                    b.Property<DateTime>("ProcessedAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.HasKey("UpdateId");
+
+                    b.ToTable("TelegramProcessedUpdates", (string)null);
+                });
+
             modelBuilder.Entity("AgentOS.Domain.Usage.UsageRecord", b =>
                 {
                     b.Property<Guid>("Id")

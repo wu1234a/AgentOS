@@ -13,6 +13,7 @@ using AgentOS.Domain.Rules;
 using AgentOS.Domain.Security;
 using AgentOS.Domain.Skills;
 using AgentOS.Domain.Tasks;
+using AgentOS.Domain.Telegram;
 using AgentOS.Domain.Usage;
 using AgentOS.Domain.Workers;
 using Microsoft.EntityFrameworkCore;
@@ -54,6 +55,9 @@ public sealed class AgentOSDbContext(DbContextOptions<AgentOSDbContext> options)
     public DbSet<CodingRun> CodingRuns => Set<CodingRun>();
     public DbSet<TaskDependency> TaskDependencies => Set<TaskDependency>();
     public DbSet<ApprovalRequest> ApprovalRequests => Set<ApprovalRequest>();
+    public DbSet<TelegramNotification> TelegramNotifications => Set<TelegramNotification>();
+    public DbSet<TelegramPollerState> TelegramPollerState => Set<TelegramPollerState>();
+    public DbSet<TelegramProcessedUpdate> TelegramProcessedUpdates => Set<TelegramProcessedUpdate>();
     public DbSet<CodingRunEvent> CodingRunEvents => Set<CodingRunEvent>();
     public DbSet<ReviewRun> ReviewRuns => Set<ReviewRun>();
     public DbSet<ReviewFinding> ReviewFindings => Set<ReviewFinding>();
