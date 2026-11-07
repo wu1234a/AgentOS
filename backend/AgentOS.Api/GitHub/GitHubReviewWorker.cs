@@ -49,14 +49,18 @@ public sealed class GitHubReviewWorker(
                         continue;
                     }
 
+                    await dbContext.Entry(job).ReloadAsync(stoppingToken);
+
                     try
                     {
                         var metadata = await client.GetMetadataAsync(job.Repository, job.PullRequestNumber, stoppingToken);
-                        if (metadata is null || metadata.State != "open")
+                        if (metadata is null)
                         {
-                            job.Status = "Superseded";
+                            throw new InvalidOperationException("PR metadata is unavailable.");
                         }
-                        else if (!string.Equals(metadata.HeadSha, job.HeadSha, StringComparison.OrdinalIgnoreCase))
+
+                        if (metadata.State != "open"
+                            || !string.Equals(metadata.HeadSha, job.HeadSha, StringComparison.OrdinalIgnoreCase))
                         {
                             job.Status = "Superseded";
                         }
@@ -66,6 +70,16 @@ public sealed class GitHubReviewWorker(
                             if (string.IsNullOrWhiteSpace(diff))
                             {
                                 throw new InvalidOperationException("PR diff is unavailable.");
+                            }
+
+                            var beforePublish = await client.GetMetadataAsync(job.Repository, job.PullRequestNumber, stoppingToken);
+                            if (beforePublish is null
+                                || !string.Equals(beforePublish.HeadSha, job.HeadSha, StringComparison.OrdinalIgnoreCase))
+                            {
+                                job.Status = "Superseded";
+                                job.UpdatedAtUtc = DateTime.UtcNow;
+                                await dbContext.SaveChangesAsync(stoppingToken);
+                                continue;
                             }
 
                             var review = await agent.ReviewAsync(

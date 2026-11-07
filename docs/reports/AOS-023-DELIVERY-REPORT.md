@@ -30,7 +30,7 @@
 | 后端全量测试（含 SQL） | ✅ **313 通过 / 5 跳过 / 0 失败** |
 | CI | 见对应 run |
 
-## 4. 已知限制
+### 3.1 独立代码审查\n\nCodex CLI 审查发现 1 个 P1（重试状态卡 Running）与 2 个 P2（metadata 瞬态失败被 Superseded、发布前未复核 head），全部修复，详见 `docs/reports/AOS-023-CODE-REVIEW.md`。\n\n## 4. 已知限制
 
 1. 无 PR review worker 自动化测试（Fake client/agent 未补）。
 2. 无 inline comments、大 diff 分片。
