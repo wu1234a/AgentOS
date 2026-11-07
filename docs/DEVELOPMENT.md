@@ -813,3 +813,10 @@ Model/Provider/ExecutionMode 下发到 Runner，并传给 Codex `-m`）。
 - API：`/api/v1/approval-requests` 创建/列表/详情/决策；同一目标仅一个 Pending。
 - 审批只记录决策，不执行、不合并、不改变目标状态。
 - 前端 `/approvals`；当前仅开发 Key，无细粒度 RBAC/并发令牌。
+
+## 30. AOS-019 Telegram Bot
+
+- 配置 `Telegram:Enabled/BotToken/AllowedChatIds/AllowedUserIds`；Token 用 `Telegram__BotToken`。
+- 长轮询 Worker；`/pending` 返回待审批卡片，回调批准/拒绝走 ApprovalService。
+- 白名单 chat+user 双校验；无主动推送/持久化去重（后续 019b）。
+- 不开放 Webhook/公网回调。

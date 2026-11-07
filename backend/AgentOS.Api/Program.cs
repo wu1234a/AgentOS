@@ -1,5 +1,6 @@
 using AgentOS.Api.Endpoints;
 using AgentOS.Api.Reviews;
+using AgentOS.Api.Telegram;
 using AgentOS.Api.Filters;
 using AgentOS.Api.Realtime;
 using AgentOS.Api.Health;
@@ -50,6 +51,10 @@ builder.Services.Configure<RunnerRegistrationOptions>(builder.Configuration.GetS
 builder.Services.Configure<SkillContentOptions>(builder.Configuration.GetSection("Skills"));
 builder.Services.Configure<ArtifactOptions>(builder.Configuration.GetSection("Artifacts"));
 builder.Services.Configure<PlannerOptions>(builder.Configuration.GetSection("Planner"));
+builder.Services.Configure<TelegramOptions>(builder.Configuration.GetSection("Telegram"));
+builder.Services.AddHttpClient<ITelegramClient, HttpTelegramClient>();
+builder.Services.AddScoped<TelegramUpdateProcessor>();
+builder.Services.AddHostedService<TelegramPollingService>();
 builder.Services.Configure<CodexCliOptions>(builder.Configuration.GetSection("Codex"));
 builder.Services.AddSingleton<IProcessRunner, ExternalProcessRunner>();
 builder.Services.AddSingleton<IAgentAdapter, CodexCliAdapter>();
