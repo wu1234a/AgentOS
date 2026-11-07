@@ -161,6 +161,7 @@ app.MapDecisionMemoryEndpoints();
 app.MapGitHubWebhookEndpoints();
 app.MapQualityGateEndpoints();
 app.MapMergeReadinessEndpoints();
+app.MapVersionEndpoints();
 app.MapHub<TaskHub>("/hubs/tasks");
 
 app.MapGet("/", () => Results.Ok(new

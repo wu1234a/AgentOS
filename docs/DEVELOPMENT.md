@@ -873,3 +873,10 @@ Model/Provider/ExecutionMode 下发到 Runner，并传给 Codex `-m`）。
 - `GET /api/v1/merge-readiness` 检查 PR 状态、审批数、质量门禁、可选分支保护。
 - 仅只读；不自动 merge/approve、不改保护。
 - 配置 `GitHub:MergePolicies`；审批按最新 review。
+
+## 39. AOS-026 部署与版本核验
+
+- `GET /api/v1/version`：version/gitCommit/buildTimeUtc/environment。
+- `GITHUB_SHA`/`AGENTOS_GIT_COMMIT`、`AGENTOS_BUILD_TIME` 提供元数据。
+- `scripts/Verify-Deployment.ps1` 只读核验 commit；`docs/deployment-local.md` 本地步骤。
+- 无自动部署/容器/CI 自动注入。
