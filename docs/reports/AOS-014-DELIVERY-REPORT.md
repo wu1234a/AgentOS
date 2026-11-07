@@ -40,7 +40,7 @@
 | 前端 lint / build | ✅ 通过 |
 | CI | 见对应 run |
 
-## 5. 已知限制
+### 4.1 独立代码审查\n\nCodex CLI 审查发现 2 个 P1（只读沙箱未生效、前端审查超时）与 4 个 P2（取消后 Running 卡死、UI 无 baseRevision、schema 校验、并发创建），全部修复并复测，详见 `docs/reports/AOS-014-CODE-REVIEW.md`。\n\n## 5. 已知限制
 
 1. Review 同步执行，最长 600s；无后台队列/进度轮询。
 2. 未自动触发；必须人工在 Run 详情点击。

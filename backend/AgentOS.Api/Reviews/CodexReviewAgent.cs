@@ -82,14 +82,24 @@ public sealed class CodexReviewAgent(
         {
             using var document = JsonDocument.Parse(json);
             var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object
+                || !root.TryGetProperty("findings", out var findingsValue)
+                || findingsValue.ValueKind != JsonValueKind.Array)
+            {
+                return Failure("review-output-invalid", "Review output must contain a findings array.");
+            }
+
             var summary = root.TryGetProperty("summary", out var summaryValue)
                 && summaryValue.ValueKind == JsonValueKind.String
                 ? summaryValue.GetString()
                 : null;
 
+            if (string.IsNullOrWhiteSpace(summary))
+            {
+                return Failure("review-output-invalid", "Review output must contain a summary.");
+            }
+
             var findings = new List<ReviewAgentFinding>();
-            if (root.TryGetProperty("findings", out var findingsValue)
-                && findingsValue.ValueKind == JsonValueKind.Array)
             {
                 if (findingsValue.GetArrayLength() > 100)
                 {

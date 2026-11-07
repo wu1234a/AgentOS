@@ -121,6 +121,11 @@ public sealed class CodexCliAdapter(
             return Unavailable(startedAt, "codex-sandbox-invalid", "Unsupported sandbox mode.");
         }
 
+        // The request policy may only narrow the configured sandbox, never widen it.
+        var effectiveSandbox = request.Policy.SandboxMode == AgentSandboxMode.ReadOnly
+            ? AgentSandboxMode.ReadOnly
+            : sandbox;
+
         if (LooksLikePath(configuration.ExecutablePath) && !File.Exists(configuration.ExecutablePath))
         {
             return Unavailable(
@@ -142,7 +147,7 @@ public sealed class CodexCliAdapter(
         {
             "exec",
             "--sandbox",
-            sandbox == AgentSandboxMode.ReadOnly ? "read-only" : "workspace-write",
+            effectiveSandbox == AgentSandboxMode.ReadOnly ? "read-only" : "workspace-write",
             "-C",
             request.WorkingDirectory,
             "--skip-git-repo-check",

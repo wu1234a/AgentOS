@@ -33,7 +33,8 @@ const form = reactive({
   agentId: '',
   priority: 'normal',
   timeoutSeconds: 1800,
-  validationCommands: ''
+  validationCommands: '',
+  baseRevision: ''
 })
 
 async function load() {
@@ -74,7 +75,8 @@ function openCreate() {
     agentId: '',
     priority: 'normal',
     timeoutSeconds: 1800,
-    validationCommands: ''
+    validationCommands: '',
+    baseRevision: ''
   })
   createVisible.value = true
 }
@@ -96,7 +98,8 @@ async function save() {
       validationCommands: form.validationCommands
         .split('\n')
         .map((line) => line.trim())
-        .filter(Boolean)
+        .filter(Boolean),
+      baseRevision: form.baseRevision.trim() || null
     })
     ElMessage.success('Coding Run 已创建')
     createVisible.value = false
@@ -263,6 +266,9 @@ onMounted(async () => {
         </el-form-item>
         <el-form-item label="超时(秒)">
           <el-input-number v-model="form.timeoutSeconds" :min="60" :max="7200" />
+        </el-form-item>
+        <el-form-item label="Base revision">
+          <el-input v-model="form.baseRevision" placeholder="可选，commit SHA；用于生成 Review 变更集" />
         </el-form-item>
         <el-form-item label="校验命令">
           <el-input

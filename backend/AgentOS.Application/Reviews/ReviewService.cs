@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using AgentOS.Application.CodingRuns;
 using AgentOS.Domain.CodingRuns;
@@ -18,6 +19,8 @@ public sealed class ReviewService(
     TimeProvider timeProvider,
     ILogger<ReviewService> logger)
 {
+    private static readonly ConcurrentDictionary<Guid, SemaphoreSlim> Locks = new();
+
     public async Task<ReviewResult> GetAsync(Guid codingRunId, CancellationToken cancellationToken)
     {
         var view = await repository.GetViewAsync(codingRunId, cancellationToken);
@@ -25,6 +28,23 @@ public sealed class ReviewService(
     }
 
     public async Task<ReviewResult> CreateOrRetryAsync(
+        Guid codingRunId,
+        CancellationToken cancellationToken)
+    {
+        var gate = Locks.GetOrAdd(codingRunId, _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(cancellationToken);
+
+        try
+        {
+            return await CreateOrRetryCoreAsync(codingRunId, cancellationToken);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    private async Task<ReviewResult> CreateOrRetryCoreAsync(
         Guid codingRunId,
         CancellationToken cancellationToken)
     {
@@ -106,6 +126,12 @@ public sealed class ReviewService(
         }
         catch (OperationCanceledException)
         {
+            review.Status = ReviewStatus.Failed;
+            review.ErrorCode = "review-cancelled";
+            review.ErrorMessage = "Review was cancelled before completion.";
+            review.CompletedAtUtc = timeProvider.GetUtcNow().UtcDateTime;
+            review.UpdatedAtUtc = review.CompletedAtUtc.Value;
+            await repository.SaveAsync(CancellationToken.None);
             throw;
         }
         catch (Exception exception)
