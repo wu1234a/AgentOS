@@ -66,12 +66,13 @@ public sealed class RunnerAuthenticationFilter(
             return Unauthorized("The runner is not bound to a registered worker.");
         }
 
-        if (worker.Status == WorkerStatus.Disabled)
+        if (worker.Status == WorkerStatus.Disabled
+            && httpContext.Request.Path.Value?.EndsWith("/claim", StringComparison.OrdinalIgnoreCase) == true)
         {
             return Results.Problem(
                 statusCode: StatusCodes.Status403Forbidden,
                 title: "Runner is disabled",
-                detail: $"Worker '{worker.WorkerCode}' is disabled.");
+                detail: $"Worker '{worker.WorkerCode}' is disabled for new claims.");
         }
 
         await clientStore.TouchAsync(client.Id, now, httpContext.RequestAborted);

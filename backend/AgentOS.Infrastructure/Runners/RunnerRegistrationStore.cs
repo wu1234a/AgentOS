@@ -35,7 +35,10 @@ public sealed class RunnerRegistrationStore(AgentOSDbContext dbContext) : IRunne
         worker.Architecture = request.Architecture;
         worker.Version = request.Version;
         worker.CapabilitiesJson = request.CapabilitiesJson;
-        worker.Status = WorkerStatus.Online;
+        if (worker.Status != WorkerStatus.Disabled)
+        {
+            worker.Status = WorkerStatus.Online;
+        }
         worker.LastHeartbeatAtUtc = nowUtc;
         worker.UpdatedAtUtc = nowUtc;
 

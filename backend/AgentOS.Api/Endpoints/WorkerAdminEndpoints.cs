@@ -8,7 +8,7 @@ public static class WorkerAdminEndpoints
     public static IEndpointRouteBuilder MapWorkerAdminEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/v1/workers").AddEndpointFilter<ApiClientAuthenticationFilter>();
-        group.MapGet("", ListAsync);
+        group.MapGet("/admin", ListAsync);
         group.MapGet("/stats", StatsAsync);
         group.MapPost("/{id:guid}/enable", EnableAsync);
         group.MapPost("/{id:guid}/disable", DisableAsync);

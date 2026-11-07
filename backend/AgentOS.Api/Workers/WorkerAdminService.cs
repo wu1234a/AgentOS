@@ -23,13 +23,13 @@ public sealed class WorkerAdminService(AgentOSDbContext dbContext, TimeProvider 
 {
     public async Task<IReadOnlyList<WorkerView>> ListAsync(string? status, CancellationToken cancellationToken)
     {
-        var query = dbContext.Workers.AsNoTracking();
+        var workers = await dbContext.Workers.AsNoTracking().OrderBy(worker => worker.WorkerCode).ToListAsync(cancellationToken);
+        var freshAfter = timeProvider.GetUtcNow().UtcDateTime.AddMinutes(-2);
         if (Enum.TryParse<WorkerStatus>(status, true, out var parsed))
         {
-            query = query.Where(worker => worker.Status == parsed);
+            workers = workers.Where(worker => EffectiveStatus(worker, freshAfter) == parsed).ToList();
         }
 
-        var workers = await query.OrderBy(worker => worker.WorkerCode).ToListAsync(cancellationToken);
         var counts = await dbContext.Tasks.AsNoTracking()
             .Where(task => task.Status == Domain.Tasks.TaskStatus.Running && task.LeaseOwnerWorkerId != null)
             .GroupBy(task => task.LeaseOwnerWorkerId!.Value)
@@ -38,22 +38,29 @@ public sealed class WorkerAdminService(AgentOSDbContext dbContext, TimeProvider 
 
         return workers.Select(worker => new WorkerView(
             worker.Id, worker.WorkerCode, worker.DisplayName, worker.HostName, worker.Platform,
-            worker.Architecture, worker.Version, worker.Status.ToString(), worker.LastHeartbeatAtUtc,
+            worker.Architecture, worker.Version, EffectiveStatus(worker, freshAfter).ToString(), worker.LastHeartbeatAtUtc,
             worker.RegisteredAtUtc, counts.GetValueOrDefault(worker.Id))).ToList();
     }
 
     public async Task<WorkerStats> StatsAsync(CancellationToken cancellationToken)
     {
         var workers = await dbContext.Workers.AsNoTracking().ToListAsync(cancellationToken);
+        var freshAfter = timeProvider.GetUtcNow().UtcDateTime.AddMinutes(-2);
         var running = await dbContext.Tasks.AsNoTracking()
             .CountAsync(task => task.Status == Domain.Tasks.TaskStatus.Running, cancellationToken);
+        var effective = workers.Select(worker => EffectiveStatus(worker, freshAfter)).ToList();
         return new WorkerStats(
             workers.Count,
-            workers.Count(worker => worker.Status == WorkerStatus.Online),
-            workers.Count(worker => worker.Status == WorkerStatus.Offline),
-            workers.Count(worker => worker.Status == WorkerStatus.Disabled),
+            effective.Count(status => status == WorkerStatus.Online),
+            effective.Count(status => status == WorkerStatus.Offline),
+            effective.Count(status => status == WorkerStatus.Disabled),
             running);
     }
+
+    private static WorkerStatus EffectiveStatus(Worker worker, DateTime freshAfter)
+        => worker.Status == WorkerStatus.Disabled
+            ? WorkerStatus.Disabled
+            : worker.LastHeartbeatAtUtc < freshAfter ? WorkerStatus.Offline : WorkerStatus.Online;
 
     public async Task<bool> SetEnabledAsync(Guid id, bool enabled, CancellationToken cancellationToken)
     {
