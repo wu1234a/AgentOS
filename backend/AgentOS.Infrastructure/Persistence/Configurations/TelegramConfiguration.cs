@@ -26,6 +26,7 @@ public sealed class TelegramPollerStateConfiguration : IEntityTypeConfiguration<
     {
         builder.ToTable("TelegramPollerState");
         builder.HasKey(state => state.Id);
+        builder.Property(state => state.Id).ValueGeneratedNever();
     }
 }
 
@@ -35,6 +36,7 @@ public sealed class TelegramProcessedUpdateConfiguration : IEntityTypeConfigurat
     {
         builder.ToTable("TelegramProcessedUpdates");
         builder.HasKey(update => update.UpdateId);
+        builder.Property(update => update.UpdateId).ValueGeneratedNever();
         builder.Property(update => update.ProcessedAtUtc).HasColumnType("datetime2(3)");
     }
 }

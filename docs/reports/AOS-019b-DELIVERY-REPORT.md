@@ -20,7 +20,7 @@
 | Outbox 用例 | ✅ 审批创建生成一条通知 |
 | CI | 见对应 run |
 
-## 3. 已知限制
+### 2.1 独立代码审查\n\nCodex CLI 审查发现 2 个 P1（Telegram offset/update 主键 identity、启动 offset 读取停 Host）与 1 个 P2（审批/通知非同一事务）。P1 已修复；P2 记录为已知限制，详见 `docs/reports/AOS-019b-CODE-REVIEW.md`。\n\n## 3. 已知限制
 
 1. 未实现 Telegram 拒绝理由多轮采集；拒绝理由固定。
 2. 未实现多实例 Outbox 租约/行锁；单 Worker 假设。

@@ -24,11 +24,31 @@ public sealed class TelegramPollingService(
             return;
         }
 
-        using var initialScope = scopes.CreateScope();
-        var initialStore = initialScope.ServiceProvider.GetRequiredService<ITelegramOutboxStore>();
-        long offset = await initialStore.GetOffsetAsync(stoppingToken);
+        long offset = 0;
+        var offsetLoaded = false;
         while (!stoppingToken.IsCancellationRequested)
         {
+            if (!offsetLoaded)
+            {
+                try
+                {
+                    using var initialScope = scopes.CreateScope();
+                    var initialStore = initialScope.ServiceProvider.GetRequiredService<ITelegramOutboxStore>();
+                    offset = await initialStore.GetOffsetAsync(stoppingToken);
+                    offsetLoaded = true;
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    return;
+                }
+                catch (Exception exception)
+                {
+                    logger.LogWarning(exception, "Telegram offset could not be loaded; retrying.");
+                    await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+                    continue;
+                }
+            }
+
             try
             {
                 using (var notificationScope = scopes.CreateScope())
