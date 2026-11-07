@@ -925,3 +925,8 @@ Model/Provider/ExecutionMode 下发到 Runner，并传给 Codex `-m`）。
 
 - `GET /api/v1/pipelines` 最近任务；`/tasks/{id}` 聚合 task/attempt/coding/review/qa。
 - 只读；无前端/实时推送/DAG。
+
+## 48. AOS-035 业务事件
+
+- `POST /api/v1/business-events`：3derp/emperor，source.eventType，project+dedupeKey。
+- 走 EventService/Rules/Tasks；202/200/409；无专用签名/SDK。
