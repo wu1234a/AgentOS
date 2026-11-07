@@ -19,7 +19,7 @@
 | 流水线用例 | ✅ 任务阶段聚合 |
 | CI | 见对应 run |
 
-## 3. 已知限制
+### 2.1 独立代码审查\n\nCodex CLI 审查发现 3 个 P2（CodingRun 状态滞后、QA 结论缺失、Review 时间戳），全部修复，详见 `docs/reports/AOS-034-CODE-REVIEW.md`。\n\n## 3. 已知限制
 
 1. 无前端图组件/实时推送。
 2. Review/QA 阶段无开始/完成时间（实体无字段）。

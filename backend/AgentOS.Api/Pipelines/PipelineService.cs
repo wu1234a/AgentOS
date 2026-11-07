@@ -58,17 +58,19 @@ public sealed class PipelineService(AgentOSDbContext dbContext)
             .ToListAsync(cancellationToken);
         foreach (var run in codingRuns)
         {
-            stages.Add(new PipelineStage("coding-run", run.Status.ToString(), run.StartedAtUtc, run.CompletedAtUtc, run.ErrorMessage));
+            stages.Add(new PipelineStage("coding-run", task.Status.ToString(), run.StartedAtUtc, run.CompletedAtUtc, run.ErrorMessage));
             var reviews = await dbContext.ReviewRuns.AsNoTracking()
                 .Where(review => review.CodingRunId == run.Id)
                 .ToListAsync(cancellationToken);
             stages.AddRange(reviews.Select(review => new PipelineStage(
-                "review", review.Status.ToString(), null, null, review.Summary)));
+                "review", review.Status.ToString(), review.StartedAtUtc, review.CompletedAtUtc,
+                $"{review.Conclusion}: {review.Summary}")));
             var qaRuns = await dbContext.QaRuns.AsNoTracking()
                 .Where(qa => qa.CodingRunId == run.Id)
                 .ToListAsync(cancellationToken);
             stages.AddRange(qaRuns.Select(qa => new PipelineStage(
-                $"qa-{qa.AttemptNo}", qa.Status.ToString(), null, null, qa.ErrorSummary)));
+                $"qa-{qa.AttemptNo}", qa.Status.ToString(), null, null,
+                $"{qa.Conclusion}: {qa.ErrorSummary}")));
         }
 
         return new PipelineView(task.Id, task.TaskCode, task.Title, task.ProjectId, task.Status.ToString(),
