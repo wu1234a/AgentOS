@@ -3,6 +3,7 @@ using AgentOS.Domain.Approvals;
 using AgentOS.Domain.CodingRuns;
 using AgentOS.Domain.Decisions;
 using AgentOS.Domain.GitHub;
+using AgentOS.Domain.Knowledge;
 using AgentOS.Domain.Quality;
 using AgentOS.Domain.Scheduling;
 using AgentOS.Domain.Artifacts;
@@ -64,6 +65,7 @@ public sealed class AgentOSDbContext(DbContextOptions<AgentOSDbContext> options)
     public DbSet<QualityGateRun> QualityGateRuns => Set<QualityGateRun>();
     public DbSet<QualityGateEvaluation> QualityGateEvaluations => Set<QualityGateEvaluation>();
     public DbSet<ScheduledJob> ScheduledJobs => Set<ScheduledJob>();
+    public DbSet<KnowledgeDocument> KnowledgeDocuments => Set<KnowledgeDocument>();
     public DbSet<TelegramNotification> TelegramNotifications => Set<TelegramNotification>();
     public DbSet<TelegramPollerState> TelegramPollerState => Set<TelegramPollerState>();
     public DbSet<TelegramProcessedUpdate> TelegramProcessedUpdates => Set<TelegramProcessedUpdate>();

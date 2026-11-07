@@ -915,3 +915,8 @@ Model/Provider/ExecutionMode 下发到 Runner，并传给 Codex `-m`）。
 - `POST /api/v1/browser/execute`：extracttext/screenshot/click，Playwright。
 - 默认关闭、主机白名单、超时；需本地安装 Chromium。
 - 无登录/队列/CI 真实浏览器测试。
+
+## 46. AOS-033 知识库
+
+- `KnowledgeDocuments` + `/api/v1/knowledge` CRUD/关键词搜索。
+- 项目过滤、片段返回；无语义/向量检索/前端。

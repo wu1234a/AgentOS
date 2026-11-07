@@ -565,6 +565,46 @@ namespace AgentOS.Infrastructure.Migrations
                     b.ToTable("PullRequestReviewJobs", (string)null);
                 });
 
+            modelBuilder.Entity("AgentOS.Domain.Knowledge.KnowledgeDocument", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<Guid?>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("TagsJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "UpdatedAtUtc");
+
+                    b.ToTable("KnowledgeDocuments", (string)null);
+                });
+
             modelBuilder.Entity("AgentOS.Domain.ModelProfiles.ModelProfile", b =>
                 {
                     b.Property<Guid>("Id")
