@@ -36,7 +36,7 @@
 | 前端 lint / build | ✅ 通过 |
 | CI | 见对应 run |
 
-## 5. 已知限制
+### 4.1 独立代码审查\n\nCodex CLI 审查发现 1 个 P1（validation Artifact 未接线导致 QA 不可用）与 2 个 P2（并发 Attempt、UI 无法重跑），全部修复并复测，详见 `docs/reports/AOS-015-CODE-REVIEW.md`。\n\n## 5. 已知限制
 
 1. 只做命令级结果；JUnit XML / Cobertura、用例级结果与覆盖率属于 AOS-015b。
 2. 不重新执行 validationCommands，因此 QA 结果反映最近一次 Coding Run 的校验。

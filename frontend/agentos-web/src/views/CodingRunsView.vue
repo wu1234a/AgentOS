@@ -369,6 +369,7 @@ onMounted(async () => {
               {{ qa.passedCount }} / {{ qa.commandCount }} 通过
             </el-descriptions-item>
           </el-descriptions>
+          <el-button type="primary" :loading="qaLoading" @click="startQa(detail.run)">重新运行 QA</el-button>
           <el-table :data="qa.commands" size="small">
             <el-table-column prop="commandText" label="命令" min-width="220" />
             <el-table-column prop="status" label="状态" width="100" />

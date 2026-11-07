@@ -102,13 +102,26 @@ public sealed class CodexTaskHandler(
                     context.Log("info", $"codex summary: {result.Summary}");
                 }
 
-                var validationFailure = await ValidateAsync(context, result, cancellationToken);
+                var validationResults = new List<ValidationCommandResult>();
+                var validationFailure = await ValidateAsync(
+                    context,
+                    result,
+                    validationResults,
+                    cancellationToken);
+
                 if (validationFailure is not null)
                 {
-                    return validationFailure;
+                    return validationFailure with
+                    {
+                        Artifacts = Append(
+                            validationFailure.Artifacts,
+                            CreateValidationArtifact(validationResults))
+                    };
                 }
 
-                var artifacts = BuildArtifacts(result);
+                var artifacts = Append(
+                    BuildArtifacts(result),
+                    CreateValidationArtifact(validationResults));
                 var baseRevision = ReadBaseRevision(context.InputJson);
                 if (!string.IsNullOrWhiteSpace(baseRevision))
                 {
@@ -179,6 +192,7 @@ public sealed class CodexTaskHandler(
     private async Task<TaskHandlerResult?> ValidateAsync(
         TaskExecutionContext context,
         AgentExecutionResult result,
+        List<ValidationCommandResult> results,
         CancellationToken cancellationToken)
     {
         IReadOnlyList<ValidationCommand> commands;
@@ -212,6 +226,8 @@ public sealed class CodexTaskHandler(
                 context.Log,
                 cancellationToken);
 
+            results.Add(validation);
+
             if (validation.Success)
             {
                 continue;
@@ -226,7 +242,7 @@ public sealed class CodexTaskHandler(
                 validation.ErrorMessage ?? "Validation command failed.",
                 retryable: validation.ErrorCode == "validation-error") with
             {
-                Artifacts = BuildArtifacts(result)
+                Artifacts = Append(BuildArtifacts(result), CreateValidationArtifact(results))
             };
         }
 
@@ -329,7 +345,7 @@ public sealed class CodexTaskHandler(
             combined.AddRange(existing);
         }
 
-        combined.AddRange(additional);
+        combined.AddRange(additional.Where(artifact => artifact is not null));
         return combined;
     }
 

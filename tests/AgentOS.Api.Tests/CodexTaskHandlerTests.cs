@@ -121,6 +121,7 @@ public sealed class CodexTaskHandlerTests
         var command = Assert.Single(_validation.Commands);
         Assert.Equal("dotnet test", command.Command);
         Assert.Contains(_logs, line => line.Contains("validation passed"));
+        Assert.Contains(result.Artifacts!, artifact => artifact.Name == "validation-results.json");
     }
 
     [Fact]

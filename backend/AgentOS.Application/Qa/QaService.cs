@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using AgentOS.Application.CodingRuns;
 using AgentOS.Domain.CodingRuns;
 using AgentOS.Domain.Qa;
@@ -21,7 +22,23 @@ public sealed class QaService(
         return latest is null ? QaResult.NotFound() : QaResult.Ok(latest);
     }
 
+    private static readonly ConcurrentDictionary<Guid, SemaphoreSlim> Locks = new();
+
     public async Task<QaResult> CreateAsync(Guid codingRunId, CancellationToken cancellationToken)
+    {
+        var gate = Locks.GetOrAdd(codingRunId, _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(cancellationToken);
+        try
+        {
+            return await CreateCoreAsync(codingRunId, cancellationToken);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    private async Task<QaResult> CreateCoreAsync(Guid codingRunId, CancellationToken cancellationToken)
     {
         var run = await codingRuns.GetRunAsync(codingRunId, cancellationToken);
         if (run is null)
