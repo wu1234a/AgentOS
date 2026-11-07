@@ -22,6 +22,7 @@ public static class GitHubWebhookEndpoints
         HttpRequest request,
         EventService events,
         IOptions<GitHubOptions> options,
+        IGitHubReviewQueue reviewQueue,
         ILoggerFactory loggerFactory,
         CancellationToken cancellationToken)
     {
@@ -143,6 +144,25 @@ public static class GitHubWebhookEndpoints
             };
 
             var result = await events.CreateAsync(eventRequest, cancellationToken);
+
+            if (configuration.ReviewEnabled
+                && eventName == "pull_request"
+                && root.TryGetProperty("action", out var prAction)
+                && prAction.GetString() is "opened" or "synchronize"
+                && root.TryGetProperty("pull_request", out var prElement)
+                && prElement.TryGetProperty("head", out var head)
+                && head.TryGetProperty("sha", out var headSha)
+                && headSha.GetString() is { } sha)
+            {
+                await reviewQueue.EnqueueAsync(
+                    repository,
+                    prElement.GetProperty("number").GetInt32(),
+                    sha,
+                    prAction.GetString()!,
+                    delivery,
+                    cancellationToken);
+            }
+
             logger.LogInformation(
                 "GitHub webhook {Delivery} {Event} {Outcome}.",
                 delivery,

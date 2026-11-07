@@ -7,4 +7,7 @@ public sealed class GitHubOptions
     public string[] AllowedRepositories { get; set; } = [];
     public string[] AllowedEvents { get; set; } = ["pull_request", "push", "workflow_run"];
     public Dictionary<string, string> RepositoryProjects { get; set; } = [];
+    public bool ReviewEnabled { get; set; }
+    public string? ReviewToken { get; set; }
+    public int MaxReviewAttempts { get; set; } = 5;
 }

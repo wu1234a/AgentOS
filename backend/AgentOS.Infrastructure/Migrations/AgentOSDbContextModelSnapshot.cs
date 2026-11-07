@@ -502,6 +502,69 @@ namespace AgentOS.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AgentOS.Domain.GitHub.PullRequestReviewJob", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("DeliveryId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<long?>("GitHubReviewId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("HeadSha")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime?>("NextAttemptAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<int>("PullRequestNumber")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Repository")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Status", "NextAttemptAtUtc");
+
+                    b.HasIndex("Repository", "PullRequestNumber", "HeadSha")
+                        .IsUnique();
+
+                    b.ToTable("PullRequestReviewJobs", (string)null);
+                });
+
             modelBuilder.Entity("AgentOS.Domain.ModelProfiles.ModelProfile", b =>
                 {
                     b.Property<Guid>("Id")

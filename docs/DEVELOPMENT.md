@@ -848,3 +848,10 @@ Model/Provider/ExecutionMode 下发到 Runner，并传给 Codex `-m`）。
 - 仓库/事件白名单；PR/push/workflow_run 规范化写入 Event Hub。
 - `DedupeKey=github:<delivery>` 复用事件去重。
 - 未做独立 delivery 状态、PR 评论/Review/合并、仓库-项目映射。
+
+## 35. AOS-023 PR 审查
+
+- PR opened/synchronize 入队 `PullRequestReviewJobs`，Worker 拉 diff 调用只读 Review Agent。
+- 发布单条 COMMENT Review；head 变化标记 Superseded；失败退避。
+- 需 `GitHub__ReviewToken`（Pull requests 写、contents 读）；不自动 approve/merge。
+- 无 inline comments/租约/Worker 测试。
