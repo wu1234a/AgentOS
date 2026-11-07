@@ -909,3 +909,9 @@ Model/Provider/ExecutionMode 下发到 Runner，并传给 Codex `-m`）。
 
 - `GET /api/v1/workers`、`/stats`；enable/disable。
 - Disabled 不领取新任务；无扩缩容/前端/审计。
+
+## 45. AOS-032 浏览器适配
+
+- `POST /api/v1/browser/execute`：extracttext/screenshot/click，Playwright。
+- 默认关闭、主机白名单、超时；需本地安装 Chromium。
+- 无登录/队列/CI 真实浏览器测试。

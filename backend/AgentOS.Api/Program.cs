@@ -1,6 +1,7 @@
 using AgentOS.Api.Endpoints;
 using AgentOS.Api.Reviews;
 using AgentOS.Api.GitHub;
+using AgentOS.Api.Browser;
 using AgentOS.Api.Operations;
 using AgentOS.Api.Scheduling;
 using AgentOS.Api.Usage;
@@ -94,6 +95,8 @@ builder.Services.Configure<UsageOptions>(builder.Configuration.GetSection("Usage
 builder.Services.AddScoped<UsageStatisticsService>();
 builder.Services.AddScoped<DeadLetterService>();
 builder.Services.AddScoped<WorkerAdminService>();
+builder.Services.Configure<BrowserAutomationOptions>(builder.Configuration.GetSection("BrowserAutomation"));
+builder.Services.AddScoped<BrowserAutomationService>();
 builder.Services.AddScoped<CodingRunService>();
 builder.Services.AddScoped<SubtaskService>();
 builder.Services.AddScoped<ApprovalService>();
@@ -173,6 +176,7 @@ app.MapScheduledJobEndpoints();
 app.MapUsageEndpoints();
 app.MapDeadLetterEndpoints();
 app.MapWorkerAdminEndpoints();
+app.MapBrowserAutomationEndpoints();
 app.MapCodingRunEndpoints();
 app.MapSubtaskEndpoints();
 app.MapApprovalEndpoints();
