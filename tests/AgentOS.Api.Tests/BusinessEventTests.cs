@@ -40,6 +40,44 @@ public sealed class BusinessEventTests
     }
 
     [Fact]
+    public async Task Applies_defaults_for_optional_fields()
+    {
+        var events = new EventService(
+            new CreateEventValidator(), new EventPayloadHasher(), new DuplicateEventLogSampler(TimeProvider.System),
+            new FakeEventRepository(), new FakeProjectLookup(), new FakeTaskDispatcher(), TimeProvider.System,
+            NullLogger<EventService>.Instance);
+        var service = new BusinessEventService(events);
+
+        var (result, error) = await service.SubmitAsync(new BusinessEventRequest
+        {
+            Source = "emperor", EventType = "turn.ended", Project = "3derp",
+            DedupeKey = $"turn-{Guid.NewGuid():N}"
+        }, CancellationToken.None);
+
+        Assert.Null(error);
+        Assert.Equal(CreateEventOutcome.Created, result!.Outcome);
+    }
+
+    [Fact]
+    public async Task Rejects_timestamps_without_timezone()
+    {
+        var events = new EventService(
+            new CreateEventValidator(), new EventPayloadHasher(), new DuplicateEventLogSampler(TimeProvider.System),
+            new FakeEventRepository(), new FakeProjectLookup(), new FakeTaskDispatcher(), TimeProvider.System,
+            NullLogger<EventService>.Instance);
+        var service = new BusinessEventService(events);
+
+        var (result, error) = await service.SubmitAsync(new BusinessEventRequest
+        {
+            Source = "3derp", EventType = "order.created", Project = "3derp",
+            DedupeKey = $"tz-{Guid.NewGuid():N}", OccurredAtUtc = new DateTime(2026, 11, 8, 1, 2, 3, DateTimeKind.Unspecified)
+        }, CancellationToken.None);
+
+        Assert.Null(result);
+        Assert.Equal("occurred-at-requires-timezone", error);
+    }
+
+    [Fact]
     public async Task Rejects_unknown_sources()
     {
         var service = new BusinessEventService(new EventService(

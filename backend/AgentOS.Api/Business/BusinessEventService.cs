@@ -49,6 +49,14 @@ public sealed class BusinessEventService(EventService events)
             return (null, "project-required");
         }
 
+        if (request.OccurredAtUtc is DateTime occurred && occurred.Kind == DateTimeKind.Unspecified)
+        {
+            return (null, "occurred-at-requires-timezone");
+        }
+
+        var occurredAt = request.OccurredAtUtc is DateTime value
+            ? value.Kind == DateTimeKind.Local ? value.ToUniversalTime() : value
+            : DateTime.UtcNow;
         var subject = !string.IsNullOrWhiteSpace(request.SubjectType) && !string.IsNullOrWhiteSpace(request.SubjectId)
             ? new EventSubjectRequest { Type = request.SubjectType, Id = request.SubjectId }
             : null;
@@ -61,10 +69,10 @@ public sealed class BusinessEventService(EventService events)
             DedupeKey = dedupeKey,
             Project = project,
             Subject = subject,
-            Summary = request.Summary,
-            OccurredAtUtc = (request.OccurredAtUtc ?? DateTime.UtcNow).ToUniversalTime().ToString("O"),
+            Summary = string.IsNullOrWhiteSpace(request.Summary) ? $"{source}.{eventType}" : request.Summary,
+            OccurredAtUtc = occurredAt.ToString("O"),
             Priority = "normal",
-            Payload = request.Payload
+            Payload = request.Payload ?? System.Text.Json.JsonSerializer.SerializeToElement(new { })
         }, cancellationToken);
         return (result, null);
     }

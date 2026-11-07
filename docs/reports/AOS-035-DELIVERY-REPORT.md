@@ -20,7 +20,7 @@
 | 业务事件用例 | ✅ 创建 + 重复 + 未知 source |
 | CI | 见对应 run |
 
-## 3. 已知限制
+### 2.1 独立代码审查\n\nCodex CLI 审查发现 2 个 P2（可选字段默认值、无时区时间），全部修复，详见 `docs/reports/AOS-035-CODE-REVIEW.md`。\n\n## 3. 已知限制
 
 1. 仅 3derp/emperor 两个 source；新增需改代码。
 2. 无专用签名，复用开发 Key。
