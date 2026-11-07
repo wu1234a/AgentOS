@@ -4,6 +4,7 @@ using AgentOS.Domain.CodingRuns;
 using AgentOS.Domain.Decisions;
 using AgentOS.Domain.GitHub;
 using AgentOS.Domain.Quality;
+using AgentOS.Domain.Scheduling;
 using AgentOS.Domain.Artifacts;
 using AgentOS.Domain.Events;
 using AgentOS.Domain.ModelProfiles;
@@ -62,6 +63,7 @@ public sealed class AgentOSDbContext(DbContextOptions<AgentOSDbContext> options)
     public DbSet<PullRequestReviewJob> PullRequestReviewJobs => Set<PullRequestReviewJob>();
     public DbSet<QualityGateRun> QualityGateRuns => Set<QualityGateRun>();
     public DbSet<QualityGateEvaluation> QualityGateEvaluations => Set<QualityGateEvaluation>();
+    public DbSet<ScheduledJob> ScheduledJobs => Set<ScheduledJob>();
     public DbSet<TelegramNotification> TelegramNotifications => Set<TelegramNotification>();
     public DbSet<TelegramPollerState> TelegramPollerState => Set<TelegramPollerState>();
     public DbSet<TelegramProcessedUpdate> TelegramProcessedUpdates => Set<TelegramProcessedUpdate>();

@@ -1,5 +1,6 @@
 using AgentOS.Application.Events;
 using AgentOS.Application.Projects;
+using AgentOS.Application.Scheduling;
 using AgentOS.Application.Rules;
 using AgentOS.Application.Runners;
 using AgentOS.Application.Agents;
@@ -10,6 +11,7 @@ using AgentOS.Application.ModelProfiles;
 using AgentOS.Application.Observability;
 using AgentOS.Application.Planning;
 using AgentOS.Application.Projects;
+using AgentOS.Application.Scheduling;
 using AgentOS.Application.Qa;
 using AgentOS.Application.Reviews;
 using AgentOS.Application.Security;
@@ -17,6 +19,7 @@ using AgentOS.Application.Skills;
 using AgentOS.Application.Tasks;
 using AgentOS.Infrastructure.Persistence;
 using AgentOS.Infrastructure.Projects;
+using AgentOS.Infrastructure.Scheduling;
 using AgentOS.Infrastructure.Repositories;
 using AgentOS.Infrastructure.Rules;
 using AgentOS.Infrastructure.Agents;
@@ -28,6 +31,7 @@ using AgentOS.Infrastructure.ModelProfiles;
 using AgentOS.Infrastructure.Observability;
 using AgentOS.Infrastructure.Planning;
 using AgentOS.Infrastructure.Projects;
+using AgentOS.Infrastructure.Scheduling;
 using AgentOS.Infrastructure.Reviews;
 using AgentOS.Infrastructure.Qa;
 using AgentOS.Infrastructure.Runners;
@@ -80,6 +84,7 @@ public static class DependencyInjection
         services.AddScoped<IQaRepository, QaRepository>();
         services.AddScoped<IApiCompletionClient, ApiCompletionClient>();
         services.AddScoped<IProjectRepository, ProjectRepository>();
+        services.AddScoped<IScheduledJobRepository, ScheduledJobRepository>();
 
         // Stateless and thread-safe; shared so payload hashing and duplicate log sampling stay
         // consistent across requests.

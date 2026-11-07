@@ -1224,6 +1224,54 @@ namespace AgentOS.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AgentOS.Domain.Scheduling.ScheduledJob", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("FirstRunAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<int>("IntervalSeconds")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("LastTriggeredAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<DateTime>("NextRunAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Enabled", "NextRunAtUtc");
+
+                    b.ToTable("ScheduledJobs", (string)null);
+                });
+
             modelBuilder.Entity("AgentOS.Domain.Security.ApiClient", b =>
                 {
                     b.Property<Guid>("Id")

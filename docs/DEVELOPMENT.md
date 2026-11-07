@@ -886,3 +886,9 @@ Model/Provider/ExecutionMode 下发到 Runner，并传给 Codex `-m`）。
 - Projects API：创建/列表/详情/更新/启停；MaxConcurrentTasks（NULL 不限）。
 - TaskClaimer 原子检查项目并发配额；停用项目不可领取。
 - 未做 projectId 查询过滤/资源归属/前端/审计。
+
+## 41. AOS-027 定时调度
+
+- `ScheduledJobs` 间隔调度（最小 60 秒），Worker 通过 EventService 发布 `source=scheduler`。
+- 去重 `schedule:<jobId>:<scheduledFor>`；错过周期合并一次并推进到未来。
+- 无 cron/日历/前端/多实例选主。
