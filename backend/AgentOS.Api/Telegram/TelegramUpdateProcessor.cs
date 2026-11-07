@@ -7,6 +7,7 @@ namespace AgentOS.Api.Telegram;
 public sealed class TelegramUpdateProcessor(
     ApprovalService approvals,
     ITelegramClient client,
+    ITelegramRejectSessionStore sessions,
     IOptions<TelegramOptions> options)
 {
     private const int MaxPending = 10;
@@ -35,7 +36,46 @@ public sealed class TelegramUpdateProcessor(
             : 0;
         var text = message.TryGetProperty("text", out var textValue) ? textValue.GetString() ?? string.Empty : string.Empty;
 
-        if (!IsAllowed(chatId, userId) || !text.StartsWith("/pending", StringComparison.OrdinalIgnoreCase))
+        if (!IsAllowed(chatId, userId))
+        {
+            return;
+        }
+
+        var session = await sessions.GetActiveAsync(chatId, userId, cancellationToken);
+        if (session is not null)
+        {
+            var reason = text.Trim();
+            if (reason.Length == 0)
+            {
+                await client.SendMessageAsync(chatId, "拒绝理由不能为空，请重新发送。", null, cancellationToken);
+                return;
+            }
+
+            if (reason.Length > 1000)
+            {
+                reason = reason[..1000];
+            }
+
+            var decision = await approvals.DecideAsync(
+                session.ApprovalId,
+                new ApprovalDecisionRequest { Decision = "Rejected", Reason = reason },
+                cancellationToken);
+
+            await sessions.CompleteAsync(session.Id, cancellationToken);
+
+            if (decision.Outcome == ApprovalOutcome.Ok)
+            {
+                await client.EditMessageAsync(chatId, session.MessageId, $"已拒绝：{reason}", cancellationToken);
+            }
+            else
+            {
+                await client.SendMessageAsync(chatId, "审批已被处理或不存在。", null, cancellationToken);
+            }
+
+            return;
+        }
+
+        if (!text.StartsWith("/pending", StringComparison.OrdinalIgnoreCase))
         {
             return;
         }
@@ -99,14 +139,29 @@ public sealed class TelegramUpdateProcessor(
             return;
         }
 
+        if (decision == "Rejected")
+        {
+            var approval = await approvals.GetAsync(approvalId, cancellationToken);
+            if (approval is null || approval.Status != "Pending")
+            {
+                await client.AnswerCallbackAsync(callbackId, "该审批已被处理或不存在。", cancellationToken);
+                return;
+            }
+
+            await sessions.CreateAsync(approvalId, chatId, userId, messageId, cancellationToken);
+            await client.AnswerCallbackAsync(callbackId, "请发送拒绝理由。", cancellationToken);
+            await client.SendMessageAsync(chatId, "请回复拒绝理由（5 分钟内有效）。", null, cancellationToken);
+            return;
+        }
+
         var result = await approvals.DecideAsync(
             approvalId,
-            new ApprovalDecisionRequest { Decision = decision, Reason = decision == "Rejected" ? "Rejected via Telegram" : "Approved via Telegram" },
+            new ApprovalDecisionRequest { Decision = decision, Reason = "Approved via Telegram" },
             cancellationToken);
 
         var answer = result.Outcome switch
         {
-            ApprovalOutcome.Ok => decision == "Approved" ? "已批准。" : "已拒绝。",
+            ApprovalOutcome.Ok => "已批准。",
             ApprovalOutcome.Conflict => "该审批已处理。",
             ApprovalOutcome.NotFound => "审批不存在。",
             _ => "审批失败。"

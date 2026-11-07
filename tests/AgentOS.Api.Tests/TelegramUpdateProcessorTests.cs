@@ -58,6 +58,7 @@ public sealed class TelegramUpdateProcessorTests
         => new(
             new ApprovalService(repository, TimeProvider.System, NullLogger<ApprovalService>.Instance),
             client,
+            new FakeRejectSessions(),
             Options.Create(new TelegramOptions
             {
                 AllowedChatIds = [100],
@@ -80,6 +81,17 @@ public sealed class TelegramUpdateProcessorTests
 
     private static JsonElement Callback(long chatId, long userId, string data)
         => JsonDocument.Parse("{\"update_id\":2,\"callback_query\":{\"id\":\"cb\",\"from\":{\"id\":" + userId + "},\"data\":\"" + data + "\",\"message\":{\"message_id\":10,\"chat\":{\"id\":" + chatId + "}}}}").RootElement.Clone();
+    private sealed class FakeRejectSessions : ITelegramRejectSessionStore
+    {
+        public Task<AgentOS.Domain.Telegram.TelegramRejectSession?> GetActiveAsync(long chatId, long userId, CancellationToken cancellationToken)
+            => Task.FromResult<AgentOS.Domain.Telegram.TelegramRejectSession?>(null);
+
+        public Task CreateAsync(Guid approvalId, long chatId, long userId, long messageId, CancellationToken cancellationToken)
+            => Task.CompletedTask;
+
+        public Task CompleteAsync(Guid id, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
     private sealed class FakeTelegramClient : ITelegramClient
     {
         public List<(long ChatId, string Text)> Messages { get; } = [];
@@ -89,10 +101,10 @@ public sealed class TelegramUpdateProcessorTests
         public Task<IReadOnlyList<JsonElement>> GetUpdatesAsync(long offset, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<JsonElement>>([]);
 
-        public Task SendMessageAsync(long chatId, string text, string? callbackData, CancellationToken cancellationToken)
+        public Task<long> SendMessageAsync(long chatId, string text, string? callbackData, CancellationToken cancellationToken)
         {
             Messages.Add((chatId, text));
-            return Task.CompletedTask;
+            return Task.FromResult(1L);
         }
 
         public Task AnswerCallbackAsync(string callbackId, string text, CancellationToken cancellationToken)

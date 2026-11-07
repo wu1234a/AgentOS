@@ -827,3 +827,10 @@ Model/Provider/ExecutionMode 下发到 Runner，并传给 Codex `-m`）。
 - `TelegramPollerState` 持久化 offset；`TelegramProcessedUpdates` 去重。
 - 仍需配置 `Telegram:NotificationChatId`；单 Worker，无行锁/多实例。
 - 拒绝理由多轮、429 retry_after、状态 API 未实现。
+
+## 32. AOS-020 Telegram 交互完善
+
+- 拒绝审批需在 5 分钟内回复理由；理由写入审批决策并编辑原卡片。
+- SendMessage 返回 message_id 并保存到 Outbox。
+- 空理由重新提示；超长截断 1000。
+- 429 retry_after、编辑重试、过期清理未实现。

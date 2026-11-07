@@ -58,6 +58,7 @@ public sealed class AgentOSDbContext(DbContextOptions<AgentOSDbContext> options)
     public DbSet<TelegramNotification> TelegramNotifications => Set<TelegramNotification>();
     public DbSet<TelegramPollerState> TelegramPollerState => Set<TelegramPollerState>();
     public DbSet<TelegramProcessedUpdate> TelegramProcessedUpdates => Set<TelegramProcessedUpdate>();
+    public DbSet<TelegramRejectSession> TelegramRejectSessions => Set<TelegramRejectSession>();
     public DbSet<CodingRunEvent> CodingRunEvents => Set<CodingRunEvent>();
     public DbSet<ReviewRun> ReviewRuns => Set<ReviewRun>();
     public DbSet<ReviewFinding> ReviewFindings => Set<ReviewFinding>();

@@ -66,12 +66,12 @@ public sealed class TelegramPollingService(
 
                         try
                         {
-                            await client.SendMessageAsync(
+                            var messageId = await client.SendMessageAsync(
                                 notification.ChatId,
                                 $"待审批：{approval.TargetType} {approval.TargetId}\n理由：{approval.RequestReason ?? "-"}",
                                 approval.Id.ToString("D"),
                                 stoppingToken);
-                            await store.MarkSentAsync(notification.Id, 0, DateTime.UtcNow, stoppingToken);
+                            await store.MarkSentAsync(notification.Id, messageId, DateTime.UtcNow, stoppingToken);
                         }
                         catch (Exception exception)
                         {

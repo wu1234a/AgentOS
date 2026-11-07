@@ -55,6 +55,7 @@ builder.Services.Configure<TelegramOptions>(builder.Configuration.GetSection("Te
 builder.Services.AddHttpClient<ITelegramClient, HttpTelegramClient>()
     .RemoveAllLoggers();
 builder.Services.AddScoped<TelegramUpdateProcessor>();
+builder.Services.AddScoped<ITelegramRejectSessionStore, TelegramRejectSessionStore>();
 builder.Services.AddScoped<TelegramOutbox>();
 builder.Services.AddScoped<AgentOS.Application.Telegram.ITelegramOutbox>(provider => provider.GetRequiredService<TelegramOutbox>());
 builder.Services.AddScoped<AgentOS.Application.Telegram.ITelegramOutboxStore>(provider => provider.GetRequiredService<TelegramOutbox>());

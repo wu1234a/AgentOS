@@ -7,7 +7,7 @@ namespace AgentOS.Api.Telegram;
 public interface ITelegramClient
 {
     Task<IReadOnlyList<JsonElement>> GetUpdatesAsync(long offset, CancellationToken cancellationToken);
-    Task SendMessageAsync(long chatId, string text, string? callbackData, CancellationToken cancellationToken);
+    Task<long> SendMessageAsync(long chatId, string text, string? callbackData, CancellationToken cancellationToken);
     Task AnswerCallbackAsync(string callbackId, string text, CancellationToken cancellationToken);
     Task EditMessageAsync(long chatId, long messageId, string text, CancellationToken cancellationToken);
 }
@@ -33,7 +33,7 @@ public sealed class HttpTelegramClient(
         return result.EnumerateArray().Select(item => item.Clone()).ToList();
     }
 
-    public Task SendMessageAsync(long chatId, string text, string? callbackData, CancellationToken cancellationToken)
+    public async Task<long> SendMessageAsync(long chatId, string text, string? callbackData, CancellationToken cancellationToken)
     {
         var payload = new Dictionary<string, object>
         {
@@ -56,7 +56,12 @@ public sealed class HttpTelegramClient(
             };
         }
 
-        return PostAsync("sendMessage", payload, cancellationToken);
+        using var response = await PostForResponseAsync("sendMessage", payload, cancellationToken);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+        return document.RootElement.TryGetProperty("result", out var result)
+            && result.TryGetProperty("message_id", out var messageId)
+            ? messageId.GetInt64()
+            : 0;
     }
 
     public Task AnswerCallbackAsync(string callbackId, string text, CancellationToken cancellationToken)
@@ -67,8 +72,17 @@ public sealed class HttpTelegramClient(
 
     private async Task PostAsync(string method, object payload, CancellationToken cancellationToken)
     {
+        using var response = await PostForResponseAsync(method, payload, cancellationToken);
+    }
+
+    private async Task<HttpResponseMessage> PostForResponseAsync(
+        string method,
+        object payload,
+        CancellationToken cancellationToken)
+    {
         using var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
         var response = await httpClient.PostAsync($"https://api.telegram.org/bot{Token}/{method}", content, cancellationToken);
         response.EnsureSuccessStatusCode();
+        return response;
     }
 }
