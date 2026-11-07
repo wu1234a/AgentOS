@@ -45,6 +45,10 @@ public sealed class TaskClaimer(
               FROM [TaskDependencies] AS d
               INNER JOIN [Tasks] AS prerequisite ON prerequisite.[Id] = d.[PrerequisiteTaskId]
               WHERE d.[TaskId] = t.[Id] AND prerequisite.[Status] <> N'Succeeded')
+          AND (p.[MaxConcurrentTasks] IS NULL
+               OR (SELECT COUNT(*) FROM [Tasks] AS running
+                   WHERE running.[ProjectId] = t.[ProjectId] AND running.[Status] = N'Running')
+                  < p.[MaxConcurrentTasks])
         ORDER BY CASE t.[Priority]
                    WHEN N'urgent' THEN 0
                    WHEN N'high' THEN 1
@@ -76,7 +80,11 @@ public sealed class TaskClaimer(
               SELECT 1
               FROM [TaskDependencies] AS d
               INNER JOIN [Tasks] AS prerequisite ON prerequisite.[Id] = d.[PrerequisiteTaskId]
-              WHERE d.[TaskId] = [Id] AND prerequisite.[Status] <> N'Succeeded');
+              WHERE d.[TaskId] = [Id] AND prerequisite.[Status] <> N'Succeeded')
+          AND ((SELECT MAX([MaxConcurrentTasks]) FROM [Projects] WHERE [Id] = [ProjectId]) IS NULL
+               OR (SELECT COUNT(*) FROM [Tasks] AS running
+                   WHERE running.[ProjectId] = [ProjectId] AND running.[Status] = N'Running')
+                  < (SELECT MAX([MaxConcurrentTasks]) FROM [Projects] WHERE [Id] = [ProjectId]));
         """;
 
     public async Task<IReadOnlyList<ClaimedTask>> ClaimAsync(

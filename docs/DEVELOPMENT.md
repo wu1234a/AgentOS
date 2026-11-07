@@ -880,3 +880,9 @@ Model/Provider/ExecutionMode 下发到 Runner，并传给 Codex `-m`）。
 - `GITHUB_SHA`/`AGENTOS_GIT_COMMIT`、`AGENTOS_BUILD_TIME` 提供元数据。
 - `scripts/Verify-Deployment.ps1` 只读核验 commit；`docs/deployment-local.md` 本地步骤。
 - 无自动部署/容器/CI 自动注入。
+
+## 40. AOS-028 多项目与配额
+
+- Projects API：创建/列表/详情/更新/启停；MaxConcurrentTasks（NULL 不限）。
+- TaskClaimer 原子检查项目并发配额；停用项目不可领取。
+- 未做 projectId 查询过滤/资源归属/前端/审计。

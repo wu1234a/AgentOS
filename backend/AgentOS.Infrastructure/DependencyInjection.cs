@@ -9,6 +9,7 @@ using AgentOS.Application.CodingRuns;
 using AgentOS.Application.ModelProfiles;
 using AgentOS.Application.Observability;
 using AgentOS.Application.Planning;
+using AgentOS.Application.Projects;
 using AgentOS.Application.Qa;
 using AgentOS.Application.Reviews;
 using AgentOS.Application.Security;
@@ -26,6 +27,7 @@ using AgentOS.Infrastructure.Artifacts;
 using AgentOS.Infrastructure.ModelProfiles;
 using AgentOS.Infrastructure.Observability;
 using AgentOS.Infrastructure.Planning;
+using AgentOS.Infrastructure.Projects;
 using AgentOS.Infrastructure.Reviews;
 using AgentOS.Infrastructure.Qa;
 using AgentOS.Infrastructure.Runners;
@@ -77,6 +79,7 @@ public static class DependencyInjection
         services.AddScoped<IReviewRepository, ReviewRepository>();
         services.AddScoped<IQaRepository, QaRepository>();
         services.AddScoped<IApiCompletionClient, ApiCompletionClient>();
+        services.AddScoped<IProjectRepository, ProjectRepository>();
 
         // Stateless and thread-safe; shared so payload hashing and duplicate log sampling stay
         // consistent across requests.
