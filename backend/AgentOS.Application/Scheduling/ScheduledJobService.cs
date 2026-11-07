@@ -37,9 +37,9 @@ public sealed class ScheduledJobService(
             return ScheduleResult.Invalid("name", "Name must be 1-120 characters.");
         }
 
-        if (!EventTypePattern.IsMatch(eventType))
+        if (!EventTypePattern.IsMatch(eventType) || eventType.Length > 100)
         {
-            return ScheduleResult.Invalid("eventType", "eventType must use dotted lowercase format.");
+            return ScheduleResult.Invalid("eventType", "eventType must use dotted lowercase format and be at most 100 characters.");
         }
 
         if (interval < MinimumIntervalSeconds)
@@ -47,13 +47,9 @@ public sealed class ScheduledJobService(
             return ScheduleResult.Invalid("intervalSeconds", $"Interval must be at least {MinimumIntervalSeconds} seconds.");
         }
 
-        try
+        if (!TryValidatePayload(payloadJson))
         {
-            using var _ = JsonDocument.Parse(payloadJson);
-        }
-        catch (JsonException)
-        {
-            return ScheduleResult.Invalid("payloadJson", "payloadJson must be valid JSON.");
+            return ScheduleResult.Invalid("payloadJson", "payloadJson must be valid JSON and fit inside the event payload.");
         }
 
         var now = timeProvider.GetUtcNow().UtcDateTime;
@@ -103,9 +99,9 @@ public sealed class ScheduledJobService(
         if (request.EventType is not null)
         {
             var eventType = request.EventType.Trim();
-            if (!EventTypePattern.IsMatch(eventType))
+            if (!EventTypePattern.IsMatch(eventType) || eventType.Length > 100)
             {
-                return ScheduleResult.Invalid("eventType", "eventType must use dotted lowercase format.");
+                return ScheduleResult.Invalid("eventType", "eventType must use dotted lowercase format and be at most 100 characters.");
             }
 
             job.EventType = eventType;
@@ -113,13 +109,9 @@ public sealed class ScheduledJobService(
 
         if (request.PayloadJson is not null)
         {
-            try
+            if (!TryValidatePayload(request.PayloadJson))
             {
-                using var _ = JsonDocument.Parse(request.PayloadJson);
-            }
-            catch (JsonException)
-            {
-                return ScheduleResult.Invalid("payloadJson", "payloadJson must be valid JSON.");
+                return ScheduleResult.Invalid("payloadJson", "payloadJson must be valid JSON and fit inside the event payload.");
             }
 
             job.PayloadJson = request.PayloadJson;
@@ -189,7 +181,19 @@ public sealed class ScheduledJobService(
         {
             var scheduledFor = job.NextRunAtUtc;
             var missed = (int)Math.Max(0, Math.Floor((now - scheduledFor).TotalSeconds / job.IntervalSeconds));
-            var result = await PublishAsync(job, scheduledFor, now, missed, cancellationToken);
+            CreateEventResult result;
+            try
+            {
+                result = await PublishAsync(job, scheduledFor, cancellationToken);
+            }
+            catch (Exception exception)
+            {
+                logger.LogWarning(exception, "Scheduled job {JobId} publish failed; skipping this occurrence.", job.Id);
+                job.NextRunAtUtc = NextFuture(scheduledFor, missed, job.IntervalSeconds, now);
+                job.UpdatedAtUtc = now;
+                await repository.SaveAsync(cancellationToken);
+                continue;
+            }
             if (result.Outcome == CreateEventOutcome.Invalid)
             {
                 job.Enabled = false;
@@ -199,13 +203,9 @@ public sealed class ScheduledJobService(
                 continue;
             }
 
-            if (result.Outcome is CreateEventOutcome.Created or CreateEventOutcome.Duplicate or CreateEventOutcome.Conflict)
+            if (result.Outcome is CreateEventOutcome.Created or CreateEventOutcome.Duplicate)
             {
-                job.NextRunAtUtc = scheduledFor.AddSeconds((missed + 1) * (long)job.IntervalSeconds);
-                while (job.NextRunAtUtc <= now)
-                {
-                    job.NextRunAtUtc = job.NextRunAtUtc.AddSeconds(job.IntervalSeconds);
-                }
+                job.NextRunAtUtc = NextFuture(scheduledFor, missed, job.IntervalSeconds, now);
 
                 job.LastTriggeredAtUtc = now;
                 job.UpdatedAtUtc = now;
@@ -217,11 +217,34 @@ public sealed class ScheduledJobService(
         return triggered;
     }
 
+    private static DateTime NextFuture(DateTime scheduledFor, int missed, int intervalSeconds, DateTime now)
+    {
+        var next = scheduledFor.AddSeconds((missed + 1) * (long)intervalSeconds);
+        while (next <= now)
+        {
+            next = next.AddSeconds(intervalSeconds);
+        }
+
+        return next;
+    }
+
+    private static bool TryValidatePayload(string json)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            _ = JsonSerializer.SerializeToElement(new { payload = document.RootElement }, new JsonSerializerOptions { MaxDepth = 32 });
+            return true;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
     private async Task<CreateEventResult> PublishAsync(
         ScheduledJob job,
         DateTime scheduledFor,
-        DateTime triggeredAt,
-        int missed,
         CancellationToken cancellationToken)
     {
         JsonElement configured;
@@ -239,9 +262,9 @@ public sealed class ScheduledJobService(
         {
             scheduleId = job.Id,
             scheduledFor,
-            triggeredAt,
-            compensated = missed > 0,
-            missedCount = missed,
+            triggeredAt = scheduledFor,
+            compensated = false,
+            missedCount = 0,
             payload = configured
         });
         return await events.CreateAsync(new CreateEventRequest
@@ -253,7 +276,7 @@ public sealed class ScheduledJobService(
             DedupeKey = $"schedule:{job.Id}:{scheduledFor:O}",
             Subject = new EventSubjectRequest { Type = "scheduled-job", Id = job.Id.ToString() },
             Summary = $"Scheduled job '{job.Name}'",
-            OccurredAtUtc = triggeredAt.ToString("O"),
+            OccurredAtUtc = scheduledFor.ToString("O"),
             Priority = "normal",
             Payload = payload
         }, cancellationToken);

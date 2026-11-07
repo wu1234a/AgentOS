@@ -22,7 +22,7 @@
 | 调度用例 | ✅ 到期触发一次、NextRun 推进、重复扫描不再触发 |
 | CI | 见对应 run |
 
-## 3. 已知限制
+### 2.1 独立代码审查\n\nCodex CLI 审查发现 1 个 P1（重试 payload 变化导致丢失）与 2 个 P2（eventType 长度、嵌套 payload 阻塞），全部修复，详见 `docs/reports/AOS-027-CODE-REVIEW.md`。\n\n## 3. 已知限制
 
 1. 仅固定间隔；无 cron/日历/时区。
 2. 单实例调度，无选主/分布式锁。
