@@ -43,7 +43,7 @@
 | Worktree 集成测试 | ✅ 3（创建/隔离/清理、未知 base、请求解析） |
 | CI | 见对应 run |
 
-## 5. 已知限制（后续 AOS-017b）
+### 4.1 独立代码审查\n\nCodex CLI 审查发现 1 个 P1（强制删除未归档变更）与 3 个 P2（路径规范化、reparse point、启动失败泄漏），全部修复并复测，详见 `docs/reports/AOS-017-CODE-REVIEW.md`。\n\n## 5. 已知限制（后续 AOS-017b）
 
 1. 无本地 worktree 清单/DB 状态；Runner 崩溃后不自动对账/恢复。
 2. 清理失败只记录日志并保留现场，无 `CleanupRequired` 状态/API。

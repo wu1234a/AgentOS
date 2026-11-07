@@ -86,7 +86,21 @@ public sealed class TaskProcessor(
                 task.TaskId,
                 exception.Code,
                 exception.StatusCode);
+            if (worktree is not null)
+            {
+                await worktrees.RemoveAsync(worktree, CancellationToken.None);
+            }
+
             return;
+        }
+        catch
+        {
+            if (worktree is not null)
+            {
+                await worktrees.RemoveAsync(worktree, CancellationToken.None);
+            }
+
+            throw;
         }
 
         var logs = new LogBuffer(api, task, Math.Max(1, options.Value.MaxLogEntriesPerBatch), timeProvider, logger);

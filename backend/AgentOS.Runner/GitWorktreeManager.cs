@@ -9,7 +9,12 @@ namespace AgentOS.Runner;
 
 public sealed record WorktreeRequest(Guid CodingRunId, string BaseRevision);
 
-public sealed record WorktreeContext(string Path, string RepositoryPath, string Branch, string WorktreeId);
+public sealed record WorktreeContext(
+    string Path,
+    string RepositoryPath,
+    string Branch,
+    string WorktreeId,
+    string BaseRevision);
 
 public sealed record WorktreeCreateResult(
     bool Success,
@@ -121,7 +126,15 @@ public sealed class GitWorktreeManager(
             return Failure("worktree-not-a-repository", "Project workspace is not a Git repository.");
         }
 
-        var repositoryPath = repository.Output.Trim();
+        string repositoryPath;
+        try
+        {
+            repositoryPath = Path.GetFullPath(repository.Output.Trim());
+        }
+        catch (Exception exception) when (exception is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return Failure("worktree-not-a-repository", "Repository path is invalid.");
+        }
         if (IsOverlapping(rootPath, repositoryPath))
         {
             return Failure("worktree-config", "Worktree root must not overlap the shared repository.");
@@ -142,7 +155,10 @@ public sealed class GitWorktreeManager(
         var worktreePath = Path.Combine(rootPath, repoKey, worktreeId);
         var branch = $"aos/coding-run/{worktreeId}";
 
-        if (Directory.Exists(worktreePath) || File.Exists(worktreePath))
+        if (HasReparsePoint(rootPath)
+            || HasReparsePoint(Path.Combine(rootPath, repoKey))
+            || Directory.Exists(worktreePath)
+            || File.Exists(worktreePath))
         {
             return Failure("worktree-conflict", "Worktree path already exists.");
         }
@@ -181,7 +197,7 @@ public sealed class GitWorktreeManager(
 
         return new WorktreeCreateResult(
             true,
-            new WorktreeContext(worktreePath, repositoryPath, branch, worktreeId),
+            new WorktreeContext(worktreePath, repositoryPath, branch, worktreeId, request.BaseRevision),
             null,
             null);
     }
@@ -202,6 +218,23 @@ public sealed class GitWorktreeManager(
             if (!IsUnder(rootPath, worktreePath) || !context.Branch.StartsWith("aos/coding-run/", StringComparison.Ordinal))
             {
                 logger.LogWarning("Refusing to remove worktree outside the configured root.");
+                return;
+            }
+
+            var status = await RunGitAsync(worktreePath, ["status", "--porcelain"], cancellationToken);
+            var ahead = await RunGitAsync(
+                worktreePath,
+                ["rev-list", "--count", $"{context.BaseRevision}..HEAD"],
+                cancellationToken);
+
+            if (!status.Success
+                || !ahead.Success
+                || !string.IsNullOrWhiteSpace(status.Output)
+                || (int.TryParse(ahead.Output.Trim(), out var commitCount) && commitCount > 0))
+            {
+                logger.LogWarning(
+                    "Worktree {WorktreeId} contains unarchived changes or commits; retaining it.",
+                    context.WorktreeId);
                 return;
             }
 
@@ -243,6 +276,19 @@ public sealed class GitWorktreeManager(
             || candidate.StartsWith(
                 normalizedRoot + Path.DirectorySeparatorChar,
                 StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool HasReparsePoint(string path)
+    {
+        try
+        {
+            return Directory.Exists(path)
+                && new DirectoryInfo(path).Attributes.HasFlag(FileAttributes.ReparsePoint);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return true;
+        }
     }
 
     private static bool IsOverlapping(string root, string repository)
