@@ -77,24 +77,15 @@ public sealed class DecisionMemoryStore(AgentOSDbContext dbContext) : IDecisionM
         DateTime nowUtc,
         CancellationToken cancellationToken)
     {
-        var memory = await dbContext.DecisionMemories.FirstOrDefaultAsync(
-            candidate => candidate.Id == id,
-            cancellationToken);
-        if (memory is null)
-        {
-            return false;
-        }
+        var updated = await dbContext.DecisionMemories
+            .Where(candidate => candidate.Id == id && candidate.InvalidatedAtUtc == null)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(candidate => candidate.InvalidatedAtUtc, nowUtc)
+                .SetProperty(candidate => candidate.InvalidatedBy, "dev-user")
+                .SetProperty(candidate => candidate.InvalidationReason, reason.Length <= 1000 ? reason : reason[..1000])
+                .SetProperty(candidate => candidate.UpdatedAtUtc, nowUtc), cancellationToken);
 
-        if (memory.InvalidatedAtUtc is null)
-        {
-            memory.InvalidatedAtUtc = nowUtc;
-            memory.InvalidatedBy = "dev-user";
-            memory.InvalidationReason = reason.Length <= 1000 ? reason : reason[..1000];
-            memory.UpdatedAtUtc = nowUtc;
-            await dbContext.SaveChangesAsync(cancellationToken);
-        }
-
-        return true;
+        return updated > 0 || await dbContext.DecisionMemories.AnyAsync(candidate => candidate.Id == id, cancellationToken);
     }
 
     public async Task<IReadOnlyList<DecisionMemoryView>> ReferencesAsync(
@@ -112,15 +103,19 @@ public sealed class DecisionMemoryStore(AgentOSDbContext dbContext) : IDecisionM
             .Take(5)
             .ToListAsync(cancellationToken);
 
-        foreach (var memory in memories)
-        {
-            memory.HitCount++;
-            memory.LastHitAtUtc = nowUtc;
-        }
-
         if (memories.Count > 0)
         {
-            await dbContext.SaveChangesAsync(cancellationToken);
+            var ids = memories.Select(memory => memory.Id).ToArray();
+            await dbContext.DecisionMemories
+                .Where(memory => ids.Contains(memory.Id))
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(memory => memory.HitCount, memory => memory.HitCount + 1)
+                    .SetProperty(memory => memory.LastHitAtUtc, nowUtc), cancellationToken);
+            memories = await dbContext.DecisionMemories
+                .AsNoTracking()
+                .Where(memory => ids.Contains(memory.Id))
+                .OrderByDescending(memory => memory.DecidedAtUtc)
+                .ToListAsync(cancellationToken);
         }
 
         return memories.Select(ToView).ToList();
