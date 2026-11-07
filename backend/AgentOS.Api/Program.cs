@@ -1,14 +1,19 @@
 using AgentOS.Api.Endpoints;
+using AgentOS.Api.Reviews;
 using AgentOS.Api.Filters;
 using AgentOS.Api.Realtime;
 using AgentOS.Api.Health;
 using AgentOS.Api.Security;
 using AgentOS.Application.Events;
 using AgentOS.Application.Agents;
+using AgentOS.AgentAdapters;
+using AgentOS.AgentAdapters.Codex;
+using AgentOS.AgentAdapters.Processes;
 using AgentOS.Application.CodingRuns;
 using AgentOS.Application.ModelProfiles;
 using AgentOS.Application.Observability;
 using AgentOS.Application.Planning;
+using AgentOS.Application.Reviews;
 using AgentOS.Application.Rules;
 using AgentOS.Application.Skills;
 using AgentOS.Application.Runners;
@@ -43,6 +48,9 @@ builder.Services.Configure<RunnerRegistrationOptions>(builder.Configuration.GetS
 builder.Services.Configure<SkillContentOptions>(builder.Configuration.GetSection("Skills"));
 builder.Services.Configure<ArtifactOptions>(builder.Configuration.GetSection("Artifacts"));
 builder.Services.Configure<PlannerOptions>(builder.Configuration.GetSection("Planner"));
+builder.Services.Configure<CodexCliOptions>(builder.Configuration.GetSection("Codex"));
+builder.Services.AddSingleton<IProcessRunner, ExternalProcessRunner>();
+builder.Services.AddSingleton<IAgentAdapter, CodexCliAdapter>();
 builder.Services.AddHttpClient("planner", client => client.Timeout = Timeout.InfiniteTimeSpan)
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
 builder.Services.AddScoped<TaskQueueService>();
@@ -52,6 +60,8 @@ builder.Services.AddScoped<ModelProfileService>();
 builder.Services.AddScoped<SkillService>();
 builder.Services.AddScoped<PlannerService>();
 builder.Services.AddScoped<CodingRunService>();
+builder.Services.AddScoped<ReviewService>();
+builder.Services.AddScoped<IReviewAgent, CodexReviewAgent>();
 builder.Services.AddScoped<ApiClientAuthenticationFilter>();
 builder.Services.AddScoped<RunnerAuthenticationFilter>();
 

@@ -13,6 +13,7 @@ namespace AgentOS.Runner;
 public sealed class CodexTaskHandler(
     IAgentAdapter adapter,
     IValidationCommandRunner validationRunner,
+    IChangeSetCapture changeSetCapture,
     IOptions<CodexCliOptions> codexOptions,
     ILogger<CodexTaskHandler> logger) : ITaskHandler
 {
@@ -107,10 +108,43 @@ public sealed class CodexTaskHandler(
                     return validationFailure;
                 }
 
+                var artifacts = BuildArtifacts(result);
+                var baseRevision = ReadBaseRevision(context.InputJson);
+                if (!string.IsNullOrWhiteSpace(baseRevision))
+                {
+                    var capture = await changeSetCapture.CaptureAsync(
+                        context.WorkspacePath,
+                        baseRevision,
+                        cancellationToken);
+
+                    if (!capture.Success || capture.Artifact is null)
+                    {
+                        context.Log(
+                            "error",
+                            $"change set capture failed: {capture.ErrorCode} {capture.ErrorMessage}");
+                        return TaskHandlerResult.Failed(
+                            capture.ErrorCode ?? "changeset-error",
+                            capture.ErrorMessage ?? "Could not capture the change set.",
+                            retryable: false) with
+                        {
+                            Artifacts = artifacts
+                        };
+                    }
+
+                    artifacts = Append(
+                        artifacts,
+                        new TaskArtifactFile("changeset.diff", "text/plain", capture.Artifact.DiffPath),
+                        new TaskArtifactFile("changeset.json", "application/json", capture.Artifact.MetadataPath));
+
+                    context.Log(
+                        "info",
+                        $"change set captured: {capture.Artifact.Files.Count} file(s), base {baseRevision} head {capture.Artifact.HeadRevision}");
+                }
+
                 return TaskHandlerResult.Succeeded(result.ExitCode ?? 0, result.Summary)
                     with
                     {
-                        Artifacts = BuildArtifacts(result)
+                        Artifacts = artifacts
                     };
 
             case AgentExecutionStatus.Cancelled:
@@ -261,6 +295,36 @@ public sealed class CodexTaskHandler(
         }
 
         return parsed;
+    }
+
+    private static IReadOnlyList<TaskArtifactFile>? Append(
+        IReadOnlyList<TaskArtifactFile>? existing,
+        params TaskArtifactFile[] additional)
+    {
+        var combined = new List<TaskArtifactFile>();
+        if (existing is not null)
+        {
+            combined.AddRange(existing);
+        }
+
+        combined.AddRange(additional);
+        return combined;
+    }
+
+    private static string? ReadBaseRevision(string inputJson)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(inputJson);
+            return document.RootElement.TryGetProperty("baseRevision", out var value)
+                && value.ValueKind == JsonValueKind.String
+                ? value.GetString()
+                : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     private static IReadOnlyList<TaskArtifactFile>? BuildArtifacts(AgentExecutionResult result)

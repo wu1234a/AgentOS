@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using AgentOS.Application.Tasks;
 using AgentOS.Domain.CodingRuns;
 using AgentOS.Domain.Planning;
@@ -80,6 +81,21 @@ public sealed class CodingRunService(
             return CodingRunResult.NotFound();
         }
 
+        var baseRevision = string.IsNullOrWhiteSpace(request.BaseRevision)
+            ? null
+            : request.BaseRevision.Trim().ToLowerInvariant();
+
+        if (baseRevision is not null
+            && !Regex.IsMatch(baseRevision, "^[0-9a-f]{7,64}$", RegexOptions.CultureInvariant))
+        {
+            return CodingRunResult.Invalid(
+                "base-revision-invalid",
+                new Dictionary<string, string[]>
+                {
+                    ["baseRevision"] = ["baseRevision must be a 7-64 character hex commit id."]
+                });
+        }
+
         var validationCommands = NormalizeCommands(request.ValidationCommands);
         if (validationCommands is null)
         {
@@ -149,6 +165,7 @@ public sealed class CodingRunService(
             agentId = request.AgentId,
             modelProfileId = draft.ModelProfileId,
             validationCommands,
+            baseRevision,
             createdAtUtc = now
         });
 

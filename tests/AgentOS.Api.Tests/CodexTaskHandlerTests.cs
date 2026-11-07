@@ -12,6 +12,7 @@ public sealed class CodexTaskHandlerTests
 {
     private readonly FakeAgentAdapter _adapter = new();
     private readonly FakeValidationRunner _validation = new();
+    private readonly FakeChangeSetCapture _changeSet = new();
     private readonly List<string> _logs = [];
 
     [Fact]
@@ -156,9 +157,25 @@ public sealed class CodexTaskHandlerTests
         Assert.Empty(_validation.Commands);
     }
 
+    [Fact]
+    public async Task Base_revision_captures_changeset_artifacts()
+    {
+        _adapter.Result = Result(AgentExecutionStatus.Succeeded, 0);
+
+        var result = await CreateHandler().ExecuteAsync(
+            Context(inputJson: """{"baseRevision":"abc1234"}"""),
+            CancellationToken.None);
+
+        Assert.Equal(HandlerOutcome.Succeeded, result.Outcome);
+        Assert.NotNull(result.Artifacts);
+        Assert.Contains(result.Artifacts!, artifact => artifact.Name == "changeset.diff");
+        Assert.Contains(result.Artifacts!, artifact => artifact.Name == "changeset.json");
+    }
+
     private CodexTaskHandler CreateHandler() => new(
         _adapter,
         _validation,
+        _changeSet,
         Options.Create(new CodexCliOptions { SandboxMode = "read-only" }),
         NullLogger<CodexTaskHandler>.Instance);
 
@@ -196,6 +213,24 @@ public sealed class CodexTaskHandlerTests
             errorCode,
             errorCode,
             null);
+}
+
+public sealed class FakeChangeSetCapture : IChangeSetCapture
+{
+    public Task<ChangeSetCaptureResult> CaptureAsync(
+        string workspacePath,
+        string baseRevision,
+        CancellationToken cancellationToken)
+        => Task.FromResult(new ChangeSetCaptureResult(
+            true,
+            new ChangeSetArtifact(
+                Path.Combine(Path.GetTempPath(), "changeset.diff"),
+                Path.Combine(Path.GetTempPath(), "changeset.json"),
+                baseRevision,
+                baseRevision,
+                []),
+            null,
+            null));
 }
 
 public sealed class FakeValidationRunner : IValidationCommandRunner

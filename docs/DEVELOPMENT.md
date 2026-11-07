@@ -743,3 +743,27 @@ Model/Provider/ExecutionMode 下发到 Runner，并传给 Codex `-m`）。
 - 每条命令默认 600s，范围 1–1800s；Runner 清空环境，只保留 PATH/SystemRoot/TEMP 等，
   因此校验命令读不到 `KIMI_API_KEY` 等密钥。
 - 当前仍在项目工作区执行，不创建独立 worktree；worktree 属于 AOS-017。
+
+## 23. AOS-014 Review Agent
+
+### 23.1 变更集
+
+- 创建 Coding Run 时可传 `baseRevision`（7–64 位十六进制 commit）。
+- Runner 在 Codex 与校验成功后采集 `HEAD`、`git diff base..HEAD`、变更文件清单，上传
+  `changeset.diff`/`changeset.json` Artifact；采集失败任务为 `changeset-error`。
+- 没有 baseRevision 的 Run 不能发起 Review。
+
+### 23.2 审查
+
+- `POST /api/v1/coding-runs/{id}/review`：仅 Succeeded 且有 changeset 的 Run；同步执行
+  Codex 只读审查，返回 ReviewRun + findings；已成功/进行中幂等，Failed 可重试。
+- `GET .../review`：查询结论、摘要与 findings；未发起 404。
+- Review Agent 使用 Codex CLI 只读沙箱、固定提示词、严格 JSON 解析；不修改代码、不合并、
+  不执行校验命令。
+- 结论只是辅助意见，不改变 Coding Run/校验状态。
+
+### 23.3 限制
+
+- 同步审查最长 600s；无后台队列。
+- 不自动触发；必须在 `/coding-runs` 详情手动点击。
+- 不提供多 Reviewer/多模型、历史趋势或自动修复。

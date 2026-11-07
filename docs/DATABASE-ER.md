@@ -538,3 +538,11 @@ Client 是否存在。
   ProjectId/AgentId、TaskId、Status、AttemptCount、错误与时间戳、RowVersion。
 - `CodingRunEvents`：RunId + Sequence 唯一，记录 created/task-status/retrying 等审计事件。
 - 执行仍复用 `Tasks`/`TaskAttempts`；Run 只做编排与状态投影，不复制执行日志。
+
+### 3.27 AOS-014 Review
+
+- `ReviewRuns`：CodingRunId（唯一）、Base/HeadRevision、Status（Queued/Running/Succeeded/Failed）、
+  Conclusion（NoIssues/IssuesFound）、Summary、错误、AttemptCount、时间戳、RowVersion。
+- `ReviewFindings`：ReviewRunId + SortOrder 唯一，Severity、FilePath、Start/EndLine、Reason、
+  Suggestion；Review 删除时级联。
+- 审查只读：不修改 Coding Run、任务或工作区；失败不保留部分 findings。

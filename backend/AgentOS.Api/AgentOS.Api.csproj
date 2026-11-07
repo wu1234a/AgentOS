@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\AgentOS.Application\AgentOS.Application.csproj" />
     <ProjectReference Include="..\AgentOS.Infrastructure\AgentOS.Infrastructure.csproj" />
+    <ProjectReference Include="..\AgentOS.AgentAdapters\AgentOS.AgentAdapters.csproj" />
   </ItemGroup>
 
   <ItemGroup>

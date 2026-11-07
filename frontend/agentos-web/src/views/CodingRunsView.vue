@@ -10,6 +10,7 @@ import {
 } from '../api/codingRuns'
 import { listAgents } from '../api/agents'
 import { listDrafts } from '../api/planner'
+import { createReview, getReview } from '../api/reviews'
 import { formatUtc } from '../utils/format'
 
 const items = ref([])
@@ -24,6 +25,9 @@ const drafts = ref([])
 const createVisible = ref(false)
 const detailVisible = ref(false)
 const detail = ref(null)
+const review = ref(null)
+const reviewLoading = ref(false)
+const reviewError = ref('')
 const form = reactive({
   draftId: '',
   agentId: '',
@@ -106,8 +110,27 @@ async function openDetail(row) {
   try {
     detail.value = await getCodingRun(row.id)
     detailVisible.value = true
+    review.value = null
+    reviewError.value = ''
+    try {
+      review.value = await getReview(row.id)
+    } catch {
+      review.value = null
+    }
   } catch (exception) {
     ElMessage.error(exception.message)
+  }
+}
+
+async function startReview(row) {
+  reviewLoading.value = true
+  reviewError.value = ''
+  try {
+    review.value = await createReview(row.id)
+  } catch (exception) {
+    reviewError.value = exception.message
+  } finally {
+    reviewLoading.value = false
   }
 }
 
@@ -266,6 +289,42 @@ onMounted(async () => {
           <el-descriptions-item label="错误码">{{ detail.run.errorCode || '-' }}</el-descriptions-item>
           <el-descriptions-item label="快照哈希">{{ detail.run.draftContentHash.slice(0, 16) }}…</el-descriptions-item>
         </el-descriptions>
+
+        <h4>Review</h4>
+        <div v-if="!review" class="review-start">
+          <el-button type="primary" :loading="reviewLoading" @click="startReview(detail.run)">
+            开始审查
+          </el-button>
+          <span class="muted">只读审查，不会修改代码或合并</span>
+        </div>
+        <el-alert v-if="reviewError" :title="reviewError" type="error" show-icon :closable="false" />
+        <template v-if="review">
+          <el-descriptions :column="2" border>
+            <el-descriptions-item label="状态">{{ review.status }}</el-descriptions-item>
+            <el-descriptions-item label="结论">{{ review.conclusion || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="尝试次数">{{ review.attemptCount }}</el-descriptions-item>
+            <el-descriptions-item label="错误码">{{ review.errorCode || '-' }}</el-descriptions-item>
+          </el-descriptions>
+          <p v-if="review.summary" class="review-summary">{{ review.summary }}</p>
+          <el-table v-if="review.findings?.length" :data="review.findings" size="small">
+            <el-table-column prop="severity" label="级别" width="90" />
+            <el-table-column prop="filePath" label="文件" min-width="180" />
+            <el-table-column label="行" width="90">
+              <template #default="{ row }">{{ row.startLine || '文件级' }}</template>
+            </el-table-column>
+            <el-table-column prop="reason" label="理由" min-width="200" />
+            <el-table-column prop="suggestion" label="建议" min-width="200" />
+          </el-table>
+          <el-button
+            v-if="review.status === 'Failed'"
+            type="primary"
+            :loading="reviewLoading"
+            @click="startReview(detail.run)"
+          >
+            重试审查
+          </el-button>
+        </template>
+
         <h4>状态事件</h4>
         <el-timeline>
           <el-timeline-item
@@ -296,6 +355,18 @@ onMounted(async () => {
   color: #6b7280;
   margin: 4px 0 0;
 }
+.review-start {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.review-summary {
+  margin: 12px 0;
+  white-space: pre-wrap;
+}
+
 .pager {
   margin-top: 16px;
   justify-content: flex-end;

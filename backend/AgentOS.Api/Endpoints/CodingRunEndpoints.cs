@@ -1,5 +1,6 @@
 using AgentOS.Api.Filters;
 using AgentOS.Application.CodingRuns;
+using AgentOS.Application.Reviews;
 
 namespace AgentOS.Api.Endpoints;
 
@@ -15,6 +16,8 @@ public static class CodingRunEndpoints
         group.MapPost("", CreateAsync).WithName("CreateCodingRun");
         group.MapPost("/{runId:guid}/cancel", CancelAsync).WithName("CancelCodingRun");
         group.MapPost("/{runId:guid}/retry", RetryAsync).WithName("RetryCodingRun");
+        group.MapGet("/{runId:guid}/review", GetReviewAsync).WithName("GetCodingRunReview");
+        group.MapPost("/{runId:guid}/review", CreateReviewAsync).WithName("CreateCodingRunReview");
 
         return app;
     }
@@ -60,6 +63,39 @@ public static class CodingRunEndpoints
         CodingRunService service,
         CancellationToken cancellationToken)
         => Map(await service.CancelAsync(runId, cancellationToken));
+
+    private static async Task<IResult> GetReviewAsync(
+        Guid runId,
+        ReviewService service,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.GetAsync(runId, cancellationToken);
+        return result.Outcome == ReviewOutcome.NotFound
+            ? Results.NotFound()
+            : Results.Ok(result.Review);
+    }
+
+    private static async Task<IResult> CreateReviewAsync(
+        Guid runId,
+        ReviewService service,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.CreateOrRetryAsync(runId, cancellationToken);
+        return MapReview(result);
+    }
+
+    private static IResult MapReview(ReviewResult result)
+        => result.Outcome switch
+        {
+            ReviewOutcome.Ok => Results.Ok(result.Review),
+            ReviewOutcome.NotFound => Results.Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Review not found"),
+            _ => Results.Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "Review conflict",
+                extensions: new Dictionary<string, object?> { ["code"] = result.ErrorCode })
+        };
 
     private static async Task<IResult> RetryAsync(
         Guid runId,
