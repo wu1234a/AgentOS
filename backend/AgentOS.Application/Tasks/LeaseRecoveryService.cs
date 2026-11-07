@@ -15,13 +15,18 @@ public sealed class LeaseRecoveryService(
     ITaskQueueStore store,
     TimeProvider timeProvider,
     IOptions<TaskQueueOptions> options,
-    ILogger<LeaseRecoveryService> logger)
+    ILogger<LeaseRecoveryService> logger,
+    ITaskDependencyCoordinator? dependencies = null)
 {
     private const int BatchLimit = 200;
 
     public async Task<LeaseRecoveryStats> RecoverAsync(CancellationToken cancellationToken)
     {
         var now = timeProvider.GetUtcNow().UtcDateTime;
+        if (dependencies is not null)
+        {
+            await dependencies.ReleaseAndPropagateAsync(now, cancellationToken);
+        }
         var expired = await store.LoadExpiredLeasesAsync(now, BatchLimit, cancellationToken);
         if (expired.Count == 0)
         {

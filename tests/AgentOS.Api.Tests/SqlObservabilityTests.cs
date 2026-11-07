@@ -301,7 +301,7 @@ public sealed class SqlObservabilityTests
     {
         await using var context = NewContext(connectionString);
         await context.Database.ExecuteSqlRawAsync(
-            "DELETE FROM [CodingRunEvents]; DELETE FROM [CodingRuns]; DELETE FROM [TaskLogs]; DELETE FROM [UsageRecords]; DELETE FROM [Artifacts]; DELETE FROM [TaskAttempts]; DELETE FROM [Tasks]; DELETE FROM [Events]; DELETE FROM [ApiClients]; DELETE FROM [Workers];");
+            "DELETE FROM [TaskDependencies]; DELETE FROM [CodingRunEvents]; DELETE FROM [CodingRuns]; DELETE FROM [TaskLogs]; DELETE FROM [UsageRecords]; DELETE FROM [Artifacts]; DELETE FROM [TaskAttempts]; DELETE FROM [Tasks]; DELETE FROM [Events]; DELETE FROM [ApiClients]; DELETE FROM [Workers];");
     }
 
     private static async Task<Project> SeedProjectAsync(AgentOSDbContext context)

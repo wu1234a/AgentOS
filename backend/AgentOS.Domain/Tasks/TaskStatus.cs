@@ -11,5 +11,8 @@ public enum TaskStatus
     Failed = 5,
     Cancelled = 6,
     AwaitingApproval = 7,
-    Rejected = 8
+    Rejected = 8,
+
+    /// <summary>Waiting for all prerequisites to succeed (AOS-016).</summary>
+    Blocked = 9
 }

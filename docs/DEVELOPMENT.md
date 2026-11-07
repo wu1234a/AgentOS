@@ -792,3 +792,10 @@ Model/Provider/ExecutionMode 下发到 Runner，并传给 Codex `-m`）。
 - Runner 从 base commit 创建独立目录/分支，执行、校验、changeset 采集都在 worktree 内；结束后清理。
 - 不 fetch、不切换共享分支、不 merge/push；清理失败保留现场。
 - 限制：无清单/崩溃恢复、无 API/UI 状态、无 per-repo 管理锁（后续 017b）。
+
+## 27. AOS-016 任务依赖
+
+- `TaskStatus.Blocked`；`TaskDependencies(TaskId, PrerequisiteTaskId)` Finish-to-Start。
+- Claimer 不领取依赖未全部 Succeeded 的任务（SQL 两处检查）。
+- LeaseRecovery 每轮运行依赖协调：前置成功释放，前置失败传播 `dependency-failed`。
+- 当前无 API/前端/阶段字段；依赖写入与四阶段 CodingRun 在后续阶段。

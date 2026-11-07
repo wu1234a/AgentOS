@@ -1270,6 +1270,24 @@ namespace AgentOS.Infrastructure.Migrations
                     b.ToTable("TaskAttempts", (string)null);
                 });
 
+            modelBuilder.Entity("AgentOS.Domain.Tasks.TaskDependency", b =>
+                {
+                    b.Property<Guid>("TaskId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("PrerequisiteTaskId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("TaskId", "PrerequisiteTaskId");
+
+                    b.HasIndex("PrerequisiteTaskId");
+
+                    b.ToTable("TaskDependencies", (string)null);
+                });
+
             modelBuilder.Entity("AgentOS.Domain.Tasks.TaskLog", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1674,6 +1692,21 @@ namespace AgentOS.Infrastructure.Migrations
                     b.HasOne("AgentOS.Domain.Workers.Worker", null)
                         .WithMany()
                         .HasForeignKey("WorkerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AgentOS.Domain.Tasks.TaskDependency", b =>
+                {
+                    b.HasOne("AgentOS.Domain.Tasks.AutomationTask", null)
+                        .WithMany()
+                        .HasForeignKey("PrerequisiteTaskId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AgentOS.Domain.Tasks.AutomationTask", null)
+                        .WithMany()
+                        .HasForeignKey("TaskId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

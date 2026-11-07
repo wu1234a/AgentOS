@@ -51,6 +51,7 @@ public sealed class AgentOSDbContext(DbContextOptions<AgentOSDbContext> options)
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
     public DbSet<PlanningDraft> PlanningDrafts => Set<PlanningDraft>();
     public DbSet<CodingRun> CodingRuns => Set<CodingRun>();
+    public DbSet<TaskDependency> TaskDependencies => Set<TaskDependency>();
     public DbSet<CodingRunEvent> CodingRunEvents => Set<CodingRunEvent>();
     public DbSet<ReviewRun> ReviewRuns => Set<ReviewRun>();
     public DbSet<ReviewFinding> ReviewFindings => Set<ReviewFinding>();
