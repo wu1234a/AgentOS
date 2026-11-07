@@ -806,3 +806,10 @@ Model/Provider/ExecutionMode 下发到 Runner，并传给 Codex `-m`）。
 - `POST /api/v1/tasks/{parentId}/subtasks` 创建直接子任务；依赖未满足时为 Blocked。
 - `GET /api/v1/tasks/{parentId}/subtasks` 返回子任务、依赖与父任务汇总。
 - 当前无审计历史、无 CodingRun 自动阶段推进、无前端。
+
+## 29. AOS-018 Approval Center
+
+- `ApprovalRequests`：CodingRun/PlannerDraft 目标、Pending/Approved/Rejected、申请/决策理由。
+- API：`/api/v1/approval-requests` 创建/列表/详情/决策；同一目标仅一个 Pending。
+- 审批只记录决策，不执行、不合并、不改变目标状态。
+- 前端 `/approvals`；当前仅开发 Key，无细粒度 RBAC/并发令牌。

@@ -12,6 +12,7 @@ import ModelProfilesView from '../views/ModelProfilesView.vue'
 import SkillsView from '../views/SkillsView.vue'
 import PlannerView from '../views/PlannerView.vue'
 import CodingRunsView from '../views/CodingRunsView.vue'
+import ApprovalsView from '../views/ApprovalsView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -57,6 +58,12 @@ const router = createRouter({
       name: 'planner',
       component: PlannerView,
       meta: { title: 'Planner' }
+    },
+    {
+      path: '/approvals',
+      name: 'approvals',
+      component: ApprovalsView,
+      meta: { title: 'Approvals' }
     },
     {
       path: '/coding-runs',

@@ -28,6 +28,10 @@ const collapsed = ref(false)
           <el-icon><MagicStick /></el-icon>
           <template #title>Planner</template>
         </el-menu-item>
+        <el-menu-item index="/approvals">
+          <el-icon><Document /></el-icon>
+          <template #title>Approvals</template>
+        </el-menu-item>
         <el-menu-item index="/coding-runs">
           <el-icon><SetUp /></el-icon>
           <template #title>Coding Runs</template>

@@ -1,4 +1,5 @@
 using AgentOS.Domain.Agents;
+using AgentOS.Domain.Approvals;
 using AgentOS.Domain.CodingRuns;
 using AgentOS.Domain.Artifacts;
 using AgentOS.Domain.Events;
@@ -52,6 +53,7 @@ public sealed class AgentOSDbContext(DbContextOptions<AgentOSDbContext> options)
     public DbSet<PlanningDraft> PlanningDrafts => Set<PlanningDraft>();
     public DbSet<CodingRun> CodingRuns => Set<CodingRun>();
     public DbSet<TaskDependency> TaskDependencies => Set<TaskDependency>();
+    public DbSet<ApprovalRequest> ApprovalRequests => Set<ApprovalRequest>();
     public DbSet<CodingRunEvent> CodingRunEvents => Set<CodingRunEvent>();
     public DbSet<ReviewRun> ReviewRuns => Set<ReviewRun>();
     public DbSet<ReviewFinding> ReviewFindings => Set<ReviewFinding>();

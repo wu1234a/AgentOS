@@ -9,6 +9,7 @@ using AgentOS.Application.Agents;
 using AgentOS.AgentAdapters;
 using AgentOS.AgentAdapters.Codex;
 using AgentOS.AgentAdapters.Processes;
+using AgentOS.Application.Approvals;
 using AgentOS.Application.CodingRuns;
 using AgentOS.Application.ModelProfiles;
 using AgentOS.Application.Observability;
@@ -62,6 +63,7 @@ builder.Services.AddScoped<SkillService>();
 builder.Services.AddScoped<PlannerService>();
 builder.Services.AddScoped<CodingRunService>();
 builder.Services.AddScoped<SubtaskService>();
+builder.Services.AddScoped<ApprovalService>();
 builder.Services.AddScoped<ReviewService>();
 builder.Services.AddScoped<QaService>();
 builder.Services.AddScoped<IReviewAgent, CodexReviewAgent>();
@@ -134,6 +136,7 @@ app.MapSkillEndpoints();
 app.MapPlannerEndpoints();
 app.MapCodingRunEndpoints();
 app.MapSubtaskEndpoints();
+app.MapApprovalEndpoints();
 app.MapHub<TaskHub>("/hubs/tasks");
 
 app.MapGet("/", () => Results.Ok(new

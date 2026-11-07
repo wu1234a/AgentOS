@@ -241,6 +241,7 @@ public sealed class SqlModelProfileTests
     {
         var connectionString = RequireConnectionString();
         await MigrateAsync(connectionString);
+        await ResetQueueAsync(connectionString);
 
         await using var context = NewContext(connectionString);
         var service = CreateService(context);
