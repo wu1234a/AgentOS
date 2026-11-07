@@ -32,5 +32,22 @@ public sealed class SqlKnowledgeTests
         var found = Assert.Single(results);
         Assert.Equal(document!.Id, found.Id);
         Assert.Contains(marker, found.Snippet);
+
+        var (tagged, _) = await service.CreateAsync(new KnowledgeDocumentRequest
+        {
+            Title = "部署手册",
+            Content = "生产部署步骤",
+            Tags = ["部署"]
+        }, CancellationToken.None);
+        Assert.NotNull(tagged);
+        Assert.Contains(await service.SearchAsync(null, "部署", 10, CancellationToken.None), item => item.Id == tagged!.Id);
+
+        var (_, sourceError) = await service.CreateAsync(new KnowledgeDocumentRequest
+        {
+            Title = "bad source",
+            Content = "content",
+            Source = new string('x', 101)
+        }, CancellationToken.None);
+        Assert.Equal("invalid-source", sourceError);
     }
 }

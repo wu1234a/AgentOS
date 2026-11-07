@@ -1,3 +1,4 @@
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using AgentOS.Domain.Knowledge;
 using AgentOS.Infrastructure.Persistence;
@@ -35,6 +36,8 @@ public sealed class KnowledgeService(AgentOSDbContext dbContext, TimeProvider ti
         var content = request.Content?.Trim() ?? string.Empty;
         if (title.Length is < 1 or > 200) return (null, "invalid-title");
         if (content.Length is < 1 or > 200_000) return (null, "invalid-content");
+        var source = string.IsNullOrWhiteSpace(request.Source) ? "manual" : request.Source.Trim();
+        if (source.Length > 100) return (null, "invalid-source");
         if (request.ProjectId is Guid projectId
             && !await dbContext.Projects.AnyAsync(project => project.Id == projectId, cancellationToken))
         {
@@ -48,8 +51,8 @@ public sealed class KnowledgeService(AgentOSDbContext dbContext, TimeProvider ti
             ProjectId = request.ProjectId,
             Title = title,
             Content = content,
-            TagsJson = JsonSerializer.Serialize(request.Tags ?? []),
-            Source = string.IsNullOrWhiteSpace(request.Source) ? "manual" : request.Source.Trim(),
+            TagsJson = JsonSerializer.Serialize(request.Tags ?? [], TagsOptions),
+            Source = source,
             CreatedAtUtc = now,
             UpdatedAtUtc = now
         };
@@ -90,6 +93,11 @@ public sealed class KnowledgeService(AgentOSDbContext dbContext, TimeProvider ti
         await dbContext.SaveChangesAsync(cancellationToken);
         return true;
     }
+
+    private static readonly JsonSerializerOptions TagsOptions = new()
+    {
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+    };
 
     private static KnowledgeDocumentView ToView(KnowledgeDocument document, string? query)
     {
