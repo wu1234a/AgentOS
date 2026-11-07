@@ -36,7 +36,7 @@
 | 质量门禁用例 | ✅ build success → pending；test success → success；test failure → failure |
 | CI | 见对应 run |
 
-## 4. 已知限制
+### 3.1 独立代码审查\n\nCodex CLI 审查发现 2 个 P1（stale attempt、并发发布顺序）与 1 个 P2（failure 被 pending 掩盖），全部修复，详见 `docs/reports/AOS-024-CODE-REVIEW.md`。\n\n## 4. 已知限制
 
 1. 不查询 GitHub Actions API，仅依赖收到的 workflow_run 事件；漏事件可能长期 pending，需管理员重跑 workflow 触发。
 2. 不自动配置分支保护；需手动把 `agentos/quality-gate` 加为 Required Check。

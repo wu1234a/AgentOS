@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using AgentOS.Domain.Quality;
 using AgentOS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -12,7 +13,31 @@ public sealed class QualityGateService(
     TimeProvider timeProvider,
     ILogger<QualityGateService> logger)
 {
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> Locks = new();
+
     public async Task EvaluateAsync(
+        string repository,
+        string headSha,
+        string workflowName,
+        long runId,
+        string status,
+        string? conclusion,
+        int runAttempt,
+        CancellationToken cancellationToken)
+    {
+        var gate = Locks.GetOrAdd($"{repository}|{headSha}", _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(cancellationToken);
+        try
+        {
+            await EvaluateCoreAsync(repository, headSha, workflowName, runId, status, conclusion, runAttempt, cancellationToken);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    private async Task EvaluateCoreAsync(
         string repository,
         string headSha,
         string workflowName,
@@ -31,9 +56,21 @@ public sealed class QualityGateService(
             run => run.Repository == repository && run.HeadSha == headSha && run.WorkflowName == workflowName,
             cancellationToken);
 
-        if (existing is not null && existing.RunId > runId)
+        if (existing is not null)
         {
-            return;
+            if (existing.RunId > runId)
+            {
+                return;
+            }
+
+            if (existing.RunId == runId
+                && (runAttempt < existing.RunAttempt
+                    || (runAttempt == existing.RunAttempt
+                        && existing.Status == "completed"
+                        && status != "completed")))
+            {
+                return;
+            }
         }
 
         if (existing is null)
@@ -70,33 +107,41 @@ public sealed class QualityGateService(
         var gateStatus = "success";
         var reasonCode = "all-required-workflows-succeeded";
         var reason = "All required workflows passed.";
+        string? failureReason = null;
+        string? pendingReason = null;
 
         foreach (var required in configuration.RequiredWorkflows)
         {
             var run = runs.FirstOrDefault(candidate => string.Equals(candidate.WorkflowName, required, StringComparison.Ordinal));
             if (run is null)
             {
-                gateStatus = "pending";
-                reasonCode = "required-workflow-missing";
-                reason = $"Waiting for required workflow '{required}'.";
-                break;
+                pendingReason ??= $"Waiting for required workflow '{required}'.";
+                continue;
             }
 
             if (!string.Equals(run.Status, "completed", StringComparison.OrdinalIgnoreCase))
             {
-                gateStatus = "pending";
-                reasonCode = "required-workflow-running";
-                reason = $"Required workflow '{required}' is still running.";
-                break;
+                pendingReason ??= $"Required workflow '{required}' is still running.";
+                continue;
             }
 
             if (!configuration.AllowedConclusions.Contains(run.Conclusion ?? string.Empty, StringComparer.OrdinalIgnoreCase))
             {
-                gateStatus = "failure";
-                reasonCode = "required-workflow-failed";
-                reason = $"Required workflow '{required}' concluded '{run.Conclusion}'.";
-                break;
+                failureReason ??= $"Required workflow '{required}' concluded '{run.Conclusion}'.";
             }
+        }
+
+        if (failureReason is not null)
+        {
+            gateStatus = "failure";
+            reasonCode = "required-workflow-failed";
+            reason = failureReason;
+        }
+        else if (pendingReason is not null)
+        {
+            gateStatus = "pending";
+            reasonCode = "required-workflow-pending";
+            reason = pendingReason;
         }
 
         var now = timeProvider.GetUtcNow().UtcDateTime;
