@@ -31,6 +31,7 @@ public sealed class SubtaskRepository(AgentOSDbContext dbContext) : ISubtaskRepo
 
     public async Task<IReadOnlyDictionary<Guid, TaskStatus>> GetDependencyStatusesAsync(
         IReadOnlyCollection<Guid> taskIds,
+        Guid projectId,
         CancellationToken cancellationToken)
     {
         if (taskIds.Count == 0)
@@ -40,12 +41,13 @@ public sealed class SubtaskRepository(AgentOSDbContext dbContext) : ISubtaskRepo
 
         return await dbContext.Tasks
             .AsNoTracking()
-            .Where(task => taskIds.Contains(task.Id))
+            .Where(task => taskIds.Contains(task.Id) && task.ProjectId == projectId)
             .ToDictionaryAsync(task => task.Id, task => task.Status, cancellationToken);
     }
 
     public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<Guid>>> GetDependencyIdsAsync(
         IReadOnlyCollection<Guid> taskIds,
+        Guid projectId,
         CancellationToken cancellationToken)
     {
         if (taskIds.Count == 0)

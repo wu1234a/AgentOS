@@ -78,6 +78,7 @@ public sealed class AutomationTaskConfiguration : IEntityTypeConfiguration<Autom
             .HasForeignKey(task => task.LeaseOwnerWorkerId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        builder.Property(task => task.PhaseKey).HasMaxLength(64);
         builder.HasIndex(task => task.TaskCode)
             .IsUnique()
             .HasDatabaseName("UX_Tasks_TaskCode");

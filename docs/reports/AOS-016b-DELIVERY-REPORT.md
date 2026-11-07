@@ -28,7 +28,7 @@
 | 子任务用例 | ✅ 依赖未满足 Blocked、列表汇总、phaseKey 冲突 |
 | CI | 见对应 run |
 
-## 4. 已知限制
+### 3.1 独立代码审查\n\nCodex CLI 审查发现 2 个 P1（phaseKey 无数据库唯一索引、跨项目依赖）与 2 个 P2（描述长度、未解析依赖），全部修复，详见 `docs/reports/AOS-016b-CODE-REVIEW.md`。\n\n## 4. 已知限制
 
 1. 无状态迁移审计/历史 API。
 2. 无 CodingRun 阶段自动创建/推进。

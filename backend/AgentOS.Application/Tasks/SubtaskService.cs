@@ -15,10 +15,12 @@ public interface ISubtaskRepository
 
     Task<IReadOnlyDictionary<Guid, TaskStatus>> GetDependencyStatusesAsync(
         IReadOnlyCollection<Guid> taskIds,
+        Guid projectId,
         CancellationToken cancellationToken);
 
     Task<IReadOnlyDictionary<Guid, IReadOnlyList<Guid>>> GetDependencyIdsAsync(
         IReadOnlyCollection<Guid> taskIds,
+        Guid projectId,
         CancellationToken cancellationToken);
 
     Task AddAsync(AutomationTask task, CancellationToken cancellationToken);
@@ -63,6 +65,10 @@ public sealed class SubtaskService(
         }
 
         var description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
+        if (description is { Length: > 2000 })
+        {
+            return SubtaskResult.Invalid("description-too-long", "description", "Description must be 2000 characters or fewer.");
+        }
         var phaseKey = string.IsNullOrWhiteSpace(request.PhaseKey) ? null : request.PhaseKey.Trim();
         if (phaseKey is not null && !Regex.IsMatch(phaseKey, "^[a-z0-9][a-z0-9._-]{0,63}$"))
         {
@@ -82,7 +88,7 @@ public sealed class SubtaskService(
 
         var statuses = dependencyIds.Length == 0
             ? new Dictionary<Guid, TaskStatus>()
-            : await repository.GetDependencyStatusesAsync(dependencyIds, cancellationToken);
+            : await repository.GetDependencyStatusesAsync(dependencyIds, parent.ProjectId, cancellationToken);
 
         if (dependencyIds.Any(id => !statuses.ContainsKey(id)))
         {
@@ -133,8 +139,8 @@ public sealed class SubtaskService(
         await repository.SaveAsync(cancellationToken);
 
         logger.LogInformation("Created subtask {TaskId} under {ParentTaskId}.", taskId, parentTaskId);
-        var dependencies = await repository.GetDependencyIdsAsync([taskId], cancellationToken);
-        return SubtaskResult.Ok(ToView(task, dependencies.GetValueOrDefault(taskId) ?? []));
+        var dependencies = await repository.GetDependencyIdsAsync([taskId], parent.ProjectId, cancellationToken);
+        return SubtaskResult.Ok(ToView(task, dependencies.GetValueOrDefault(taskId) ?? [], statuses));
     }
 
     public async Task<SubtaskListResult?> ListAsync(Guid parentTaskId, CancellationToken cancellationToken)
@@ -146,9 +152,11 @@ public sealed class SubtaskService(
         }
 
         var children = await repository.ListChildrenAsync(parentTaskId, cancellationToken);
-        var dependencyMap = await repository.GetDependencyIdsAsync(children.Select(child => child.Id).ToArray(), cancellationToken);
+        var dependencyMap = await repository.GetDependencyIdsAsync(children.Select(child => child.Id).ToArray(), parent.ProjectId, cancellationToken);
+        var allDependencies = dependencyMap.Values.SelectMany(ids => ids).Distinct().ToArray();
+        var states = await repository.GetDependencyStatusesAsync(allDependencies, parent.ProjectId, cancellationToken);
         var views = children
-            .Select(child => ToView(child, dependencyMap.GetValueOrDefault(child.Id) ?? []))
+            .Select(child => ToView(child, dependencyMap.GetValueOrDefault(child.Id) ?? [], states))
             .ToList();
 
         var summary = new SubtaskSummary(
@@ -164,7 +172,10 @@ public sealed class SubtaskService(
         return new SubtaskListResult(parentTaskId, parent.Status.ToString(), views, summary);
     }
 
-    private static SubtaskView ToView(AutomationTask task, IReadOnlyList<Guid> dependencies)
+    private static SubtaskView ToView(
+        AutomationTask task,
+        IReadOnlyList<Guid> dependencies,
+        IReadOnlyDictionary<Guid, TaskStatus> statuses)
         => new(
             task.Id,
             task.ParentTaskId ?? Guid.Empty,
@@ -174,7 +185,7 @@ public sealed class SubtaskService(
             task.PhaseKey,
             task.Status.ToString(),
             dependencies,
-            dependencies,
+            dependencies.Where(id => !statuses.TryGetValue(id, out var status) || status != TaskStatus.Succeeded).ToList(),
             task.CreatedAtUtc,
             task.UpdatedAtUtc);
 }
