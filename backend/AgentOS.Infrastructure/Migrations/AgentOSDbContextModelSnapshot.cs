@@ -1472,6 +1472,9 @@ namespace AgentOS.Infrastructure.Migrations
                     b.Property<Guid>("ProjectId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<int>("RecoveryCount")
+                        .HasColumnType("int");
+
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
                         .IsRequired()

@@ -898,3 +898,9 @@ Model/Provider/ExecutionMode 下发到 Runner，并传给 Codex `-m`）。
 - `GET /api/v1/usage/statistics` 按项目/日期/Provider/Model 聚合 Token。
 - `Usage:Pricing` 按 provider|model 配置百万 Token 价格；缺失价格返回 null/MissingPrice。
 - 只读，无迁移/前端/预算拦截。
+
+## 43. AOS-030 死信与自动恢复
+
+- 死信 = Failed/Blocked/Rejected；API 查询/retry/takeover/cancel。
+- 自动恢复 Failed 超 15 分钟、最多 3 次，每 5 分钟最多 20 个。
+- 无独立死信表/审计/前端。
