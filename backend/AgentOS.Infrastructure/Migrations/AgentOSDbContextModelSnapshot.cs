@@ -1126,6 +1126,9 @@ namespace AgentOS.Infrastructure.Migrations
                     b.Property<Guid?>("ParentTaskId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("PhaseKey")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("Priority")
                         .IsRequired()
                         .HasMaxLength(16)

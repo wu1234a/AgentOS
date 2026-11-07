@@ -28,6 +28,9 @@ public sealed class AutomationTask
 
     public Guid? ParentTaskId { get; init; }
 
+    /// <summary>Stable phase key for Coding Run stage subtasks (AOS-016b).</summary>
+    public string? PhaseKey { get; set; }
+
     /// <summary>
     /// Idempotency key: <c>EventId:RuleId:RuleVersion:DispatchKey</c>. Backed by a unique index,
     /// so the same event cannot produce the same logical task twice.

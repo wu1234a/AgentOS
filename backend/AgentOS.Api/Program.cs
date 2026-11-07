@@ -61,6 +61,7 @@ builder.Services.AddScoped<ModelProfileService>();
 builder.Services.AddScoped<SkillService>();
 builder.Services.AddScoped<PlannerService>();
 builder.Services.AddScoped<CodingRunService>();
+builder.Services.AddScoped<SubtaskService>();
 builder.Services.AddScoped<ReviewService>();
 builder.Services.AddScoped<QaService>();
 builder.Services.AddScoped<IReviewAgent, CodexReviewAgent>();
@@ -132,6 +133,7 @@ app.MapModelProfileEndpoints();
 app.MapSkillEndpoints();
 app.MapPlannerEndpoints();
 app.MapCodingRunEndpoints();
+app.MapSubtaskEndpoints();
 app.MapHub<TaskHub>("/hubs/tasks");
 
 app.MapGet("/", () => Results.Ok(new

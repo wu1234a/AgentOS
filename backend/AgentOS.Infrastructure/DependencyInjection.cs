@@ -54,6 +54,7 @@ public static class DependencyInjection
         services.AddScoped<ITaskClaimer, TaskClaimer>();
         services.AddScoped<ITaskQueueStore, TaskQueueStore>();
         services.AddScoped<ITaskDependencyCoordinator, TaskDependencyCoordinator>();
+        services.AddScoped<ISubtaskRepository, SubtaskRepository>();
         services.AddScoped<ITaskLogStore, TaskLogStore>();
         services.AddScoped<IApiClientStore, ApiClientStore>();
         services.AddScoped<IRunnerRegistrationStore, RunnerRegistrationStore>();

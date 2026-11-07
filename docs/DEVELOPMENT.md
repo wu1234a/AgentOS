@@ -799,3 +799,10 @@ Model/Provider/ExecutionMode 下发到 Runner，并传给 Codex `-m`）。
 - Claimer 不领取依赖未全部 Succeeded 的任务（SQL 两处检查）。
 - LeaseRecovery 每轮运行依赖协调：前置成功释放，前置失败传播 `dependency-failed`。
 - 当前无 API/前端/阶段字段；依赖写入与四阶段 CodingRun 在后续阶段。
+
+## 28. AOS-016b 子任务 API
+
+- `AutomationTask.PhaseKey` + `(ParentTaskId,PhaseKey)` 唯一索引。
+- `POST /api/v1/tasks/{parentId}/subtasks` 创建直接子任务；依赖未满足时为 Blocked。
+- `GET /api/v1/tasks/{parentId}/subtasks` 返回子任务、依赖与父任务汇总。
+- 当前无审计历史、无 CodingRun 自动阶段推进、无前端。
