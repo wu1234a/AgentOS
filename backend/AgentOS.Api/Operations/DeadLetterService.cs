@@ -70,7 +70,7 @@ public sealed class DeadLetterService(
     public async Task<bool> CancelAsync(Guid taskId, CancellationToken cancellationToken)
     {
         var task = await dbContext.Tasks.FirstOrDefaultAsync(candidate => candidate.Id == taskId, cancellationToken);
-        if (task is null || task.Status is TaskStatus.Succeeded or TaskStatus.Cancelled)
+        if (task is null || !DeadLetterStatuses.Contains(task.Status))
         {
             return false;
         }
@@ -116,7 +116,7 @@ public sealed class DeadLetterService(
     {
         var now = timeProvider.GetUtcNow().UtcDateTime;
         task.Status = TaskStatus.Queued;
-        task.AttemptCount = 0;
+        task.MaxAttempts = task.AttemptCount + 3;
         task.NextRunAtUtc = now;
         task.LeaseOwnerWorkerId = null;
         task.LeaseTokenHash = null;

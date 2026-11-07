@@ -52,7 +52,7 @@ public sealed class AutomationTask
     public int MaxAttempts { get; set; }
 
     /// <summary>Number of automatic dead-letter recoveries (AOS-030).</summary>
-    public int RecoveryCount { get; set; } = 2;
+    public int RecoveryCount { get; set; }
 
     public int TimeoutSeconds { get; set; } = 1800;
 

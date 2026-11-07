@@ -21,7 +21,7 @@
 | 死信用例 | ✅ 列表 + retry 回 Queued |
 | CI | 见对应 run |
 
-## 3. 已知限制
+### 2.1 独立代码审查\n\nCodex CLI 审查发现 1 个 P1（attempt 编号冲突）与 2 个 P2（RecoveryCount 初值、cancel 运行中任务），全部修复，详见 `docs/reports/AOS-030-CODE-REVIEW.md`。\n\n## 3. 已知限制
 
 1. 无独立死信表/消息队列。
 2. 无审计事件表；仅日志。
