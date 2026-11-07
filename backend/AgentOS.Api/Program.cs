@@ -56,6 +56,8 @@ builder.Services.Configure<PlannerOptions>(builder.Configuration.GetSection("Pla
 builder.Services.Configure<TelegramOptions>(builder.Configuration.GetSection("Telegram"));
 builder.Services.Configure<GitHubOptions>(builder.Configuration.GetSection("GitHub"));
 builder.Services.AddHttpClient<IGitHubPullRequestClient, GitHubPullRequestClient>();
+builder.Services.AddHttpClient<IGitHubCommitStatusClient, GitHubCommitStatusClient>();
+builder.Services.AddScoped<QualityGateService>();
 builder.Services.AddScoped<IGitHubReviewQueue, GitHubReviewQueue>();
 builder.Services.AddHostedService<GitHubReviewWorker>();
 builder.Services.AddHttpClient<ITelegramClient, HttpTelegramClient>()

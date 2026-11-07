@@ -23,6 +23,7 @@ public static class GitHubWebhookEndpoints
         EventService events,
         IOptions<GitHubOptions> options,
         IGitHubReviewQueue reviewQueue,
+        QualityGateService qualityGates,
         ILoggerFactory loggerFactory,
         CancellationToken cancellationToken)
     {
@@ -161,6 +162,31 @@ public static class GitHubWebhookEndpoints
                     prAction.GetString()!,
                     delivery,
                     cancellationToken);
+            }
+
+            if (eventName == "workflow_run"
+                && root.TryGetProperty("workflow_run", out var workflowRun)
+                && workflowRun.TryGetProperty("head_sha", out var workflowSha)
+                && workflowSha.GetString() is { } workflowShaValue)
+            {
+                try
+                {
+                    await qualityGates.EvaluateAsync(
+                        repository,
+                        workflowShaValue,
+                        workflowRun.TryGetProperty("name", out var workflowName) ? workflowName.GetString() ?? string.Empty : string.Empty,
+                        workflowRun.TryGetProperty("id", out var runId) ? runId.GetInt64() : 0,
+                        workflowRun.TryGetProperty("status", out var runStatus) ? runStatus.GetString() ?? string.Empty : string.Empty,
+                        workflowRun.TryGetProperty("conclusion", out var conclusion) && conclusion.ValueKind == JsonValueKind.String
+                            ? conclusion.GetString()
+                            : null,
+                        workflowRun.TryGetProperty("run_attempt", out var attempt) ? attempt.GetInt32() : 1,
+                        cancellationToken);
+                }
+                catch (Exception exception)
+                {
+                    logger.LogWarning(exception, "Quality gate evaluation failed for {Delivery}.", delivery);
+                }
             }
 
             logger.LogInformation(

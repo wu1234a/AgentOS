@@ -10,4 +10,5 @@ public sealed class GitHubOptions
     public bool ReviewEnabled { get; set; }
     public string? ReviewToken { get; set; }
     public int MaxReviewAttempts { get; set; } = 5;
+    public Dictionary<string, QualityGateRepositoryOptions> QualityGates { get; set; } = [];
 }

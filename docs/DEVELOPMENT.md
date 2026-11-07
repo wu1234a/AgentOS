@@ -855,3 +855,9 @@ Model/Provider/ExecutionMode 下发到 Runner，并传给 Codex `-m`）。
 - 发布单条 COMMENT Review；head 变化标记 Superseded；失败退避。
 - 需 `GitHub__ReviewToken`（Pull requests 写、contents 读）；不自动 approve/merge。
 - 无 inline comments/租约/Worker 测试。
+
+## 36. AOS-024 质量门禁
+
+- workflow_run 事件按 repo/SHA/workflow 累积，按必需 workflow 计算 pending/success/failure。
+- 发布 `agentos/quality-gate` commit status；分支保护可要求该检查。
+- 不自动配置分支保护/合并；漏事件需重跑 workflow。
