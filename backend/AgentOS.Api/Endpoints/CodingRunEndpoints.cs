@@ -1,5 +1,6 @@
 using AgentOS.Api.Filters;
 using AgentOS.Application.CodingRuns;
+using AgentOS.Application.Qa;
 using AgentOS.Application.Reviews;
 
 namespace AgentOS.Api.Endpoints;
@@ -18,6 +19,8 @@ public static class CodingRunEndpoints
         group.MapPost("/{runId:guid}/retry", RetryAsync).WithName("RetryCodingRun");
         group.MapGet("/{runId:guid}/review", GetReviewAsync).WithName("GetCodingRunReview");
         group.MapPost("/{runId:guid}/review", CreateReviewAsync).WithName("CreateCodingRunReview");
+        group.MapGet("/{runId:guid}/qa-runs/latest", GetLatestQaAsync).WithName("GetLatestQaRun");
+        group.MapPost("/{runId:guid}/qa-runs", CreateQaAsync).WithName("CreateQaRun");
 
         return app;
     }
@@ -82,6 +85,36 @@ public static class CodingRunEndpoints
     {
         var result = await service.CreateOrRetryAsync(runId, cancellationToken);
         return MapReview(result);
+    }
+
+    private static async Task<IResult> GetLatestQaAsync(
+        Guid runId,
+        QaService service,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.GetLatestAsync(runId, cancellationToken);
+        return result.Outcome == QaOutcome.NotFound
+            ? Results.NotFound()
+            : Results.Ok(result.Qa);
+    }
+
+    private static async Task<IResult> CreateQaAsync(
+        Guid runId,
+        QaService service,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.CreateAsync(runId, cancellationToken);
+        return result.Outcome switch
+        {
+            QaOutcome.Ok => Results.Ok(result.Qa),
+            QaOutcome.NotFound => Results.Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Coding run not found"),
+            _ => Results.Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "QA conflict",
+                extensions: new Dictionary<string, object?> { ["code"] = result.ErrorCode })
+        };
     }
 
     private static IResult MapReview(ReviewResult result)

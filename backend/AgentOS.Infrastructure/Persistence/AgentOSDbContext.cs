@@ -7,6 +7,7 @@ using AgentOS.Domain.Projects;
 using AgentOS.Domain.Outbox;
 using AgentOS.Domain.Planning;
 using AgentOS.Domain.Reviews;
+using AgentOS.Domain.Qa;
 using AgentOS.Domain.Rules;
 using AgentOS.Domain.Security;
 using AgentOS.Domain.Skills;
@@ -53,6 +54,8 @@ public sealed class AgentOSDbContext(DbContextOptions<AgentOSDbContext> options)
     public DbSet<CodingRunEvent> CodingRunEvents => Set<CodingRunEvent>();
     public DbSet<ReviewRun> ReviewRuns => Set<ReviewRun>();
     public DbSet<ReviewFinding> ReviewFindings => Set<ReviewFinding>();
+    public DbSet<QaRun> QaRuns => Set<QaRun>();
+    public DbSet<QaCommandResult> QaCommandResults => Set<QaCommandResult>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -56,6 +56,7 @@ public sealed class ValidationCommandRunner : IValidationCommandRunner
         }
 
         using var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
+        var stopwatch = Stopwatch.StartNew();
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(command.TimeoutSeconds));
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
 
@@ -84,7 +85,7 @@ public sealed class ValidationCommandRunner : IValidationCommandRunner
         catch (OperationCanceledException) when (timeout.IsCancellationRequested)
         {
             TryKill(process);
-            return Failure("validation-timeout", $"Validation command exceeded {command.TimeoutSeconds}s.");
+            return Failure("validation-timeout", $"Validation command exceeded {command.TimeoutSeconds}s.") with { DurationMs = (int)stopwatch.ElapsedMilliseconds, Command = command.Command };
         }
         catch (OperationCanceledException)
         {
@@ -92,6 +93,7 @@ public sealed class ValidationCommandRunner : IValidationCommandRunner
             throw;
         }
 
+        stopwatch.Stop();
         var output = Combine(stdout.ToString(), stderr.ToString());
         var exitCode = process.ExitCode;
 
@@ -111,7 +113,7 @@ public sealed class ValidationCommandRunner : IValidationCommandRunner
 
         if (exitCode == 0)
         {
-            return new ValidationCommandResult(true, 0, output, null, null);
+            return new ValidationCommandResult(true, 0, output, null, null, (int)stopwatch.ElapsedMilliseconds, command.Command);
         }
 
         return new ValidationCommandResult(
@@ -119,7 +121,9 @@ public sealed class ValidationCommandRunner : IValidationCommandRunner
             exitCode,
             output,
             "validation-failed",
-            $"Validation command failed with exit code {exitCode}.");
+            $"Validation command failed with exit code {exitCode}.",
+            (int)stopwatch.ElapsedMilliseconds,
+            command.Command);
     }
 
     private static async Task DrainAsync(StreamReader reader, StringBuilder sink, CancellationToken cancellationToken)

@@ -767,3 +767,11 @@ Model/Provider/ExecutionMode 下发到 Runner，并传给 Codex `-m`）。
 - 同步审查最长 600s；无后台队列。
 - 不自动触发；必须在 `/coding-runs` 详情手动点击。
 - 不提供多 Reviewer/多模型、历史趋势或自动修复。
+
+## 24. AOS-015 QA Agent
+
+- Runner 在 validationCommands 执行后上传 `validation-results.json`（命令/状态/退出码/耗时/输出）。
+- `POST /api/v1/coding-runs/{id}/qa-runs`：读取既有结果，生成 QA Attempt；不重新执行测试。
+- `GET /api/v1/coding-runs/{id}/qa-runs/latest`：最近一次 QA 与命令结果。
+- 结论：全部 Passed → Passed；任一 Failed/Timeout/Error → Failed；缺失/空结果被拒绝。
+- 限制：只做命令级结果；JUnit/Cobertura 用例级与覆盖率在 AOS-015b。

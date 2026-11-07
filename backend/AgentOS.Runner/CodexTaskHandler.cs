@@ -297,6 +297,28 @@ public sealed class CodexTaskHandler(
         return parsed;
     }
 
+    private static TaskArtifactFile? CreateValidationArtifact(
+        IReadOnlyList<ValidationCommandResult> results)
+    {
+        if (results.Count == 0)
+        {
+            return null;
+        }
+
+        var path = Path.Combine(Path.GetTempPath(), $"agentos-validation-{Guid.NewGuid():N}.json");
+        var payload = results.Select(result => new
+        {
+            command = result.Command ?? "(unknown)",
+            status = result.Success ? "Passed" : result.ErrorCode ?? "Failed",
+            exitCode = result.ExitCode,
+            durationMs = result.DurationMs,
+            output = result.Output
+        });
+
+        File.WriteAllText(path, JsonSerializer.Serialize(payload));
+        return new TaskArtifactFile("validation-results.json", "application/json", path);
+    }
+
     private static IReadOnlyList<TaskArtifactFile>? Append(
         IReadOnlyList<TaskArtifactFile>? existing,
         params TaskArtifactFile[] additional)

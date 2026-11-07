@@ -11,6 +11,7 @@ import {
 import { listAgents } from '../api/agents'
 import { listDrafts } from '../api/planner'
 import { createReview, getReview } from '../api/reviews'
+import { createQa, getLatestQa } from '../api/qa'
 import { formatUtc } from '../utils/format'
 
 const items = ref([])
@@ -28,6 +29,9 @@ const detail = ref(null)
 const review = ref(null)
 const reviewLoading = ref(false)
 const reviewError = ref('')
+const qa = ref(null)
+const qaLoading = ref(false)
+const qaError = ref('')
 const form = reactive({
   draftId: '',
   agentId: '',
@@ -115,13 +119,32 @@ async function openDetail(row) {
     detailVisible.value = true
     review.value = null
     reviewError.value = ''
+    qa.value = null
+    qaError.value = ''
     try {
       review.value = await getReview(row.id)
     } catch {
       review.value = null
     }
+    try {
+      qa.value = await getLatestQa(row.id)
+    } catch {
+      qa.value = null
+    }
   } catch (exception) {
     ElMessage.error(exception.message)
+  }
+}
+
+async function startQa(row) {
+  qaLoading.value = true
+  qaError.value = ''
+  try {
+    qa.value = await createQa(row.id)
+  } catch (exception) {
+    qaError.value = exception.message
+  } finally {
+    qaLoading.value = false
   }
 }
 
@@ -329,6 +352,30 @@ onMounted(async () => {
           >
             重试审查
           </el-button>
+        </template>
+
+        <h4>QA</h4>
+        <div v-if="!qa" class="review-start">
+          <el-button type="primary" :loading="qaLoading" @click="startQa(detail.run)">运行 QA</el-button>
+          <span class="muted">读取已有校验结果，不重跑测试</span>
+        </div>
+        <el-alert v-if="qaError" :title="qaError" type="error" show-icon :closable="false" />
+        <template v-if="qa">
+          <el-descriptions :column="3" border>
+            <el-descriptions-item label="状态">{{ qa.status }}</el-descriptions-item>
+            <el-descriptions-item label="结论">{{ qa.conclusion }}</el-descriptions-item>
+            <el-descriptions-item label="Attempt">{{ qa.attemptNo }}</el-descriptions-item>
+            <el-descriptions-item label="命令">
+              {{ qa.passedCount }} / {{ qa.commandCount }} 通过
+            </el-descriptions-item>
+          </el-descriptions>
+          <el-table :data="qa.commands" size="small">
+            <el-table-column prop="commandText" label="命令" min-width="220" />
+            <el-table-column prop="status" label="状态" width="100" />
+            <el-table-column prop="exitCode" label="退出码" width="90" />
+            <el-table-column prop="durationMs" label="耗时(ms)" width="100" />
+            <el-table-column prop="outputExcerpt" label="输出摘要" min-width="240" />
+          </el-table>
         </template>
 
         <h4>状态事件</h4>

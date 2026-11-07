@@ -546,3 +546,10 @@ Client 是否存在。
 - `ReviewFindings`：ReviewRunId + SortOrder 唯一，Severity、FilePath、Start/EndLine、Reason、
   Suggestion；Review 删除时级联。
 - 审查只读：不修改 Coding Run、任务或工作区；失败不保留部分 findings。
+
+### 3.28 AOS-015 QA
+
+- `QaRuns`：CodingRunId + AttemptNo 唯一，Status（Completed/Faulted）、Conclusion
+  （Passed/Failed/Inconclusive）、命令计数、错误摘要、创建时间。
+- `QaCommandResults`：QaRunId + Ordinal 唯一，命令文本、状态、退出码、耗时、输出摘要。
+- QA 只读取 AOS-013b 上传的 `validation-results.json`，不重跑命令。

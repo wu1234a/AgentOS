@@ -575,6 +575,91 @@ namespace AgentOS.Infrastructure.Migrations
                     b.ToTable("Projects", (string)null);
                 });
 
+            modelBuilder.Entity("AgentOS.Domain.Qa.QaCommandResult", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CommandText")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int?>("DurationMs")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ExitCode")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Ordinal")
+                        .HasColumnType("int");
+
+                    b.Property<string>("OutputExcerpt")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<Guid>("QaRunId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("QaRunId", "Ordinal")
+                        .IsUnique();
+
+                    b.ToTable("QaCommandResults", (string)null);
+                });
+
+            modelBuilder.Entity("AgentOS.Domain.Qa.QaRun", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("AttemptNo")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("CodingRunId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("CommandCount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Conclusion")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("ErrorSummary")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<int>("FailedCount")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PassedCount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CodingRunId", "AttemptNo")
+                        .IsUnique();
+
+                    b.ToTable("QaRuns", (string)null);
+                });
+
             modelBuilder.Entity("AgentOS.Domain.Reviews.ReviewFinding", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1371,6 +1456,24 @@ namespace AgentOS.Infrastructure.Migrations
                         .WithMany()
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("AgentOS.Domain.Qa.QaCommandResult", b =>
+                {
+                    b.HasOne("AgentOS.Domain.Qa.QaRun", null)
+                        .WithMany()
+                        .HasForeignKey("QaRunId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AgentOS.Domain.Qa.QaRun", b =>
+                {
+                    b.HasOne("AgentOS.Domain.CodingRuns.CodingRun", null)
+                        .WithMany()
+                        .HasForeignKey("CodingRunId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("AgentOS.Domain.Reviews.ReviewFinding", b =>

@@ -8,7 +8,9 @@ public sealed record ValidationCommandResult(
     int? ExitCode,
     string Output,
     string? ErrorCode,
-    string? ErrorMessage);
+    string? ErrorMessage,
+    int? DurationMs = null,
+    string? Command = null);
 
 public interface IValidationCommandRunner
 {
