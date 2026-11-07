@@ -52,7 +52,8 @@ builder.Services.Configure<SkillContentOptions>(builder.Configuration.GetSection
 builder.Services.Configure<ArtifactOptions>(builder.Configuration.GetSection("Artifacts"));
 builder.Services.Configure<PlannerOptions>(builder.Configuration.GetSection("Planner"));
 builder.Services.Configure<TelegramOptions>(builder.Configuration.GetSection("Telegram"));
-builder.Services.AddHttpClient<ITelegramClient, HttpTelegramClient>();
+builder.Services.AddHttpClient<ITelegramClient, HttpTelegramClient>()
+    .RemoveAllLoggers();
 builder.Services.AddScoped<TelegramUpdateProcessor>();
 builder.Services.AddHostedService<TelegramPollingService>();
 builder.Services.Configure<CodexCliOptions>(builder.Configuration.GetSection("Codex"));

@@ -21,7 +21,7 @@
 | Telegram 用例 | ✅ 3（白名单 `/pending`、越权无数据、批准回调） |
 | CI | 见对应 run |
 
-## 3. 已知限制
+### 2.1 独立代码审查\n\nCodex CLI 审查发现 2 个 P1（Token 进入 HTTP 日志、永久失败 update 卡死轮询），全部修复，详见 `docs/reports/AOS-019-CODE-REVIEW.md`。\n\n## 3. 已知限制
 
 1. 没有新审批主动推送/Outbox；需要用户执行 `/pending` 拉取。
 2. 没有 update_id/callback 持久化去重/offset 恢复；重启后可能重复处理，但审批决策由原子状态保证只成功一次。

@@ -31,12 +31,22 @@ public sealed class TelegramPollingService(
                 var updates = await client.GetUpdatesAsync(offset, stoppingToken);
                 foreach (var update in updates)
                 {
-                    using var scope = scopes.CreateScope();
-                    var processor = scope.ServiceProvider.GetRequiredService<TelegramUpdateProcessor>();
-                    await processor.HandleAsync(update, stoppingToken);
                     if (update.TryGetProperty("update_id", out var idValue) && idValue.TryGetInt64(out var updateId))
                     {
                         offset = updateId + 1;
+                    }
+
+                    try
+                    {
+                        using var scope = scopes.CreateScope();
+                        var processor = scope.ServiceProvider.GetRequiredService<TelegramUpdateProcessor>();
+                        await processor.HandleAsync(update, stoppingToken);
+                    }
+                    catch (Exception exception) when (exception is not OperationCanceledException)
+                    {
+                        // A permanently failing update (for example an expired callback) must not
+                        // block every later update; it has already been offset past.
+                        logger.LogWarning(exception, "Telegram update could not be processed; skipping.");
                     }
                 }
             }
