@@ -841,3 +841,10 @@ Model/Provider/ExecutionMode 下发到 Runner，并传给 Codex `-m`）。
 - API：列表/详情/失效 + 审批参考（同 scope active，最多 5 条，命中 +1）。
 - 参考仅作提示，不自动批准/执行。
 - 无补偿创建/前端参考区域/多租户。
+
+## 34. AOS-022 GitHub Webhook
+
+- `POST /api/v1/webhooks/github`，`GitHub__WebhookSecret` 验签。
+- 仓库/事件白名单；PR/push/workflow_run 规范化写入 Event Hub。
+- `DedupeKey=github:<delivery>` 复用事件去重。
+- 未做独立 delivery 状态、PR 评论/Review/合并、仓库-项目映射。

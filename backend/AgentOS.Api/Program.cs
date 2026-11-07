@@ -1,5 +1,6 @@
 using AgentOS.Api.Endpoints;
 using AgentOS.Api.Reviews;
+using AgentOS.Api.GitHub;
 using AgentOS.Api.Telegram;
 using AgentOS.Api.Filters;
 using AgentOS.Api.Realtime;
@@ -53,6 +54,7 @@ builder.Services.Configure<SkillContentOptions>(builder.Configuration.GetSection
 builder.Services.Configure<ArtifactOptions>(builder.Configuration.GetSection("Artifacts"));
 builder.Services.Configure<PlannerOptions>(builder.Configuration.GetSection("Planner"));
 builder.Services.Configure<TelegramOptions>(builder.Configuration.GetSection("Telegram"));
+builder.Services.Configure<GitHubOptions>(builder.Configuration.GetSection("GitHub"));
 builder.Services.AddHttpClient<ITelegramClient, HttpTelegramClient>()
     .RemoveAllLoggers();
 builder.Services.AddScoped<TelegramUpdateProcessor>();
@@ -150,6 +152,7 @@ app.MapCodingRunEndpoints();
 app.MapSubtaskEndpoints();
 app.MapApprovalEndpoints();
 app.MapDecisionMemoryEndpoints();
+app.MapGitHubWebhookEndpoints();
 app.MapHub<TaskHub>("/hubs/tasks");
 
 app.MapGet("/", () => Results.Ok(new

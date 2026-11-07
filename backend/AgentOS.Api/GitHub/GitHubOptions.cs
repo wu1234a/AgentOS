@@ -1,0 +1,9 @@
+namespace AgentOS.Api.GitHub;
+
+public sealed class GitHubOptions
+{
+    public bool Enabled { get; set; }
+    public string? WebhookSecret { get; set; }
+    public string[] AllowedRepositories { get; set; } = [];
+    public string[] AllowedEvents { get; set; } = ["pull_request", "push", "workflow_run"];
+}
