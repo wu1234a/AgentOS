@@ -47,16 +47,32 @@ public sealed class SqlQualityGateTests
 
         await service.EvaluateAsync("owner/repo", sha, "test", 3, "completed", "failure", 2, CancellationToken.None);
         Assert.Equal("failure", statuses.Last?.State);
+
+        statuses.Runs =
+        [
+            new GitHubWorkflowRun(10, "build", "completed", "success", 1),
+            new GitHubWorkflowRun(11, "test", "completed", "success", 1)
+        ];
+        var reevaluated = await service.ReevaluateAsync("owner/repo", sha, CancellationToken.None);
+        Assert.True(reevaluated.Success);
+        Assert.Equal("success", statuses.Last?.State);
     }
 
     private sealed class FakeStatusClient : IGitHubCommitStatusClient
     {
         public (string State, string Description)? Last { get; private set; }
+        public IReadOnlyList<GitHubWorkflowRun>? Runs { get; set; }
 
         public Task<bool> PostAsync(string repository, string sha, string state, string description, CancellationToken cancellationToken)
         {
             Last = (state, description);
             return Task.FromResult(true);
         }
+
+        public Task<IReadOnlyList<GitHubWorkflowRun>?> GetWorkflowRunsAsync(string repository, string sha, CancellationToken cancellationToken)
+            => Task.FromResult(Runs);
+
+        public Task<(string Status, string? Reason)> GetBranchProtectionAsync(string repository, string branch, CancellationToken cancellationToken)
+            => Task.FromResult(("unverified", (string?)null));
     }
 }

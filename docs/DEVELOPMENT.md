@@ -861,3 +861,9 @@ Model/Provider/ExecutionMode 下发到 Runner，并传给 Codex `-m`）。
 - workflow_run 事件按 repo/SHA/workflow 累积，按必需 workflow 计算 pending/success/failure。
 - 发布 `agentos/quality-gate` commit status；分支保护可要求该检查。
 - 不自动配置分支保护/合并；漏事件需重跑 workflow。
+
+## 37. AOS-024b 重评与保护核验
+
+- `POST /api/v1/quality-gates/reevaluate` 按 head_sha 查询 Actions runs 重评并发布。
+- `GET /api/v1/quality-gates/branch-protection` 只读核验 `agentos/quality-gate`。
+- 仅经典保护；Rulesets/权限不足返回 unverified。

@@ -37,6 +37,56 @@ public sealed class QualityGateService(
         }
     }
 
+    public async Task<(bool Success, string? Error)> ReevaluateAsync(
+        string repository,
+        string headSha,
+        CancellationToken cancellationToken)
+    {
+        if (!options.Value.QualityGates.TryGetValue(repository, out var configuration)
+            || !configuration.Enabled
+            || configuration.RequiredWorkflows.Length == 0)
+        {
+            return (false, "quality-gate-not-configured");
+        }
+
+        var runs = await statusClient.GetWorkflowRunsAsync(repository, headSha, cancellationToken);
+        if (runs is null)
+        {
+            return (false, "github-actions-unavailable");
+        }
+
+        foreach (var required in configuration.RequiredWorkflows)
+        {
+            var latest = runs
+                .Where(run => string.Equals(run.Name, required, StringComparison.Ordinal))
+                .OrderByDescending(run => run.Id)
+                .ThenByDescending(run => run.RunAttempt)
+                .FirstOrDefault();
+            if (latest is null)
+            {
+                continue;
+            }
+
+            await EvaluateAsync(
+                repository,
+                headSha,
+                latest.Name,
+                latest.Id,
+                latest.Status,
+                latest.Conclusion,
+                latest.RunAttempt,
+                cancellationToken);
+        }
+
+        return (true, null);
+    }
+
+    public Task<(string Status, string? Reason)> CheckBranchProtectionAsync(
+        string repository,
+        string branch,
+        CancellationToken cancellationToken)
+        => statusClient.GetBranchProtectionAsync(repository, branch, cancellationToken);
+
     private async Task EvaluateCoreAsync(
         string repository,
         string headSha,

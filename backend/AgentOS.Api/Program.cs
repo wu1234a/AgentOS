@@ -158,6 +158,7 @@ app.MapSubtaskEndpoints();
 app.MapApprovalEndpoints();
 app.MapDecisionMemoryEndpoints();
 app.MapGitHubWebhookEndpoints();
+app.MapQualityGateEndpoints();
 app.MapHub<TaskHub>("/hubs/tasks");
 
 app.MapGet("/", () => Results.Ok(new
