@@ -113,15 +113,15 @@ public sealed class CodexTaskHandler(
                 {
                     return validationFailure with
                     {
-                        Artifacts = Append(
-                            validationFailure.Artifacts,
-                            CreateValidationArtifact(validationResults))
+                        Artifacts = AppendMany(
+                            Append(validationFailure.Artifacts, CreateValidationArtifact(validationResults)),
+                            CollectReports(context.WorkspacePath))
                     };
                 }
 
-                var artifacts = Append(
-                    BuildArtifacts(result),
-                    CreateValidationArtifact(validationResults));
+                var artifacts = AppendMany(
+                    Append(BuildArtifacts(result), CreateValidationArtifact(validationResults)),
+                    CollectReports(context.WorkspacePath));
                 var baseRevision = ReadBaseRevision(context.InputJson);
                 if (!string.IsNullOrWhiteSpace(baseRevision))
                 {
@@ -381,6 +381,15 @@ public sealed class CodexTaskHandler(
         }
 
         combined.AddRange(additional.Where(artifact => artifact is not null));
+        return combined;
+    }
+
+    private static IReadOnlyList<TaskArtifactFile>? AppendMany(
+        IReadOnlyList<TaskArtifactFile>? existing,
+        IEnumerable<TaskArtifactFile> additional)
+    {
+        var combined = existing is null ? new List<TaskArtifactFile>() : [.. existing];
+        combined.AddRange(additional);
         return combined;
     }
 
