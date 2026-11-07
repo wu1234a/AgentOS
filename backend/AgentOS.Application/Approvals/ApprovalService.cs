@@ -1,5 +1,6 @@
 using AgentOS.Domain.Approvals;
 using AgentOS.Application.Telegram;
+using AgentOS.Application.Decisions;
 using Microsoft.Extensions.Logging;
 
 namespace AgentOS.Application.Approvals;
@@ -8,7 +9,8 @@ public sealed class ApprovalService(
     IApprovalRepository repository,
     TimeProvider timeProvider,
     ILogger<ApprovalService> logger,
-    ITelegramOutbox? telegramOutbox = null)
+    ITelegramOutbox? telegramOutbox = null,
+    IDecisionMemoryRecorder? decisionMemory = null)
 {
     public async Task<(IReadOnlyList<ApprovalView> Items, int Total)> ListAsync(
         string? status,
@@ -123,6 +125,19 @@ public sealed class ApprovalService(
         var entity = await repository.GetByIdAsync(id, cancellationToken)!;
 
         logger.LogInformation("Approval {ApprovalId} decided {Decision}.", id, decision);
+
+        if (decisionMemory is not null)
+        {
+            try
+            {
+                await decisionMemory.RecordAsync(entity, cancellationToken);
+            }
+            catch (Exception exception)
+            {
+                logger.LogWarning(exception, "Decision memory could not be recorded for {ApprovalId}.", id);
+            }
+        }
+
         return ApprovalResult.Ok(ToView(entity));
     }
 

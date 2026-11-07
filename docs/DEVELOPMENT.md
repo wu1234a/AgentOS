@@ -834,3 +834,10 @@ Model/Provider/ExecutionMode 下发到 Runner，并传给 Codex `-m`）。
 - SendMessage 返回 message_id 并保存到 Outbox。
 - 空理由重新提示；超长截断 1000。
 - 429 retry_after、编辑重试、过期清理未实现。
+
+## 33. AOS-021 Decision Memory
+
+- 审批决策自动写 `DecisionMemories`（来源唯一、90 天有效）。
+- API：列表/详情/失效 + 审批参考（同 scope active，最多 5 条，命中 +1）。
+- 参考仅作提示，不自动批准/执行。
+- 无补偿创建/前端参考区域/多租户。

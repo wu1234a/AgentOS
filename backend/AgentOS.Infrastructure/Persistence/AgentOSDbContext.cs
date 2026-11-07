@@ -1,6 +1,7 @@
 using AgentOS.Domain.Agents;
 using AgentOS.Domain.Approvals;
 using AgentOS.Domain.CodingRuns;
+using AgentOS.Domain.Decisions;
 using AgentOS.Domain.Artifacts;
 using AgentOS.Domain.Events;
 using AgentOS.Domain.ModelProfiles;
@@ -55,6 +56,7 @@ public sealed class AgentOSDbContext(DbContextOptions<AgentOSDbContext> options)
     public DbSet<CodingRun> CodingRuns => Set<CodingRun>();
     public DbSet<TaskDependency> TaskDependencies => Set<TaskDependency>();
     public DbSet<ApprovalRequest> ApprovalRequests => Set<ApprovalRequest>();
+    public DbSet<DecisionMemory> DecisionMemories => Set<DecisionMemory>();
     public DbSet<TelegramNotification> TelegramNotifications => Set<TelegramNotification>();
     public DbSet<TelegramPollerState> TelegramPollerState => Set<TelegramPollerState>();
     public DbSet<TelegramProcessedUpdate> TelegramProcessedUpdates => Set<TelegramProcessedUpdate>();
