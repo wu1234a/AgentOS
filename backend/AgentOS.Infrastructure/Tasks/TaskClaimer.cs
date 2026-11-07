@@ -60,31 +60,33 @@ public sealed class TaskClaimer(
         """;
 
     private const string ClaimOneSql = """
-        UPDATE [Tasks]
-        SET [Status] = N'Running',
-            [LeaseOwnerWorkerId] = @workerId,
-            [LeaseTokenHash] = @tokenHash,
-            [LeaseExpiresAtUtc] = @leaseExpiresAtUtc,
-            [LastHeartbeatAtUtc] = @now,
-            [StartedAtUtc] = COALESCE([StartedAtUtc], @now),
-            [AttemptCount] = [AttemptCount] + 1,
-            [UpdatedAtUtc] = @now
+        UPDATE target
+        SET target.[Status] = N'Running',
+            target.[LeaseOwnerWorkerId] = @workerId,
+            target.[LeaseTokenHash] = @tokenHash,
+            target.[LeaseExpiresAtUtc] = @leaseExpiresAtUtc,
+            target.[LastHeartbeatAtUtc] = @now,
+            target.[StartedAtUtc] = COALESCE(target.[StartedAtUtc], @now),
+            target.[AttemptCount] = target.[AttemptCount] + 1,
+            target.[UpdatedAtUtc] = @now
         OUTPUT inserted.[Id], inserted.[AttemptCount], inserted.[MaxAttempts], inserted.[TimeoutSeconds],
                inserted.[TaskCode], inserted.[Title], inserted.[Priority], inserted.[InputJson],
                inserted.[RuleId], inserted.[RuleVersion], inserted.[AgentId], inserted.[SkillId],
                inserted.[ModelProfileId]
-        WHERE [Id] = @taskId
-          AND [Status] IN (N'Queued', N'RetryWait')
-          AND [NextRunAtUtc] <= @now
+        FROM [Tasks] AS target
+        WHERE target.[Id] = @taskId
+          AND target.[Status] IN (N'Queued', N'RetryWait')
+          AND target.[NextRunAtUtc] <= @now
+          AND EXISTS (SELECT 1 FROM [Projects] AS p WHERE p.[Id] = target.[ProjectId] AND p.[IsEnabled] = 1)
           AND NOT EXISTS (
               SELECT 1
               FROM [TaskDependencies] AS d
               INNER JOIN [Tasks] AS prerequisite ON prerequisite.[Id] = d.[PrerequisiteTaskId]
-              WHERE d.[TaskId] = [Id] AND prerequisite.[Status] <> N'Succeeded')
-          AND ((SELECT MAX([MaxConcurrentTasks]) FROM [Projects] WHERE [Id] = [ProjectId]) IS NULL
+              WHERE d.[TaskId] = target.[Id] AND prerequisite.[Status] <> N'Succeeded')
+          AND ((SELECT MAX([MaxConcurrentTasks]) FROM [Projects] WHERE [Id] = target.[ProjectId]) IS NULL
                OR (SELECT COUNT(*) FROM [Tasks] AS running
-                   WHERE running.[ProjectId] = [ProjectId] AND running.[Status] = N'Running')
-                  < (SELECT MAX([MaxConcurrentTasks]) FROM [Projects] WHERE [Id] = [ProjectId]));
+                   WHERE running.[ProjectId] = target.[ProjectId] AND running.[Status] = N'Running')
+                  < (SELECT MAX([MaxConcurrentTasks]) FROM [Projects] WHERE [Id] = target.[ProjectId]));
         """;
 
     public async Task<IReadOnlyList<ClaimedTask>> ClaimAsync(

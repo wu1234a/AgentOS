@@ -30,7 +30,7 @@ public interface IProjectRepository
     Task<IReadOnlyList<Project>> ListAsync(CancellationToken cancellationToken);
     Task<Project?> GetAsync(Guid id, CancellationToken cancellationToken);
     Task<bool> SlugExistsAsync(string slug, CancellationToken cancellationToken);
-    Task AddAsync(Project project, CancellationToken cancellationToken);
+    Task<bool> TryAddAsync(Project project, CancellationToken cancellationToken);
     Task SaveAsync(CancellationToken cancellationToken);
 }
 
@@ -98,8 +98,11 @@ public sealed class ProjectService(
             CreatedAtUtc = now,
             UpdatedAtUtc = now
         };
-        await repository.AddAsync(project, cancellationToken);
-        await repository.SaveAsync(cancellationToken);
+        if (!await repository.TryAddAsync(project, cancellationToken))
+        {
+            return ProjectResult.Conflict("project-slug-exists");
+        }
+
         return ProjectResult.Ok(ToView(project));
     }
 
@@ -117,13 +120,17 @@ public sealed class ProjectService(
             return ProjectResult.Invalid("name-invalid", "name", "Name must be 1-120 characters.");
         }
 
-        if (request.MaxConcurrentTasks is <= 0 or > 10000)
+        if (request.MaxConcurrentTasks is int quota)
         {
-            return ProjectResult.Invalid("quota-invalid", "maxConcurrentTasks", "Quota must be between 1 and 10000.");
+            if (quota is <= 0 or > 10000)
+            {
+                return ProjectResult.Invalid("quota-invalid", "maxConcurrentTasks", "Quota must be between 1 and 10000.");
+            }
+
+            project.MaxConcurrentTasks = quota;
         }
 
         project.Name = name;
-        project.MaxConcurrentTasks = request.MaxConcurrentTasks;
         project.UpdatedAtUtc = timeProvider.GetUtcNow().UtcDateTime;
         await repository.SaveAsync(cancellationToken);
         return ProjectResult.Ok(ToView(project));

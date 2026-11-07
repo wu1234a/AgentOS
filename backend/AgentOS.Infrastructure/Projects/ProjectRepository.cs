@@ -16,8 +16,20 @@ public sealed class ProjectRepository(AgentOSDbContext dbContext) : IProjectRepo
     public Task<bool> SlugExistsAsync(string slug, CancellationToken cancellationToken)
         => dbContext.Projects.AnyAsync(project => project.Slug == slug, cancellationToken);
 
-    public async Task AddAsync(Project project, CancellationToken cancellationToken)
-        => await dbContext.Projects.AddAsync(project, cancellationToken);
+    public async Task<bool> TryAddAsync(Project project, CancellationToken cancellationToken)
+    {
+        dbContext.Projects.Add(project);
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+        catch (DbUpdateException)
+        {
+            dbContext.Entry(project).State = EntityState.Detached;
+            return false;
+        }
+    }
 
     public Task SaveAsync(CancellationToken cancellationToken) => dbContext.SaveChangesAsync(cancellationToken);
 }

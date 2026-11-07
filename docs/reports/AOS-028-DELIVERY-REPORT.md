@@ -20,7 +20,7 @@
 | 项目/配额用例 | ✅ CRUD、重复 slug、配额阻止领取 |
 | CI | 见对应 run |
 
-## 3. 已知限制
+### 2.1 独立代码审查\n\nCodex CLI 审查发现 1 个 P1（配额 SQL 跨项目计数）与 3 个 P2（PATCH 清空配额、停用竞态、slug 并发 500），全部修复，详见 `docs/reports/AOS-028-CODE-REVIEW.md`。\n\n## 3. 已知限制
 
 1. 未实现 Task/Agent/Rule/CodingRun 的 `projectId` 查询过滤与资源归属校验。
 2. 无前端项目管理页。
