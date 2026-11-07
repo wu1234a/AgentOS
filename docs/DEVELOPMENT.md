@@ -892,3 +892,9 @@ Model/Provider/ExecutionMode 下发到 Runner，并传给 Codex `-m`）。
 - `ScheduledJobs` 间隔调度（最小 60 秒），Worker 通过 EventService 发布 `source=scheduler`。
 - 去重 `schedule:<jobId>:<scheduledFor>`；错过周期合并一次并推进到未来。
 - 无 cron/日历/前端/多实例选主。
+
+## 42. AOS-029 用量统计
+
+- `GET /api/v1/usage/statistics` 按项目/日期/Provider/Model 聚合 Token。
+- `Usage:Pricing` 按 provider|model 配置百万 Token 价格；缺失价格返回 null/MissingPrice。
+- 只读，无迁移/前端/预算拦截。
