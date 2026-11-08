@@ -18,7 +18,13 @@ public static class RunnerServiceRegistration
         services.AddSingleton<WorkspacePolicy>();
         services.AddOptions<CodexCliOptions>();
         services.AddSingleton<IProcessRunner, ExternalProcessRunner>();
-        services.AddSingleton<IAgentAdapter, CodexCliAdapter>();
+        services.AddSingleton<CodexCliAdapter>();
+        services.AddSingleton<OpenAiCompatibleAgentAdapter>();
+        services.AddSingleton<AnthropicAgentAdapter>();
+        services.AddSingleton<IAgentAdapter>(provider => new RoutingAgentAdapter(
+            provider.GetRequiredService<CodexCliAdapter>(),
+            provider.GetRequiredService<OpenAiCompatibleAgentAdapter>(),
+            provider.GetRequiredService<AnthropicAgentAdapter>()));
         services.AddSingleton<IValidationCommandRunner, ValidationCommandRunner>();
         services.AddSingleton<IChangeSetCapture, GitChangeSetCapture>();
         services.AddSingleton<IWorktreeManager, GitWorktreeManager>();
@@ -27,14 +33,17 @@ public static class RunnerServiceRegistration
         {
             var adapterCode = provider.GetRequiredService<IOptions<RunnerOptions>>().Value.AgentAdapter;
 
-            if (string.Equals(adapterCode, "codex-cli", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(adapterCode, "codex-cli", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(adapterCode, "openai-compatible", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(adapterCode, "multi", StringComparison.OrdinalIgnoreCase))
             {
                 return new CodexTaskHandler(
                     provider.GetRequiredService<IAgentAdapter>(),
                     provider.GetRequiredService<IValidationCommandRunner>(),
                     provider.GetRequiredService<IChangeSetCapture>(),
                     provider.GetRequiredService<IOptions<CodexCliOptions>>(),
-                    provider.GetRequiredService<ILogger<CodexTaskHandler>>());
+                    provider.GetRequiredService<ILogger<CodexTaskHandler>>(),
+                    allowAnyProvider: true);
             }
 
             return provider.GetRequiredService<DemoTaskHandler>();

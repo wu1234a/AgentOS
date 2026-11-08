@@ -15,7 +15,8 @@ public sealed class CodexTaskHandler(
     IValidationCommandRunner validationRunner,
     IChangeSetCapture changeSetCapture,
     IOptions<CodexCliOptions> codexOptions,
-    ILogger<CodexTaskHandler> logger) : ITaskHandler
+    ILogger<CodexTaskHandler> logger,
+    bool allowAnyProvider = false) : ITaskHandler
 {
     public string Name => adapter.Code;
 
@@ -38,8 +39,9 @@ public sealed class CodexTaskHandler(
 
         if (profile is not null)
         {
-            if (!string.Equals(profile.Provider, "codex-cli", StringComparison.OrdinalIgnoreCase)
-                || !string.Equals(profile.ExecutionMode, "cli", StringComparison.OrdinalIgnoreCase))
+            if (!allowAnyProvider
+                && (!string.Equals(profile.Provider, "codex-cli", StringComparison.OrdinalIgnoreCase)
+                    || !string.Equals(profile.ExecutionMode, "cli", StringComparison.OrdinalIgnoreCase)))
             {
                 context.Log(
                     "error",
@@ -85,7 +87,10 @@ public sealed class CodexTaskHandler(
                 Math.Min(profile?.TimeoutSeconds ?? int.MaxValue, options.TimeoutSeconds)),
             policy,
             context.Log,
-            profile?.Model);
+            profile?.Model,
+            profile?.Provider,
+            profile?.ConfigurationJson,
+            profile?.SecretReference);
 
         var result = await adapter.ExecuteAsync(request, cancellationToken);
 

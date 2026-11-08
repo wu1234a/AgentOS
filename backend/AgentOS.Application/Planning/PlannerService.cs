@@ -85,7 +85,7 @@ public sealed class PlannerService(
 
         var settings = ParseSettings(profile);
         var apiKey = string.IsNullOrWhiteSpace(profile.SecretReference)
-            ? null
+            ? Environment.GetEnvironmentVariable(DefaultSecretEnvironment(profile.Provider))
             : Environment.GetEnvironmentVariable(profile.SecretReference);
 
         if (string.IsNullOrWhiteSpace(apiKey))
@@ -257,7 +257,27 @@ public sealed class PlannerService(
         {
             "kimi" or "moonshot" => "https://api.moonshot.cn/v1",
             "openai" => "https://api.openai.com/v1",
+            "deepseek" => "https://api.deepseek.com/v1",
+            "glm" or "zhipu" => "https://open.bigmodel.cn/api/paas/v4",
+            "qwen" or "dashscope" => "https://dashscope.aliyuncs.com/compatible-mode/v1",
+            "doubao" or "ark" => "https://ark.cn-beijing.volces.com/api/v3",
+            "hunyuan" => "https://api.hunyuan.cloud.tencent.com/v1",
+            "grok" or "xai" => "https://api.x.ai/v1",
             _ => string.Empty
+        };
+
+    private static string DefaultSecretEnvironment(string provider)
+        => provider.ToLowerInvariant() switch
+        {
+            "kimi" or "moonshot" => "KIMI_API_KEY",
+            "openai" => "OPENAI_API_KEY",
+            "deepseek" => "DEEPSEEK_API_KEY",
+            "glm" or "zhipu" => "ZHIPU_API_KEY",
+            "qwen" or "dashscope" => "DASHSCOPE_API_KEY",
+            "doubao" or "ark" => "ARK_API_KEY",
+            "hunyuan" => "HUNYUAN_API_KEY",
+            "grok" or "xai" => "XAI_API_KEY",
+            _ => "OPENAI_API_KEY"
         };
 
     private static string BuildSystemPrompt()

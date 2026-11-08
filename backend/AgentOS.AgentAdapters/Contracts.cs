@@ -32,7 +32,10 @@ public sealed record AgentExecutionRequest(
     int TimeoutSeconds,
     AgentExecutionPolicy Policy,
     Action<string, string>? OnLog = null,
-    string? Model = null);
+    string? Model = null,
+    string? Provider = null,
+    string? ConfigurationJson = null,
+    string? SecretReference = null);
 
 public sealed record AgentExecutionResult(
     AgentExecutionStatus Status,

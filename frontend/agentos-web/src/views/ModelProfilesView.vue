@@ -13,6 +13,11 @@ import { formatUtc, statusTagType } from '../utils/format'
 const items = ref([])
 const loading = ref(false)
 const error = ref('')
+const providers = ['codex-cli', 'openai', 'kimi', 'deepseek', 'glm', 'qwen', 'doubao', 'hunyuan', 'grok', 'anthropic', 'openai-compatible']
+function onProviderChange(value) {
+  form.executionMode = value === 'codex-cli' ? 'cli' : 'api'
+}
+
 const dialogVisible = ref(false)
 const editing = ref(null)
 const form = reactive({
@@ -159,7 +164,9 @@ onMounted(load)
           <el-input v-model="form.code" :disabled="!!editing" placeholder="小写 slug，例如 codex-default" />
         </el-form-item>
         <el-form-item label="Provider">
-          <el-input v-model="form.provider" placeholder="codex-cli / openai / kimi" />
+          <el-select v-model="form.provider" placeholder="选择 Provider" @change="onProviderChange">
+            <el-option v-for="provider in providers" :key="provider" :label="provider" :value="provider" />
+          </el-select>
         </el-form-item>
         <el-form-item label="Model">
           <el-input v-model="form.model" placeholder="模型 ID" />

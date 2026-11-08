@@ -84,6 +84,8 @@ builder.Services.AddHostedService<TelegramPollingService>();
 builder.Services.Configure<CodexCliOptions>(builder.Configuration.GetSection("Codex"));
 builder.Services.AddSingleton<IProcessRunner, ExternalProcessRunner>();
 builder.Services.AddSingleton<IAgentAdapter, CodexCliAdapter>();
+builder.Services.AddSingleton<OpenAiCompatibleAgentAdapter>();
+builder.Services.AddSingleton<AnthropicAgentAdapter>();
 builder.Services.AddHttpClient("planner", client => client.Timeout = Timeout.InfiniteTimeSpan)
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
 builder.Services.AddScoped<TaskQueueService>();
@@ -111,7 +113,10 @@ builder.Services.AddScoped<ApprovalService>();
 builder.Services.AddScoped<DecisionMemoryService>();
 builder.Services.AddScoped<ReviewService>();
 builder.Services.AddScoped<QaService>();
-builder.Services.AddScoped<IReviewAgent, CodexReviewAgent>();
+builder.Services.Configure<ReviewOptions>(builder.Configuration.GetSection("Review"));
+builder.Services.AddScoped<CodexReviewAgent>();
+builder.Services.AddScoped<ApiReviewAgent>();
+builder.Services.AddScoped<IReviewAgent, ReviewAgentRouter>();
 builder.Services.AddScoped<ApiClientAuthenticationFilter>();
 builder.Services.AddScoped<RunnerAuthenticationFilter>();
 
