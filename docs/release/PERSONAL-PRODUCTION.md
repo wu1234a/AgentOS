@@ -230,7 +230,7 @@ E:\AgentOS.Prod\reconcile-quality-gates.ps1
 
 ### 自动合并
 
-当前未启用 AgentOS 自动合并；分支保护要求 1 个审批 + `agentos/quality-gate`。
+当前未启用 AgentOS 自动合并；分支保护要求 0 个审批 + `agentos/quality-gate`。
 
 建议先用 GitHub 原生 Auto-merge：
 
@@ -273,3 +273,14 @@ E:\AgentOS.Prod\reconcile-quality-gates.ps1
   4. 选择 Squash
   5. 等待 Required Check 和审批满足后 GitHub 自动合并
 - AgentOS 只负责审查和质量门禁，不直接执行合并。
+## 13. 改为 0 审批（2026-11-09）
+
+- GitHub master 分支保护 required approvals 改为 0。
+- `MergePolicies.RequiredApprovals` 改为 0。
+- PR #2 head `1f9158bc...` Merge Readiness：
+  - ready=true
+  - mergeable=clean
+  - approvals=0/0
+  - quality-gate=success
+  - branch-protection=required
+- Auto-merge 仍需在 PR 页面点击 **Enable auto-merge**；当前 PAT 不能调用 GraphQL 自动启用。
