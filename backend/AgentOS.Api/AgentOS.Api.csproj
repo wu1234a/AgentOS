@@ -26,6 +26,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="build-info.json" CopyToOutputDirectory="PreserveNewest" Condition="Exists('build-info.json')" />
+    <Content Update="build-info.json" CopyToOutputDirectory="PreserveNewest" Condition="Exists('build-info.json')" />
   </ItemGroup>
 </Project>
