@@ -27,10 +27,10 @@
 - [x] 配置 `GitHub__AllowedRepositories`
 - [x] 配置 `GitHub__RepositoryProjects`
 - [x] Webhook 事件：Pushes 已真实验证；Pull requests/Workflow runs 待触发
-- [ ] PR opened 触发自动审查并生成 COMMENT Review
+- [x] PR opened/synchronize 触发自动审查并生成 COMMENT Review（Review 5818049357）
 - [ ] workflow_run 发布 `agentos/quality-gate`
-- [ ] 分支保护要求 `agentos/quality-gate`
-- [ ] 合并就绪 API 返回正确 blocked/ready
+- [ ] 分支保护要求 `agentos/quality-gate`（Token 缺 Administration 权限，未配置）
+- [x] 合并就绪 API 返回 blocked（approvals 0/1，quality-gate success）
 - [ ] 质量门禁漏事件后重评恢复
 
 ## 4. 配置检查
@@ -80,3 +80,18 @@
   - 状态：`Ignored`（无匹配规则，符合预期）
 - 测试分支：`acceptance/webhook-smoke-210836`（远程分支尚未删除）。
 - PR 自动审查暂不可用：`GitHub:ReviewToken` 返回 401，已临时设置 `ReviewEnabled=false`。
+## 9. 质量门禁与合并就绪验证（2026-11-08）
+
+- PR #1 head：`31ee2cc63daa7e30fe4d5529f28440c4034a2e76`
+- CI workflow `CI`：completed/success
+- commit status：`agentos/quality-gate = success`
+  - description：All required workflows passed.
+  - 时间：2026-11-08T13:30:42Z
+- Merge Readiness：
+  - pr-open ✅
+  - not-draft ✅
+  - mergeable ✅
+  - approvals ❌ 0/1
+  - quality-gate ✅ success
+  - 总体：blocked（符合预期）
+- 分支保护核验：`unverified`，原因是当前 PAT 无 Administration 权限（HTTP 403）。
