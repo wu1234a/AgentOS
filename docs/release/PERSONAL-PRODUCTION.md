@@ -260,4 +260,16 @@ E:\AgentOS.Prod\reconcile-quality-gates.ps1
 - 当前 PAT 返回 `FORBIDDEN: Resource not accessible by personal access token`，需要：
   - PAT 增加 Contents: Write（允许合并），或
   - 在 GitHub PR 页面手动启用 Auto-merge。
-- 测试 PR #2 已创建，标签 `automerge`，auto-merge 未成功启用。\n\n### 当前采用方案 B（手动启用 Auto-merge）\n\n- 已禁用计划任务 `AgentOS Auto Merge`，避免无权限重试。\n- 仓库 `allow_auto_merge=true` 保持开启。\n- 操作流程：\n  1. 打开 PR\n  2. 添加 `automerge` 标签（可选，仅作为标记）\n  3. 在 PR 页面点击 **Enable auto-merge**\n  4. 选择 Squash\n  5. 等待 Required Check 和审批满足后 GitHub 自动合并\n- AgentOS 只负责审查和质量门禁，不直接执行合并。
+- 测试 PR #2 已创建，标签 `automerge`，auto-merge 未成功启用。
+
+### 当前采用方案 B（手动启用 Auto-merge）
+
+- 已禁用计划任务 `AgentOS Auto Merge`，避免无权限重试。
+- 仓库 `allow_auto_merge=true` 保持开启。
+- 操作流程：
+  1. 打开 PR
+  2. 添加 `automerge` 标签（可选，仅作为标记）
+  3. 在 PR 页面点击 **Enable auto-merge**
+  4. 选择 Squash
+  5. 等待 Required Check 和审批满足后 GitHub 自动合并
+- AgentOS 只负责审查和质量门禁，不直接执行合并。
