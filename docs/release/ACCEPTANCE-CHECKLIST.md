@@ -120,3 +120,14 @@
   - approvals ❌ 0/1
   - mergeable ❌（受保护分支未满足条件）
   - 总体 blocked，符合预期
+## 12. ready=true 验证（临时降低审批门槛，已恢复）
+
+- 临时将 GitHub 分支保护 required approvals 设为 0，`MergePolicies.RequiredApprovals` 设为 0。
+- 等待 GitHub mergeable 变为 true（state=clean）。
+- `GET /api/v1/merge-readiness?repository=wu1234a/AgentOS&number=1`：
+  - `ready=true`
+  - pr-open / not-draft / mergeable / approvals 0/0 / quality-gate / branch-protection 全部 passed。
+- 已恢复：
+  - GitHub 分支保护 required approvals = 1
+  - `MergePolicies.RequiredApprovals` = 1
+- 恢复后 readiness 重新为 `ready=false`，approvals 0/1，符合预期。
