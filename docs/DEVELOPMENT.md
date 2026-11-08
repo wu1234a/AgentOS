@@ -930,3 +930,9 @@ Model/Provider/ExecutionMode 下发到 Runner，并传给 Codex `-m`）。
 
 - `POST /api/v1/business-events`：3derp/emperor，source.eventType，project+dedupeKey。
 - 走 EventService/Rules/Tasks；202/200/409；无专用签名/SDK。
+
+## 49. AOS-028b / 024c 补强
+
+- coding-runs 列表支持 projectId SQL 过滤。
+- 质量门禁重评在无必需 run 时发布 pending（不再静默成功）。
+- 任务列表 projectId 过滤未实现（避免与 Observability 路由冲突）。

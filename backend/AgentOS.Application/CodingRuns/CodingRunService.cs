@@ -28,6 +28,7 @@ public sealed class CodingRunService(
 
     public async Task<(IReadOnlyList<CodingRunView> Items, int Total)> ListAsync(
         string? status,
+        Guid? projectId,
         int limit,
         int offset,
         CancellationToken cancellationToken)
@@ -45,7 +46,7 @@ public sealed class CodingRunService(
             }
         }
 
-        return await repository.ListAsync(status, limit, offset, cancellationToken);
+        return await repository.ListAsync(status, projectId, limit, offset, cancellationToken);
     }
 
     public async Task<CodingRunDetail?> GetAsync(Guid runId, CancellationToken cancellationToken)

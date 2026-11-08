@@ -94,6 +94,7 @@ public interface ICodingRunRepository
 
     Task<(IReadOnlyList<CodingRunView> Items, int Total)> ListAsync(
         string? status,
+        Guid? projectId,
         int limit,
         int offset,
         CancellationToken cancellationToken);

@@ -28,12 +28,14 @@ public static class CodingRunEndpoints
     private static async Task<IResult> ListAsync(
         CodingRunService service,
         string? status,
+        Guid? projectId,
         int? limit,
         int? offset,
         CancellationToken cancellationToken)
     {
         var (items, total) = await service.ListAsync(
             status,
+            projectId,
             Math.Clamp(limit ?? 50, 1, 200),
             Math.Max(0, offset ?? 0),
             cancellationToken);

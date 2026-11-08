@@ -66,6 +66,33 @@ public sealed class QualityGateService(
             .Select(run => run!)
             .ToList();
 
+        if (selected.Count == 0)
+        {
+            var now = timeProvider.GetUtcNow().UtcDateTime;
+            var pending = await dbContext.QualityGateEvaluations.FirstOrDefaultAsync(
+                candidate => candidate.Repository == repository && candidate.HeadSha == headSha,
+                cancellationToken);
+            if (pending is null)
+            {
+                pending = new QualityGateEvaluation
+                {
+                    Id = Guid.CreateVersion7(),
+                    Repository = repository,
+                    HeadSha = headSha,
+                    CreatedAtUtc = now
+                };
+                dbContext.QualityGateEvaluations.Add(pending);
+            }
+
+            pending.Status = "pending";
+            pending.ReasonCode = "required-workflow-missing";
+            pending.Reason = "No required workflow runs found for this commit.";
+            pending.UpdatedAtUtc = now;
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await statusClient.PostAsync(repository, headSha, "pending", pending.Reason, cancellationToken);
+            return (true, null);
+        }
+
         for (var index = 0; index < selected.Count; index++)
         {
             var latest = selected[index];

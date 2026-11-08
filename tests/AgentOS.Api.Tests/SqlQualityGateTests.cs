@@ -56,6 +56,11 @@ public sealed class SqlQualityGateTests
         var reevaluated = await service.ReevaluateAsync("owner/repo", sha, CancellationToken.None);
         Assert.True(reevaluated.Success);
         Assert.Equal("success", statuses.Last?.State);
+
+        statuses.Runs = [];
+        var noRuns = await service.ReevaluateAsync("owner/repo", sha, CancellationToken.None);
+        Assert.True(noRuns.Success);
+        Assert.Equal("pending", statuses.Last?.State);
     }
 
     private sealed class FakeStatusClient : IGitHubCommitStatusClient

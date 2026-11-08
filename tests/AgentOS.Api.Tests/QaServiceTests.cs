@@ -164,6 +164,7 @@ public sealed class QaServiceTests
 
         public Task<(IReadOnlyList<CodingRunView> Items, int Total)> ListAsync(
             string? status,
+            Guid? projectId,
             int limit,
             int offset,
             CancellationToken cancellationToken)

@@ -57,7 +57,7 @@ public sealed class SqlCodingRunTests
         Assert.NotNull(detail);
         Assert.Equal("created", detail!.Events[0].EventType);
 
-        var list = await service.ListAsync(null, 10, 0, CancellationToken.None);
+        var list = await service.ListAsync(null, null, 10, 0, CancellationToken.None);
         Assert.Contains(list.Items, item => item.Id == result.Run.Id);
 
         var duplicate = await service.CreateAsync(

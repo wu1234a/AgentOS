@@ -55,11 +55,16 @@ public sealed class CodingRunRepository(AgentOSDbContext dbContext) : ICodingRun
 
     public async Task<(IReadOnlyList<CodingRunView> Items, int Total)> ListAsync(
         string? status,
+        Guid? projectId,
         int limit,
         int offset,
         CancellationToken cancellationToken)
     {
         var query = dbContext.CodingRuns.AsNoTracking();
+        if (projectId is Guid filter)
+        {
+            query = query.Where(run => run.ProjectId == filter);
+        }
 
         if (!string.IsNullOrWhiteSpace(status)
             && Enum.TryParse<CodingRunStatus>(status, ignoreCase: true, out var parsed))
