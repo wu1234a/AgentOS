@@ -26,7 +26,7 @@ public sealed record KnowledgeDocumentView(
     DateTime UpdatedAtUtc,
     string? Snippet = null);
 
-public sealed class KnowledgeService(AgentOSDbContext dbContext, TimeProvider timeProvider)
+public sealed class KnowledgeService(AgentOSDbContext dbContext, TimeProvider timeProvider, IEmbeddingClient? embeddings = null)
 {
     public async Task<(KnowledgeDocumentView? Document, string? Error)> CreateAsync(
         KnowledgeDocumentRequest request,
@@ -56,6 +56,17 @@ public sealed class KnowledgeService(AgentOSDbContext dbContext, TimeProvider ti
             CreatedAtUtc = now,
             UpdatedAtUtc = now
         };
+        if (embeddings is { Enabled: true })
+        {
+            var vector = await embeddings.EmbedAsync(
+                $"{title}\n{content}\n{string.Join(' ', request.Tags ?? [])}",
+                cancellationToken);
+            if (vector is not null)
+            {
+                document.EmbeddingJson = JsonSerializer.Serialize(vector);
+            }
+        }
+
         dbContext.KnowledgeDocuments.Add(document);
         await dbContext.SaveChangesAsync(cancellationToken);
         return (ToView(document, null), null);
@@ -71,6 +82,27 @@ public sealed class KnowledgeService(AgentOSDbContext dbContext, TimeProvider ti
             var term = query.Trim();
             documents = documents.Where(document =>
                 document.Title.Contains(term) || document.Content.Contains(term) || document.TagsJson.Contains(term));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query) && embeddings is { Enabled: true })
+        {
+            var queryVector = await embeddings.EmbedAsync(query.Trim(), cancellationToken);
+            if (queryVector is not null)
+            {
+                var candidates = await documents.OrderByDescending(document => document.UpdatedAtUtc)
+                    .Take(500).ToListAsync(cancellationToken);
+                return candidates
+                    .Select(document => new
+                    {
+                        Document = document,
+                        Score = Similarity(queryVector, ParseVector(document.EmbeddingJson))
+                    })
+                    .OrderByDescending(row => row.Score)
+                    .ThenByDescending(row => row.Document.UpdatedAtUtc)
+                    .Take(Math.Clamp(limit, 1, 50))
+                    .Select(row => ToView(row.Document, query))
+                    .ToList();
+            }
         }
 
         var rows = await documents.OrderByDescending(document => document.UpdatedAtUtc)
@@ -98,6 +130,43 @@ public sealed class KnowledgeService(AgentOSDbContext dbContext, TimeProvider ti
     {
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
+
+    private static float[]? ParseVector(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<float[]>(json);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static double Similarity(float[] query, float[]? candidate)
+    {
+        if (candidate is null || candidate.Length != query.Length || query.Length == 0)
+        {
+            return 0;
+        }
+
+        double dot = 0, queryNorm = 0, candidateNorm = 0;
+        for (var index = 0; index < query.Length; index++)
+        {
+            dot += query[index] * candidate[index];
+            queryNorm += query[index] * query[index];
+            candidateNorm += candidate[index] * candidate[index];
+        }
+
+        return queryNorm == 0 || candidateNorm == 0
+            ? 0
+            : dot / (Math.Sqrt(queryNorm) * Math.Sqrt(candidateNorm));
+    }
 
     private static KnowledgeDocumentView ToView(KnowledgeDocument document, string? query)
     {

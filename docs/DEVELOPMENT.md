@@ -941,3 +941,9 @@ Model/Provider/ExecutionMode 下发到 Runner，并传给 Codex `-m`）。
 
 - Actions 构建前写 `build-info.json`（commit/buildTime），随产物复制。
 - BuildMetadata 优先读取文件，回退环境变量/文件时间。
+
+## 51. AOS-033b 知识库向量检索
+
+- `Knowledge:Embedding` 可插拔 OpenAI-compatible embeddings；默认关闭回退关键词。
+- 文档保存 EmbeddingJson；搜索按余弦排序（候选 500）。
+- 无重嵌入接口/向量库/维度校验。

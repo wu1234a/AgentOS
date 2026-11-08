@@ -100,6 +100,8 @@ builder.Services.AddScoped<DeadLetterService>();
 builder.Services.AddScoped<WorkerAdminService>();
 builder.Services.Configure<BrowserAutomationOptions>(builder.Configuration.GetSection("BrowserAutomation"));
 builder.Services.AddScoped<BrowserAutomationService>();
+builder.Services.Configure<KnowledgeOptions>(builder.Configuration.GetSection("Knowledge"));
+builder.Services.AddHttpClient<IEmbeddingClient, OpenAiEmbeddingClient>();
 builder.Services.AddScoped<KnowledgeService>();
 builder.Services.AddScoped<BusinessEventService>();
 builder.Services.AddScoped<PipelineService>();

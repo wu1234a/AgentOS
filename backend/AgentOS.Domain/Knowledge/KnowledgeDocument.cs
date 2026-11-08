@@ -8,6 +8,7 @@ public sealed class KnowledgeDocument
     public string Content { get; init; } = string.Empty;
     public string TagsJson { get; init; } = "[]";
     public string Source { get; init; } = "manual";
+    public string? EmbeddingJson { get; set; }
     public DateTime CreatedAtUtc { get; init; }
     public DateTime UpdatedAtUtc { get; set; }
 }

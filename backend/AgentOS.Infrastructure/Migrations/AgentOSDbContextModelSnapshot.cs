@@ -578,6 +578,9 @@ namespace AgentOS.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2(3)");
 
+                    b.Property<string>("EmbeddingJson")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<Guid?>("ProjectId")
                         .HasColumnType("uniqueidentifier");
 
