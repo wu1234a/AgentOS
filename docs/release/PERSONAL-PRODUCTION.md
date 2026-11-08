@@ -284,3 +284,14 @@ E:\AgentOS.Prod\reconcile-quality-gates.ps1
   - quality-gate=success
   - branch-protection=required
 - Auto-merge 仍需在 PR 页面点击 **Enable auto-merge**；当前 PAT 不能调用 GraphQL 自动启用。
+## 14. 首次 Auto-merge 验证（2026-11-09）
+
+- PR #2 已合并：
+  - merged=true
+  - merged_at=2026-11-08T18:14:09Z
+  - merge commit d13125445e9c821a9eae1f5d22d3100e9bf8c851
+- PR #2 有 1 条 AgentOS Review。
+- 合并后 CI（merge commit）：success。
+- 已删除测试文件 `auto-merge-smoke.txt`（commit 108fbf5）。
+- 分支保护审批要求保持 0。
+- 结论：个人单用户自动合并链路已跑通。
