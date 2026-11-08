@@ -44,6 +44,14 @@ const collapsed = ref(false)
           <el-icon><Connection /></el-icon>
           <template #title>Models</template>
         </el-menu-item>
+        <el-menu-item index="/workers">
+          <el-icon><Cpu /></el-icon>
+          <template #title>Workers</template>
+        </el-menu-item>
+        <el-menu-item index="/pipelines">
+          <el-icon><SetUp /></el-icon>
+          <template #title>Pipelines</template>
+        </el-menu-item>
         <el-menu-item index="/projects">
           <el-icon><Folder /></el-icon>
           <template #title>Projects</template>

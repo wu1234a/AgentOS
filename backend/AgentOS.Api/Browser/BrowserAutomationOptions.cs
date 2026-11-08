@@ -7,6 +7,8 @@ public sealed class BrowserAutomationOptions
     public int TimeoutSeconds { get; set; } = 30;
     public string[] AllowedHosts { get; set; } = [];
     public string ScreenshotDirectory { get; set; } = "browser-screenshots";
+    public int MaxConcurrentSessions { get; set; } = 2;
+    public int ScreenshotRetentionHours { get; set; } = 24;
 }
 
 public sealed class BrowserActionRequest

@@ -9,6 +9,7 @@ public sealed class BrowserAutomationService(
     IOptions<BrowserAutomationOptions> options,
     ILogger<BrowserAutomationService> logger)
 {
+    private readonly SemaphoreSlim _sessions = new(2, 2);
     public async Task<(BrowserActionResult? Result, string? Error)> ExecuteAsync(
         BrowserActionRequest request,
         CancellationToken cancellationToken)
@@ -25,6 +26,23 @@ public sealed class BrowserAutomationService(
             return (null, "invalid-url");
         }
 
+        await _sessions.WaitAsync(cancellationToken);
+        try
+        {
+            return await ExecuteCoreAsync(configuration, uri, request, cancellationToken);
+        }
+        finally
+        {
+            _sessions.Release();
+        }
+    }
+
+    private async Task<(BrowserActionResult? Result, string? Error)> ExecuteCoreAsync(
+        BrowserAutomationOptions configuration,
+        Uri uri,
+        BrowserActionRequest request,
+        CancellationToken cancellationToken)
+    {
         if (configuration.AllowedHosts.Length == 0
             || !configuration.AllowedHosts.Contains(uri.Host, StringComparer.OrdinalIgnoreCase))
         {
@@ -44,6 +62,30 @@ public sealed class BrowserAutomationService(
         catch (Exception)
         {
             return (null, "browser-action-failed");
+        }
+    }
+
+    private static void CleanupScreenshots(BrowserAutomationOptions configuration)
+    {
+        try
+        {
+            if (!Directory.Exists(configuration.ScreenshotDirectory))
+            {
+                return;
+            }
+
+            var cutoff = DateTime.UtcNow.AddHours(-configuration.ScreenshotRetentionHours);
+            foreach (var file in Directory.EnumerateFiles(configuration.ScreenshotDirectory, "browser-*.png"))
+            {
+                if (File.GetLastWriteTimeUtc(file) < cutoff)
+                {
+                    File.Delete(file);
+                }
+            }
+        }
+        catch (Exception)
+        {
+            // Cleanup must not fail the browser action.
         }
     }
 
@@ -90,6 +132,7 @@ public sealed class BrowserAutomationService(
         if (action == "screenshot")
         {
             Directory.CreateDirectory(configuration.ScreenshotDirectory);
+            CleanupScreenshots(configuration);
             var path = Path.Combine(configuration.ScreenshotDirectory, $"browser-{Guid.NewGuid():N}.png");
             await page.ScreenshotAsync(new PageScreenshotOptions { Path = path, FullPage = true });
             return (new BrowserActionResult("screenshot", null, path), null);

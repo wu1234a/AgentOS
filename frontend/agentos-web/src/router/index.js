@@ -15,6 +15,8 @@ import CodingRunsView from '../views/CodingRunsView.vue'
 import ApprovalsView from '../views/ApprovalsView.vue'
 import ProjectsView from '../views/ProjectsView.vue'
 import UsageView from '../views/UsageView.vue'
+import WorkersView from '../views/WorkersView.vue'
+import PipelinesView from '../views/PipelinesView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -96,6 +98,18 @@ const router = createRouter({
       name: 'runners',
       component: RunnersView,
       meta: { title: 'Runners' }
+    },
+    {
+      path: '/workers',
+      name: 'workers',
+      component: WorkersView,
+      meta: { title: 'Workers' }
+    },
+    {
+      path: '/pipelines',
+      name: 'pipelines',
+      component: PipelinesView,
+      meta: { title: 'Pipelines' }
     },
     {
       path: '/projects',
