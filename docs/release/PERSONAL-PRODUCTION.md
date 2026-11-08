@@ -181,3 +181,65 @@ Get-CimInstance Win32_Process |
 5. 未配置 HTTPS 到 API（TLS 由 Cloudflare 终止）。
 6. 备份任务已创建，但未做自动恢复演练。
 7. 单实例、无高可用。
+
+## 9. 第二阶段补充（2026-11-09）
+
+### 前端静态托管
+
+API 已启用 `UseDefaultFiles` / `UseStaticFiles` / SPA fallback。
+
+前端构建产物位于：
+
+```text
+E:\AgentOS.Prod\wwwroot
+```
+
+访问：
+
+```text
+http://127.0.0.1:5099/
+https://choosing-yesterday-couples-lows.trycloudflare.com/
+```
+
+更新前端：
+
+```powershell
+cd E:\Projects\AgentOS\frontend\agentos-web
+$env:VITE_API_BASE_URL = ''
+$env:VITE_DEV_API_KEY = [Environment]::GetEnvironmentVariable('Authentication__DevelopmentApiKey','User')
+npm run build
+robocopy dist E:\AgentOS.Prod\wwwroot /MIR /NFL /NDL /NJH /NJS /NP
+```
+
+### 质量门禁定时对账
+
+任务计划：
+
+```text
+AgentOS Quality Reconcile
+每 10 分钟
+```
+
+脚本：
+
+```text
+E:\AgentOS.Prod\reconcile-quality-gates.ps1
+```
+
+作用：查询打开 PR，逐个调用 `quality-gates/reevaluate`，补发漏掉的 `agentos/quality-gate`。
+
+### 自动合并
+
+当前未启用 AgentOS 自动合并；分支保护要求 1 个审批 + `agentos/quality-gate`。
+
+建议先用 GitHub 原生 Auto-merge：
+
+1. 仓库 Settings → General → Allow auto-merge
+2. PR 页面启用 Auto-merge
+3. 满足 Required Check 和审批后 GitHub 自动合并
+
+如需 AgentOS 自动启用/执行合并，需要新增受控 merge API，属于后续任务。
+
+### 固定公网入口
+
+当前仍是 Quick Tunnel，Watchdog 自动更新 GitHub Webhook。固定 Named Tunnel 需要域名/Cloudflare 账号；属于外部配置项。

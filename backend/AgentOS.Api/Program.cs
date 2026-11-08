@@ -157,6 +157,9 @@ if (app.Environment.IsDevelopment())
 
 app.UseSerilogRequestLogging();
 
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 app.MapHealthChecks("/health/live", new HealthCheckOptions
 {
     Predicate = _ => false,
@@ -198,12 +201,14 @@ app.MapMergeReadinessEndpoints();
 app.MapVersionEndpoints();
 app.MapHub<TaskHub>("/hubs/tasks");
 
-app.MapGet("/", () => Results.Ok(new
+app.MapGet("/api", () => Results.Ok(new
 {
     service = "AgentOS.Api",
     status = "ok",
     timestampUtc = DateTime.UtcNow
 }));
+
+app.MapFallbackToFile("index.html");
 
 app.Run();
 
