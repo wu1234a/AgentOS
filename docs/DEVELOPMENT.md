@@ -936,3 +936,8 @@ Model/Provider/ExecutionMode 下发到 Runner，并传给 Codex `-m`）。
 - coding-runs 列表支持 projectId SQL 过滤。
 - 质量门禁重评在无必需 run 时发布 pending（不再静默成功）。
 - 任务列表 projectId 过滤未实现（避免与 Observability 路由冲突）。
+
+## 50. AOS-026b CI 构建元数据
+
+- Actions 构建前写 `build-info.json`（commit/buildTime），随产物复制。
+- BuildMetadata 优先读取文件，回退环境变量/文件时间。
