@@ -62,16 +62,16 @@ onMounted(load)
 </script>
 
 <template>
-  <div>
+  <div data-testid="projects-page">
     <div class="page-head">
       <div>
         <h2>Projects</h2>
         <p class="muted">项目注册、配额与启停；配额限制活动任务领取</p>
       </div>
-      <el-button type="primary" @click="createVisible = true">注册项目</el-button>
+      <el-button type="primary" data-testid="project-create" @click="createVisible = true">注册项目</el-button>
     </div>
     <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" />
-    <el-table v-loading="loading" :data="items" empty-text="暂无项目">
+    <el-table v-loading="loading" :data="items" empty-text="暂无项目" data-testid="projects-table">
       <el-table-column prop="name" label="名称" min-width="180" />
       <el-table-column prop="slug" label="Slug" min-width="140" />
       <el-table-column label="状态" width="100">
@@ -94,13 +94,13 @@ onMounted(load)
 
     <el-dialog v-model="createVisible" title="注册项目" width="420px">
       <el-form label-width="100px">
-        <el-form-item label="名称"><el-input v-model="form.name" /></el-form-item>
-        <el-form-item label="Slug"><el-input v-model="form.slug" placeholder="lowercase-slug" /></el-form-item>
-        <el-form-item label="并发配额"><el-input-number v-model="form.maxConcurrentTasks" :min="1" :max="10000" /></el-form-item>
+        <el-form-item label="名称"><el-input v-model="form.name" data-testid="project-name" /></el-form-item>
+        <el-form-item label="Slug"><el-input v-model="form.slug" placeholder="lowercase-slug" data-testid="project-slug" /></el-form-item>
+        <el-form-item label="并发配额"><el-input-number v-model="form.maxConcurrentTasks" :min="1" :max="10000" data-testid="project-quota" /></el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="createVisible = false">取消</el-button>
-        <el-button type="primary" @click="save">创建</el-button>
+        <el-button type="primary" data-testid="project-save" @click="save">创建</el-button>
       </template>
     </el-dialog>
 

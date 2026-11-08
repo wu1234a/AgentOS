@@ -32,7 +32,7 @@ onMounted(load)
 </script>
 
 <template>
-  <div>
+  <div data-testid="usageview-page">
     <div class="page-head">
       <div>
         <h2>Usage</h2>
@@ -47,7 +47,7 @@ onMounted(load)
       <el-col :span="6"><el-card><div class="metric">${{ totals.cost.toFixed(4) }}</div><div class="muted">估算费用</div></el-card></el-col>
       <el-col :span="6"><el-card><div class="metric">{{ totals.missing }}</div><div class="muted">缺失价格分组</div></el-card></el-col>
     </el-row>
-    <el-table v-loading="loading" :data="items" empty-text="暂无用量">
+    <el-table data-testid="usageview-table" v-loading="loading" :data="items" empty-text="暂无用量">
       <el-table-column prop="date" label="日期" width="120" />
       <el-table-column prop="projectId" label="项目" min-width="220" />
       <el-table-column prop="provider" label="Provider" width="120" />

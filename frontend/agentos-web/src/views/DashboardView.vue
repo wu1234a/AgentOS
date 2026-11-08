@@ -45,7 +45,7 @@ const cards = [
 </script>
 
 <template>
-  <div class="dashboard">
+  <div class="dashboard" data-testid="dashboard-page">
     <div class="page-head">
       <div>
         <h2>Dashboard</h2>

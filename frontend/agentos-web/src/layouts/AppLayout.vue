@@ -44,19 +44,19 @@ const collapsed = ref(false)
           <el-icon><Connection /></el-icon>
           <template #title>Models</template>
         </el-menu-item>
-        <el-menu-item index="/workers">
+        <el-menu-item index="/workers" data-testid="nav-workers">
           <el-icon><Cpu /></el-icon>
           <template #title>Workers</template>
         </el-menu-item>
-        <el-menu-item index="/pipelines">
+        <el-menu-item index="/pipelines" data-testid="nav-pipelines">
           <el-icon><SetUp /></el-icon>
           <template #title>Pipelines</template>
         </el-menu-item>
-        <el-menu-item index="/projects">
+        <el-menu-item index="/projects" data-testid="nav-projects">
           <el-icon><Folder /></el-icon>
           <template #title>Projects</template>
         </el-menu-item>
-        <el-menu-item index="/usage">
+        <el-menu-item index="/usage" data-testid="nav-usage">
           <el-icon><DataLine /></el-icon>
           <template #title>Usage</template>
         </el-menu-item>

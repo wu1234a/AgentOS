@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const devApiKey = import.meta.env.VITE_DEV_API_KEY
+const devApiKey = window.__AGENTOS_DEV_API_KEY__ || import.meta.env.VITE_DEV_API_KEY
 
 const http = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '',

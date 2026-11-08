@@ -26,6 +26,8 @@ project.assets.json
 node_modules/
 dist/
 dist-ssr/
+playwright-report/
+test-results/
 .vite/
 .nyc_output/
 npm-debug.log*

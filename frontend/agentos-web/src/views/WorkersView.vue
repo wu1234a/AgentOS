@@ -37,7 +37,7 @@ onMounted(load)
 </script>
 
 <template>
-  <div>
+  <div data-testid="workersview-page">
     <div class="page-head">
       <div>
         <h2>Workers</h2>
@@ -53,7 +53,7 @@ onMounted(load)
       <el-col :span="5"><el-card><div class="metric">{{ stats.disabled }}</div><div class="muted">Disabled</div></el-card></el-col>
       <el-col :span="5"><el-card><div class="metric">{{ stats.runningTasks }}</div><div class="muted">运行任务</div></el-card></el-col>
     </el-row>
-    <el-table v-loading="loading" :data="items" empty-text="暂无 Worker">
+    <el-table data-testid="workersview-table" v-loading="loading" :data="items" empty-text="暂无 Worker">
       <el-table-column prop="workerCode" label="Worker" min-width="160" />
       <el-table-column prop="hostName" label="主机" min-width="160" />
       <el-table-column prop="platform" label="平台" width="120" />

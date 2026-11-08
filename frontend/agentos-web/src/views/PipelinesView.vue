@@ -35,7 +35,7 @@ onMounted(load)
 </script>
 
 <template>
-  <div>
+  <div data-testid="pipelinesview-page">
     <div class="page-head">
       <div>
         <h2>Pipelines</h2>
@@ -44,7 +44,7 @@ onMounted(load)
       <el-button @click="load">刷新</el-button>
     </div>
     <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" />
-    <el-table v-loading="loading" :data="items" empty-text="暂无任务">
+    <el-table data-testid="pipelinesview-table" v-loading="loading" :data="items" empty-text="暂无任务">
       <el-table-column prop="taskCode" label="任务" width="180" />
       <el-table-column prop="title" label="标题" min-width="220" />
       <el-table-column prop="taskStatus" label="状态" width="120" />
