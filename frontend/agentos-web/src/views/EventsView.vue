@@ -29,7 +29,7 @@ onMounted(load)
 </script>
 
 <template>
-  <div>
+  <div data-testid="events-page">
     <div class="page-head">
       <div>
         <h2>Events</h2>

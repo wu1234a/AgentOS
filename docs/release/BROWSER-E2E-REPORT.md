@@ -7,7 +7,7 @@
 ## 结果
 
 ```text
-10 passed
+14 passed
 0 failed
 ```
 
@@ -24,7 +24,7 @@
 | 7 | 侧边栏导航 | ✅ |
 | 8 | 创建项目并停用 | ✅ |
 | 9 | Usage 汇总卡片 | ✅ |
-| 10 | Pipelines 列表 | ✅ |
+| 10 | Pipelines 列表 | ✅ |\n| 11 | Approvals 加载 | ✅ |\n| 12 | Tasks 加载 | ✅ |\n| 13 | Events 加载 | ✅ |\n| 14 | Coding Runs 加载 | ✅ |
 
 ## 执行
 

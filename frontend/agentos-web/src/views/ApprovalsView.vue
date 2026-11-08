@@ -62,7 +62,7 @@ onMounted(load)
 </script>
 
 <template>
-  <div>
+  <div data-testid="approvals-page">
     <div class="page-head">
       <div>
         <h2>Approval Center</h2>

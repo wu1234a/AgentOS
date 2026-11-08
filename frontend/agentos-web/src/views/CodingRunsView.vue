@@ -197,7 +197,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div>
+  <div data-testid="coding-runs-page">
     <div class="page-head">
       <div>
         <h2>Coding Runs</h2>

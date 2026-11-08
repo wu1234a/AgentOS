@@ -5,7 +5,11 @@ const pages = [
   { path: '/projects', testId: 'projects-page', name: 'Projects' },
   { path: '/usage', testId: 'usageview-page', name: 'Usage' },
   { path: '/workers', testId: 'workersview-page', name: 'Workers' },
-  { path: '/pipelines', testId: 'pipelinesview-page', name: 'Pipelines' }
+  { path: '/pipelines', testId: 'pipelinesview-page', name: 'Pipelines' },
+  { path: '/approvals', testId: 'approvals-page', name: 'Approvals' },
+  { path: '/tasks', testId: 'tasks-page', name: 'Tasks' },
+  { path: '/events', testId: 'events-page', name: 'Events' },
+  { path: '/coding-runs', testId: 'coding-runs-page', name: 'Coding Runs' }
 ]
 
 for (const pageInfo of pages) {

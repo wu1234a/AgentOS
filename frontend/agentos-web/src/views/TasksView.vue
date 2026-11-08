@@ -48,7 +48,7 @@ onMounted(load)
 </script>
 
 <template>
-  <div>
+  <div data-testid="tasks-page">
     <div class="page-head">
       <div>
         <h2>Tasks</h2>
