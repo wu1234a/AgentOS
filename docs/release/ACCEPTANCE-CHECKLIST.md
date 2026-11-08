@@ -27,7 +27,7 @@
 - [x] 配置 `GitHub__AllowedRepositories`
 - [x] 配置 `GitHub__RepositoryProjects`
 - [x] Webhook 事件：Pushes 已真实验证；Pull requests/Workflow runs 待触发
-- [x] PR opened/synchronize 触发自动审查并生成 COMMENT Review（Review 5818049357）
+- [x] PR opened/synchronize 触发自动审查（Review 5818049357 / 5818074126）
 - [ ] workflow_run 发布 `agentos/quality-gate`
 - [ ] 分支保护要求 `agentos/quality-gate`（Token 缺 Administration 权限，未配置）
 - [x] 合并就绪 API 返回 blocked（approvals 0/1，quality-gate success）
@@ -95,3 +95,12 @@
   - quality-gate ✅ success
   - 总体：blocked（符合预期）
 - 分支保护核验：`unverified`，原因是当前 PAT 无 Administration 权限（HTTP 403）。
+## 10. 重评与第二次审查（2026-11-08）
+
+- 质量门禁重评：`POST /api/v1/quality-gates/reevaluate` → `reevaluated`。
+- 重评后 `agentos/quality-gate` 仍为 `success`（created_at 13:32:30Z）。
+- PR #1 head `31ee2cc` 自动审查完成：
+  - Review 5818074126
+  - state COMMENTED
+  - 时间 2026-11-08T13:31:20Z
+- 第二次审查确认重新 push 会触发新 head 的审查。
