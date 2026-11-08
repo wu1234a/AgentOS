@@ -22,11 +22,11 @@
 
 ## 3. 真实 GitHub 联调（需仓库权限）
 
-- [ ] 配置 `GitHub__WebhookSecret`
-- [ ] 配置 `GitHub__ReviewToken`（Pull requests 写、Contents 读、Commit statuses 写）
-- [ ] 配置 `GitHub__AllowedRepositories`
-- [ ] 配置 `GitHub__RepositoryProjects`
-- [ ] Webhook 事件：Pull requests、Pushes、Workflow runs
+- [x] 配置 `GitHub__WebhookSecret`（User Secrets）
+- [ ] 配置 `GitHub__ReviewToken`（当前 Token 401，待替换）
+- [x] 配置 `GitHub__AllowedRepositories`
+- [x] 配置 `GitHub__RepositoryProjects`
+- [x] Webhook 事件：Pushes 已真实验证；Pull requests/Workflow runs 待触发
 - [ ] PR opened 触发自动审查并生成 COMMENT Review
 - [ ] workflow_run 发布 `agentos/quality-gate`
 - [ ] 分支保护要求 `agentos/quality-gate`
@@ -69,3 +69,14 @@
 - 错误签名 → 401。
 - 有效签名 PR 事件 → 202 `accepted`。
 - 项目 `agentos` 自动创建成功。
+## 8. 真实 GitHub Webhook 验证（2026-11-08）
+
+- 公网隧道：`https://impossible-affiliates-variables-pure.trycloudflare.com`
+- GitHub Webhook 已添加，ping 返回 200。
+- 推送测试分支触发真实 `push` 事件：
+  - Delivery：`864b94aa-db75-11f1-8240-870ecfe6f49f`
+  - 事件：`github.push`
+  - 项目：`agentos`
+  - 状态：`Ignored`（无匹配规则，符合预期）
+- 测试分支：`acceptance/webhook-smoke-210836`（远程分支尚未删除）。
+- PR 自动审查暂不可用：`GitHub:ReviewToken` 返回 401，已临时设置 `ReviewEnabled=false`。
