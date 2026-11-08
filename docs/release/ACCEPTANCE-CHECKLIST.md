@@ -29,8 +29,8 @@
 - [x] Webhook 事件：Pushes 已真实验证；Pull requests/Workflow runs 待触发
 - [x] PR opened/synchronize 触发自动审查（Review 5818049357 / 5818074126）
 - [ ] workflow_run 发布 `agentos/quality-gate`
-- [ ] 分支保护要求 `agentos/quality-gate`（Token 缺 Administration 权限，未配置）
-- [x] 合并就绪 API 返回 blocked（approvals 0/1，quality-gate success）
+- [x] 分支保护要求 `agentos/quality-gate`（已配置 master 规则）
+- [x] 合并就绪 API 返回 blocked（approvals 0/1；quality-gate success；branch-protection required）
 - [ ] 质量门禁漏事件后重评恢复
 
 ## 4. 配置检查
@@ -104,3 +104,19 @@
   - state COMMENTED
   - 时间 2026-11-08T13:31:20Z
 - 第二次审查确认重新 push 会触发新 head 的审查。
+## 11. 分支保护与合并就绪（2026-11-08）
+
+- PAT 增加 Administration 后：
+  - `GET /branches/master/protection` → 404（原先未保护）
+  - `PUT /branches/master/protection` 成功
+  - required contexts：`agentos/quality-gate`
+  - required approving reviews：1
+  - enforce_admins：false
+- 本地核验 API：
+  - `GET /api/v1/quality-gates/branch-protection` → `required`
+- Merge Readiness：
+  - quality-gate ✅
+  - branch-protection ✅ required
+  - approvals ❌ 0/1
+  - mergeable ❌（受保护分支未满足条件）
+  - 总体 blocked，符合预期
