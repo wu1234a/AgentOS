@@ -1,7 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { Connection, Cpu, Document, List, MagicStick, Monitor, Notebook, Refresh, SetUp, User } from '@element-plus/icons-vue'
+import { Connection, Cpu, DataLine, Document, Folder, List, MagicStick, Monitor, Notebook, Refresh, SetUp, User } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const collapsed = ref(false)
@@ -43,6 +43,14 @@ const collapsed = ref(false)
         <el-menu-item index="/models">
           <el-icon><Connection /></el-icon>
           <template #title>Models</template>
+        </el-menu-item>
+        <el-menu-item index="/projects">
+          <el-icon><Folder /></el-icon>
+          <template #title>Projects</template>
+        </el-menu-item>
+        <el-menu-item index="/usage">
+          <el-icon><DataLine /></el-icon>
+          <template #title>Usage</template>
         </el-menu-item>
         <el-menu-item index="/agents">
           <el-icon><User /></el-icon>

@@ -13,6 +13,8 @@ import SkillsView from '../views/SkillsView.vue'
 import PlannerView from '../views/PlannerView.vue'
 import CodingRunsView from '../views/CodingRunsView.vue'
 import ApprovalsView from '../views/ApprovalsView.vue'
+import ProjectsView from '../views/ProjectsView.vue'
+import UsageView from '../views/UsageView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -94,6 +96,18 @@ const router = createRouter({
       name: 'runners',
       component: RunnersView,
       meta: { title: 'Runners' }
+    },
+    {
+      path: '/projects',
+      name: 'projects',
+      component: ProjectsView,
+      meta: { title: 'Projects' }
+    },
+    {
+      path: '/usage',
+      name: 'usage',
+      component: UsageView,
+      meta: { title: 'Usage' }
     },
     {
       path: '/rules/:id',
