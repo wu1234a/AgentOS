@@ -243,3 +243,21 @@ E:\AgentOS.Prod\reconcile-quality-gates.ps1
 ### 固定公网入口
 
 当前仍是 Quick Tunnel，Watchdog 自动更新 GitHub Webhook。固定 Named Tunnel 需要域名/Cloudflare 账号；属于外部配置项。
+## 12. Quick Tunnel URL 影响与自动合并（2026-11-09）
+
+### URL 变化影响
+
+- 已创建任务、Worker、数据库、Codex 执行不受 URL 影响。
+- GitHub 新事件依赖 Webhook URL；Watchdog 最多 5 分钟更新。
+- 空窗期内 push / pull_request / workflow_run 可能投递失败，GitHub 不自动重试。
+- PR 审查和质量门禁可通过对账部分恢复；push 类事件需手动 Redeliver。
+
+### Auto-merge
+
+- 仓库已开启 `allow_auto_merge=true`。
+- 已创建 `enable-auto-merge.ps1` 和任务计划 `AgentOS Auto Merge`（每 5 分钟）。
+- 脚本对带 `automerge` 标签的打开 PR 调用 GraphQL `enablePullRequestAutoMerge`。
+- 当前 PAT 返回 `FORBIDDEN: Resource not accessible by personal access token`，需要：
+  - PAT 增加 Contents: Write（允许合并），或
+  - 在 GitHub PR 页面手动启用 Auto-merge。
+- 测试 PR #2 已创建，标签 `automerge`，auto-merge 未成功启用。
