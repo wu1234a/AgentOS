@@ -1,5 +1,7 @@
-﻿bin/
+bin/
 obj/
 node_modules/
 dist/
 .vs/
+backend/AgentOS.Runner/runner-*.log
+backend/AgentOS.Runner/runner-*.err.log
