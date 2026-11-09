@@ -1,6 +1,7 @@
 using System.Text.Json;
 using AgentOS.AgentAdapters;
 using AgentOS.AgentAdapters.Codex;
+using AgentOS.Runner.Delivery;
 using AgentOS.Runner.Handlers;
 using Microsoft.Extensions.Options;
 
@@ -14,6 +15,7 @@ public sealed class CodexTaskHandler(
     IAgentAdapter adapter,
     IValidationCommandRunner validationRunner,
     IChangeSetCapture changeSetCapture,
+    IAutoDelivery autoDelivery,
     IOptions<CodexCliOptions> codexOptions,
     ILogger<CodexTaskHandler> logger,
     bool allowAnyProvider = false) : ITaskHandler
@@ -25,6 +27,19 @@ public sealed class CodexTaskHandler(
         CancellationToken cancellationToken)
     {
         var options = codexOptions.Value;
+
+        if (!AutoDeliveryConfig.TryParse(
+                context.InputJson,
+                context.TaskCode,
+                out var deliveryConfig,
+                out var deliveryConfigError))
+        {
+            context.Log("error", $"invalid delivery configuration: {deliveryConfigError}");
+            return TaskHandlerResult.Failed(
+                "delivery-config-invalid",
+                deliveryConfigError ?? "Delivery configuration is invalid.",
+                retryable: false);
+        }
 
         if (!CodexCliOptions.TryParseSandbox(options.SandboxMode, out var sandbox))
         {
@@ -157,6 +172,39 @@ public sealed class CodexTaskHandler(
                     context.Log(
                         "info",
                         $"change set captured: {capture.Artifact.Files.Count} file(s), base {baseRevision} head {capture.Artifact.HeadRevision}");
+                }
+
+                if (deliveryConfig is not null)
+                {
+                    context.Log("info", $"delivery: preparing branch {deliveryConfig.Branch}");
+                    var delivery = await autoDelivery.DeliverAsync(
+                        deliveryConfig,
+                        context.WorkspacePath,
+                        context.Log,
+                        cancellationToken);
+
+                    artifacts = Append(artifacts, CreateDeliveryArtifact(delivery));
+
+                    if (!delivery.Success)
+                    {
+                        context.Log(
+                            "error",
+                            $"delivery failed: {delivery.ErrorCode} {delivery.ErrorMessage}");
+                        return TaskHandlerResult.Failed(
+                            delivery.ErrorCode ?? "delivery-failed",
+                            delivery.ErrorMessage ?? "Could not deliver the task changes.",
+                            retryable: false) with
+                        {
+                            Artifacts = artifacts
+                        };
+                    }
+
+                    var deliverySummary = delivery.PullRequestUrl is not null
+                        ? $"delivered {delivery.Branch} at {delivery.Commit}; PR {delivery.PullRequestUrl}"
+                        : delivery.Branch is not null
+                            ? $"delivered {delivery.Branch} at {delivery.Commit}"
+                            : "delivery: no changes";
+                    context.Log("info", deliverySummary);
                 }
 
                 return TaskHandlerResult.Succeeded(result.ExitCode ?? 0, result.Summary)
@@ -375,9 +423,28 @@ public sealed class CodexTaskHandler(
         return new TaskArtifactFile("validation-results.json", "application/json", path);
     }
 
+    private static TaskArtifactFile CreateDeliveryArtifact(AutoDeliveryResult result)
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"agentos-delivery-{Guid.NewGuid():N}.json");
+        var payload = new
+        {
+            success = result.Success,
+            branch = result.Branch,
+            commit = result.Commit,
+            pullRequestUrl = result.PullRequestUrl,
+            pullRequestCreated = result.PullRequestCreated,
+            pushUrl = result.PushUrl,
+            errorCode = result.ErrorCode,
+            errorMessage = result.ErrorMessage
+        };
+
+        File.WriteAllText(path, JsonSerializer.Serialize(payload));
+        return new TaskArtifactFile("delivery.json", "application/json", path);
+    }
+
     private static IReadOnlyList<TaskArtifactFile>? Append(
         IReadOnlyList<TaskArtifactFile>? existing,
-        params TaskArtifactFile[] additional)
+        params TaskArtifactFile?[] additional)
     {
         var combined = new List<TaskArtifactFile>();
         if (existing is not null)
@@ -385,7 +452,7 @@ public sealed class CodexTaskHandler(
             combined.AddRange(existing);
         }
 
-        combined.AddRange(additional.Where(artifact => artifact is not null));
+        combined.AddRange(additional.OfType<TaskArtifactFile>());
         return combined;
     }
 

@@ -48,6 +48,44 @@ public sealed class OpenAiCompatibleAgentAdapterTests
     }
 
     [Fact]
+    public async Task Reads_max_steps_from_configuration()
+    {
+        var workspace = Path.Combine(Path.GetTempPath(), $"agentos-adapter-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(workspace);
+        Environment.SetEnvironmentVariable("AGENTOS_TEST_PROVIDER_KEY", "test-key");
+        try
+        {
+            var toolCall = """
+                {"choices":[{"message":{"role":"assistant","content":null,"tool_calls":[{"id":"call-1","type":"function","function":{"name":"list_files","arguments":"{\"path\":\".\"}"}}]}}]}
+                """;
+            var handler = new SequenceHandler(toolCall, toolCall, toolCall, toolCall);
+            var adapter = new OpenAiCompatibleAgentAdapter(new HttpClient(handler));
+
+            var result = await adapter.ExecuteAsync(new AgentExecutionRequest(
+                Guid.NewGuid(),
+                Guid.NewGuid(),
+                "agentos",
+                workspace,
+                "inspect",
+                60,
+                new AgentExecutionPolicy(AgentSandboxMode.ReadOnly, []),
+                Model: "test-model",
+                Provider: "openai",
+                ConfigurationJson: "{\"baseUrl\":\"https://fake.local/v1\",\"maxSteps\":4}",
+                SecretReference: "AGENTOS_TEST_PROVIDER_KEY"), CancellationToken.None);
+
+            Assert.Equal(AgentExecutionStatus.Failed, result.Status);
+            Assert.Equal("model-step-limit", result.ErrorCode);
+            Assert.Contains("4", result.ErrorMessage);
+            Assert.Equal(4, handler.Requests);
+        }
+        finally
+        {
+            Directory.Delete(workspace, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task Rejects_paths_outside_workspace()
     {
         var workspace = Path.Combine(Path.GetTempPath(), $"agentos-adapter-{Guid.NewGuid():N}");

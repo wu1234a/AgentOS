@@ -1,6 +1,7 @@
 using AgentOS.AgentAdapters;
 using AgentOS.AgentAdapters.Codex;
 using AgentOS.AgentAdapters.Processes;
+using AgentOS.Runner.Delivery;
 using AgentOS.Runner.Handlers;
 using Microsoft.Extensions.Options;
 
@@ -31,6 +32,8 @@ public static class RunnerServiceRegistration
         services.AddSingleton<IValidationCommandRunner, ValidationCommandRunner>();
         services.AddSingleton<IChangeSetCapture, GitChangeSetCapture>();
         services.AddSingleton<IWorktreeManager, GitWorktreeManager>();
+        services.AddHttpClient("agentos-github", client => client.Timeout = TimeSpan.FromSeconds(30));
+        services.AddSingleton<IAutoDelivery, GitAutoDelivery>();
         services.AddSingleton<DemoTaskHandler>();
         services.AddSingleton<ITaskHandler>(provider =>
         {
@@ -44,6 +47,7 @@ public static class RunnerServiceRegistration
                     provider.GetRequiredService<IAgentAdapter>(),
                     provider.GetRequiredService<IValidationCommandRunner>(),
                     provider.GetRequiredService<IChangeSetCapture>(),
+                    provider.GetRequiredService<IAutoDelivery>(),
                     provider.GetRequiredService<IOptions<CodexCliOptions>>(),
                     provider.GetRequiredService<ILogger<CodexTaskHandler>>(),
                     allowAnyProvider: true);

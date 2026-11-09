@@ -12,7 +12,7 @@ namespace AgentOS.AgentAdapters;
 /// </summary>
 public sealed class OpenAiCompatibleAgentAdapter : IAgentAdapter
 {
-    private const int MaxSteps = 24;
+    private const int DefaultMaxSteps = 24;
     private const int MaxFileBytes = 200_000;
     private const int MaxCommandOutput = 100_000;
     private readonly HttpClient _httpClient;
@@ -70,7 +70,7 @@ public sealed class OpenAiCompatibleAgentAdapter : IAgentAdapter
         var tools = BuildTools(request.Policy.SandboxMode);
         var endpoint = new Uri(baseUri.ToString().TrimEnd('/') + "/chat/completions");
 
-        for (var step = 0; step < MaxSteps; step++)
+        for (var step = 0; step < settings.MaxSteps; step++)
         {
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(Math.Clamp(request.TimeoutSeconds, 10, 1800)));
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
@@ -167,7 +167,7 @@ public sealed class OpenAiCompatibleAgentAdapter : IAgentAdapter
             }
         }
 
-        return Failed(started, "model-step-limit", $"Model exceeded {MaxSteps} tool steps.", retryable: true);
+        return Failed(started, "model-step-limit", $"Model exceeded {settings.MaxSteps} tool steps.", retryable: true);
     }
 
     private static ModelProviderPreset? ResolveProvider(string? provider)
@@ -199,7 +199,10 @@ public sealed class OpenAiCompatibleAgentAdapter : IAgentAdapter
                 ApiKeyEnvironment = root.TryGetProperty("apiKeyEnv", out var key) ? key.GetString() : null,
                 Model = root.TryGetProperty("model", out var model) ? model.GetString() : null,
                 Temperature = root.TryGetProperty("temperature", out var temperature) && temperature.TryGetDouble(out var t) ? t : 0.1,
-                MaxTokens = root.TryGetProperty("maxTokens", out var maxTokens) && maxTokens.TryGetInt32(out var m) ? m : 8192
+                MaxTokens = root.TryGetProperty("maxTokens", out var maxTokens) && maxTokens.TryGetInt32(out var m) ? m : 8192,
+                MaxSteps = root.TryGetProperty("maxSteps", out var maxSteps) && maxSteps.TryGetInt32(out var s)
+                    ? Math.Clamp(s, 4, 100)
+                    : DefaultMaxSteps
             };
         }
         catch (JsonException)
@@ -408,5 +411,6 @@ public sealed class OpenAiCompatibleAgentAdapter : IAgentAdapter
         public string? Model { get; init; }
         public double Temperature { get; init; } = 0.1;
         public int MaxTokens { get; init; } = 8192;
+        public int MaxSteps { get; init; } = DefaultMaxSteps;
     }
 }

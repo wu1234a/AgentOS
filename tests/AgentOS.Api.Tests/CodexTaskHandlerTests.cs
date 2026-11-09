@@ -2,6 +2,7 @@ using AgentOS.AgentAdapters;
 using AgentOS.AgentAdapters.Codex;
 using AgentOS.AgentAdapters.Processes;
 using AgentOS.Runner;
+using AgentOS.Runner.Delivery;
 using AgentOS.Runner.Handlers;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -13,6 +14,7 @@ public sealed class CodexTaskHandlerTests
     private readonly FakeAgentAdapter _adapter = new();
     private readonly FakeValidationRunner _validation = new();
     private readonly FakeChangeSetCapture _changeSet = new();
+    private readonly FakeAutoDelivery _delivery = new();
     private readonly List<string> _logs = [];
 
     [Fact]
@@ -145,6 +147,37 @@ public sealed class CodexTaskHandlerTests
     }
 
     [Fact]
+    public async Task Delivery_config_is_parsed_and_invoked_after_validation()
+    {
+        _adapter.Result = Result(AgentExecutionStatus.Succeeded, 0);
+
+        var result = await CreateHandler().ExecuteAsync(
+            Context(inputJson: """
+                {"delivery":{"enabled":true,"repository":"owner/repo","branch":"aos/test","baseBranch":"main"}}
+                """),
+            CancellationToken.None);
+
+        Assert.Equal(HandlerOutcome.Succeeded, result.Outcome);
+        Assert.NotNull(_delivery.LastConfig);
+        Assert.Equal("aos/test", _delivery.LastConfig.Branch);
+        Assert.Contains(result.Artifacts!, artifact => artifact.Name == "delivery.json");
+    }
+
+    [Fact]
+    public async Task Invalid_delivery_config_is_rejected_before_the_adapter_runs()
+    {
+        _adapter.Result = Result(AgentExecutionStatus.Succeeded, 0);
+
+        var result = await CreateHandler().ExecuteAsync(
+            Context(inputJson: """{"delivery":{"enabled":true,"repository":"owner/repo","branch":"main","baseBranch":"main"}}"""),
+            CancellationToken.None);
+
+        Assert.Equal(HandlerOutcome.Failed, result.Outcome);
+        Assert.Equal("delivery-config-invalid", result.ErrorCode);
+        Assert.Null(_adapter.LastRequest);
+    }
+
+    [Fact]
     public async Task Invalid_validation_config_is_rejected()
     {
         _adapter.Result = Result(AgentExecutionStatus.Succeeded, 0);
@@ -177,6 +210,7 @@ public sealed class CodexTaskHandlerTests
         _adapter,
         _validation,
         _changeSet,
+        _delivery,
         Options.Create(new CodexCliOptions { SandboxMode = "read-only" }),
         NullLogger<CodexTaskHandler>.Instance);
 
@@ -214,6 +248,21 @@ public sealed class CodexTaskHandlerTests
             errorCode,
             errorCode,
             null);
+}
+
+public sealed class FakeAutoDelivery : IAutoDelivery
+{
+    public AutoDeliveryConfig? LastConfig { get; private set; }
+
+    public Task<AutoDeliveryResult> DeliverAsync(
+        AutoDeliveryConfig config,
+        string workspacePath,
+        Action<string, string> log,
+        CancellationToken cancellationToken)
+    {
+        LastConfig = config;
+        return Task.FromResult(AutoDeliveryResult.Ok(config.Branch, "abc123"));
+    }
 }
 
 public sealed class FakeChangeSetCapture : IChangeSetCapture

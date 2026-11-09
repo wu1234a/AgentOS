@@ -13,7 +13,12 @@ public sealed class ValidationCommandRunner : IValidationCommandRunner
     private const int MaxLoggedLines = 50;
 
     private static readonly string[] AllowedEnvironmentVariables = OperatingSystem.IsWindows()
-        ? ["PATH", "SystemRoot", "WINDIR", "TEMP", "TMP", "USERPROFILE", "COMSPEC", "PATHEXT", "HOME"]
+        ? ["PATH", "SystemRoot", "WINDIR", "TEMP", "TMP", "USERPROFILE", "COMSPEC", "PATHEXT", "HOME",
+           "LOCALAPPDATA", "APPDATA", "PROGRAMDATA", "ALLUSERSPROFILE", "HOMEDRIVE", "HOMEPATH",
+           "DOTNET_ROOT", "NUGET_PACKAGES", "SystemDrive", "ProgramFiles", "ProgramFiles(x86)",
+           "ProgramW6432", "CommonProgramFiles", "CommonProgramFiles(x86)", "CommonProgramW6432",
+           "USERNAME", "USERDOMAIN", "USERDOMAIN_ROAMINGPROFILE", "NUMBER_OF_PROCESSORS",
+           "PROCESSOR_ARCHITECTURE", "PROCESSOR_IDENTIFIER", "PSModulePath", "PUBLIC", "SESSIONNAME"]
         : ["PATH", "HOME", "TMPDIR", "LANG", "LC_ALL"];
 
     public async Task<ValidationCommandResult> RunAsync(
