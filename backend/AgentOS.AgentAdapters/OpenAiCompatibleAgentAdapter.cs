@@ -18,7 +18,7 @@ public sealed class OpenAiCompatibleAgentAdapter : IAgentAdapter
     private readonly HttpClient _httpClient;
 
     public OpenAiCompatibleAgentAdapter(HttpClient? httpClient = null)
-        => _httpClient = httpClient ?? new HttpClient();
+        => _httpClient = httpClient ?? new HttpClient { Timeout = System.Threading.Timeout.InfiniteTimeSpan };
 
     public string Code => "openai-compatible";
 

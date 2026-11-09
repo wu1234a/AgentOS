@@ -5,7 +5,7 @@ public sealed class RunnerOptions
 {
     public string BaseUrl { get; set; } = "http://localhost:5000";
 
-    /// <summary>Task handler to use: <c>demo</c> or <c>codex-cli</c>.</summary>
+    /// <summary>Task handler to use: <c>demo</c>, <c>codex-cli</c>, <c>openai-compatible</c>, or <c>multi</c>.</summary>
     public string AgentAdapter { get; set; } = "demo";
 
     public string WorkerCode { get; set; } = "local-runner";
@@ -79,9 +79,9 @@ public sealed class RunnerOptions
             errors.Add("HeartbeatIntervalSeconds must be between 5 and 300.");
         }
 
-        if (AgentAdapter is not ("demo" or "codex-cli"))
+        if (AgentAdapter is not ("demo" or "codex-cli" or "openai-compatible" or "multi"))
         {
-            errors.Add("AgentAdapter must be demo or codex-cli.");
+            errors.Add("AgentAdapter must be demo, codex-cli, openai-compatible, or multi.");
         }
 
         if (WorkspaceRoots.Length == 0)

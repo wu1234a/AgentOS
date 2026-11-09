@@ -13,7 +13,7 @@ public sealed class AnthropicAgentAdapter : IAgentAdapter
     private readonly HttpClient _httpClient;
 
     public AnthropicAgentAdapter(HttpClient? httpClient = null)
-        => _httpClient = httpClient ?? new HttpClient();
+        => _httpClient = httpClient ?? new HttpClient { Timeout = System.Threading.Timeout.InfiniteTimeSpan };
 
     public string Code => "anthropic";
 

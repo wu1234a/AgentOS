@@ -141,6 +141,22 @@ public sealed class RunnerOptionsTests
     }
 
     [Theory]
+    [InlineData("codex-cli")]
+    [InlineData("openai-compatible")]
+    [InlineData("multi")]
+    public void Non_demo_agent_adapters_are_valid(string adapter)
+    {
+        var options = new RunnerOptions
+        {
+            AgentAdapter = adapter,
+            WorkspaceRoots = ["D:\\workspaces"],
+            Projects = [new ProjectWorkspace { Slug = "demo", Path = "D:\\workspaces\\demo" }]
+        };
+
+        Assert.Empty(options.Validate());
+    }
+
+    [Theory]
     [InlineData("not-a-url")]
     [InlineData("ftp://example.com")]
     public void Invalid_base_url_is_reported(string baseUrl)

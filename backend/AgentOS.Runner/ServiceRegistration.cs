@@ -19,8 +19,11 @@ public static class RunnerServiceRegistration
         services.AddOptions<CodexCliOptions>();
         services.AddSingleton<IProcessRunner, ExternalProcessRunner>();
         services.AddSingleton<CodexCliAdapter>();
-        services.AddSingleton<OpenAiCompatibleAgentAdapter>();
-        services.AddSingleton<AnthropicAgentAdapter>();
+        // Model calls are bounded by the profile/task timeout, not HttpClient's 100s default.
+        services.AddSingleton(_ => new OpenAiCompatibleAgentAdapter(
+            new HttpClient { Timeout = System.Threading.Timeout.InfiniteTimeSpan }));
+        services.AddSingleton(_ => new AnthropicAgentAdapter(
+            new HttpClient { Timeout = System.Threading.Timeout.InfiniteTimeSpan }));
         services.AddSingleton<IAgentAdapter>(provider => new RoutingAgentAdapter(
             provider.GetRequiredService<CodexCliAdapter>(),
             provider.GetRequiredService<OpenAiCompatibleAgentAdapter>(),
