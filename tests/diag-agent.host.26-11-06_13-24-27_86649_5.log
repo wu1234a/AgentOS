@@ -1,0 +1,20 @@
+TpTrace Verbose: 0 : 54548, 2, 2026/11/06, 13:24:28.030, 408568081886, testhost.dll, Version: 17.14.1 Current process architecture: X64
+TpTrace Verbose: 0 : 54548, 2, 2026/11/06, 13:24:28.041, 408568193870, testhost.dll, Runtime location: C:\Program Files\dotnet\shared\Microsoft.NETCore.App\10.0.12
+TpTrace Information: 0 : 54548, 2, 2026/11/06, 13:24:28.044, 408568218089, testhost.dll, DefaultEngineInvoker.Invoke: Testhost process started with args :[--port, 2270],[--endpoint, 127.0.0.1:02270],[--role, client],[--parentprocessid, 5584],[--diag, E:\Projects\AgentOS\tests\diag-agent.host.26-11-06_13-24-27_86649_5.log],[--tracelevel, 4],[--telemetryoptedin, false]
+TpTrace Information: 0 : 54548, 2, 2026/11/06, 13:24:28.044, 408568225763, testhost.dll, Setting up debug trace listener.
+TpTrace Verbose: 0 : 54548, 2, 2026/11/06, 13:24:28.045, 408568226789, testhost.dll, TestPlatformTraceListener.Setup: Replacing listener System.Diagnostics.DefaultTraceListener with TestHostTraceListener.
+TpTrace Verbose: 0 : 54548, 2, 2026/11/06, 13:24:28.045, 408568227856, testhost.dll, TestPlatformTraceListener.Setup: Added test platform trace listener.
+TpTrace Information: 0 : 54548, 2, 2026/11/06, 13:24:28.045, 408568230856, testhost.dll, DefaultEngineInvoker.SetParentProcessExitCallback: Monitoring parent process with id: '5584'
+TpTrace Error: 0 : 54548, 2, 2026/11/06, 13:24:28.065, 408568435156, testhost.dll, TestHost: Error occurred during initialization of TestHost : System.ComponentModel.Win32Exception (5): 拒绝访问。
+   at System.Diagnostics.ProcessManager.OpenProcess(Int32 processId, Int32 access, Boolean throwIfExited)
+   at System.Diagnostics.Process.GetProcessHandle(Int32 access, Boolean throwIfExited)
+   at System.Diagnostics.Process.GetOrOpenProcessHandle()
+   at System.Diagnostics.Process.EnsureWatchingForExit()
+   at System.Diagnostics.Process.set_EnableRaisingEvents(Boolean value)
+   at Microsoft.VisualStudio.TestPlatform.PlatformAbstractions.ProcessHelper.SetExitCallback(Int32 processId, Action`1 callbackAction) in /_/src/Microsoft.TestPlatform.PlatformAbstractions/common/System/ProcessHelper.cs:line 281
+   at Microsoft.VisualStudio.TestPlatform.TestHost.DefaultEngineInvoker.SetParentProcessExitCallback(IDictionary`2 argsDictionary) in /_/src/testhost.x86/DefaultEngineInvoker.cs:line 242
+   at Microsoft.VisualStudio.TestPlatform.TestHost.DefaultEngineInvoker.Invoke(IDictionary`2 argsDictionary) in /_/src/testhost.x86/DefaultEngineInvoker.cs:line 138
+   at Microsoft.VisualStudio.TestPlatform.TestHost.Program.Run(String[] args, UiLanguageOverride uiLanguageOverride) in /_/src/testhost.x86/Program.cs:line 65
+   at Microsoft.VisualStudio.TestPlatform.TestHost.Program.Run(String[] args) in /_/src/testhost.x86/Program.cs:line 54
+   at Microsoft.VisualStudio.TestPlatform.TestHost.Program.Main(String[] args) in /_/src/testhost.x86/Program.cs:line 37
+TpTrace Information: 0 : 54548, 2, 2026/11/06, 13:24:28.068, 408568459858, testhost.dll, Testhost process exiting.
