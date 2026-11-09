@@ -31,6 +31,12 @@ public interface IWorktreeManager
         WorktreeRequest request,
         CancellationToken cancellationToken);
 
+    /// <summary>Creates a worktree from the project's current HEAD when the task did not specify one.</summary>
+    Task<WorktreeCreateResult> CreateAutomaticAsync(
+        string projectPath,
+        Guid codingRunId,
+        CancellationToken cancellationToken);
+
     Task RemoveAsync(WorktreeContext context, CancellationToken cancellationToken);
 }
 
@@ -95,6 +101,23 @@ public sealed class GitWorktreeManager(
             request = new WorktreeRequest(codingRunId, revision.ToLowerInvariant());
             return true;
         }
+    }
+
+    public async Task<WorktreeCreateResult> CreateAutomaticAsync(
+        string projectPath,
+        Guid codingRunId,
+        CancellationToken cancellationToken)
+    {
+        var head = await RunGitAsync(projectPath, ["rev-parse", "HEAD"], cancellationToken);
+        if (!head.Success || !IsFullCommit(head.Output.Trim()))
+        {
+            return Failure("worktree-no-head", "Project workspace has no reachable HEAD commit.");
+        }
+
+        return await CreateAsync(
+            projectPath,
+            new WorktreeRequest(codingRunId, head.Output.Trim().ToLowerInvariant()),
+            cancellationToken);
     }
 
     public async Task<WorktreeCreateResult> CreateAsync(
@@ -230,10 +253,30 @@ public sealed class GitWorktreeManager(
             if (!status.Success
                 || !ahead.Success
                 || !string.IsNullOrWhiteSpace(status.Output)
-                || (int.TryParse(ahead.Output.Trim(), out var commitCount) && commitCount > 0))
+                || !int.TryParse(ahead.Output.Trim(), out var commitCount))
             {
                 logger.LogWarning(
                     "Worktree {WorktreeId} contains unarchived changes or commits; retaining it.",
+                    context.WorktreeId);
+                return;
+            }
+
+            var hasUnpushedCommits = false;
+            if (commitCount > 0)
+            {
+                var unpushed = await RunGitAsync(
+                    worktreePath,
+                    ["rev-list", "--count", "@{u}..HEAD"],
+                    cancellationToken);
+                hasUnpushedCommits = !unpushed.Success
+                    || !int.TryParse(unpushed.Output.Trim(), out var unpushedCount)
+                    || unpushedCount > 0;
+            }
+
+            if (hasUnpushedCommits)
+            {
+                logger.LogWarning(
+                    "Worktree {WorktreeId} contains unpushed commits; retaining it.",
                     context.WorktreeId);
                 return;
             }

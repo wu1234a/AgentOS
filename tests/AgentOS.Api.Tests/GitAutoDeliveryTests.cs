@@ -74,6 +74,65 @@ public sealed class GitAutoDeliveryTests
         }
     }
 
+    [Fact]
+    public async Task Delivers_from_a_linked_worktree_without_checking_out_the_base_branch()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"agentos-linked-delivery-{Guid.NewGuid():N}");
+        var remote = Path.Combine(root, "remote.git");
+        var main = Path.Combine(root, "main");
+        var linked = Path.Combine(root, "linked");
+        var tokenVariable = $"AGENTOS_TEST_TOKEN_{Guid.NewGuid():N}".ToUpperInvariant();
+
+        try
+        {
+            Directory.CreateDirectory(root);
+            Directory.CreateDirectory(main);
+            Git(root, "init", "--bare", remote);
+            Git(main, "init", "-b", "main");
+            Git(main, "config", "user.name", "Test");
+            Git(main, "config", "user.email", "test@example.com");
+            File.WriteAllText(Path.Combine(main, "README.md"), "initial");
+            Git(main, "add", "-A");
+            Git(main, "commit", "-m", "initial");
+            Git(main, "remote", "add", "origin", remote);
+            Git(main, "push", "-u", "origin", "main");
+            Git(main, "worktree", "add", "-b", "aos/linked-delivery", linked, "main");
+
+            File.WriteAllText(Path.Combine(linked, "feature.txt"), "delivered");
+            Environment.SetEnvironmentVariable(tokenVariable, "test-token");
+
+            var delivery = new GitAutoDelivery(
+                new ExternalProcessRunner(TimeProvider.System),
+                new FakeHttpClientFactory(new FakePullRequestHandler()),
+                NullLogger<GitAutoDelivery>.Instance);
+
+            var result = await delivery.DeliverAsync(
+                new AutoDeliveryConfig(
+                    "owner/repo",
+                    "main",
+                    "aos/linked-delivery",
+                    "linked delivery",
+                    "Linked delivery",
+                    "Automated test.",
+                    "origin",
+                    tokenVariable,
+                    RequirePullRequest: true),
+                linked,
+                (_, _) => { },
+                CancellationToken.None);
+
+            Assert.True(result.Success, result.ErrorMessage);
+            Assert.Equal("aos/linked-delivery", Git(linked, "rev-parse", "--abbrev-ref", "HEAD").Trim());
+            Assert.Contains("aos/linked-delivery", Git(remote, "branch", "--list"));
+            Git(main, "worktree", "remove", "--force", linked);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(tokenVariable, null);
+            TryDelete(root);
+        }
+    }
+
     private static string Git(string workingDirectory, params string[] arguments)
     {
         var startInfo = new ProcessStartInfo

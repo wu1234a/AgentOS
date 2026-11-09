@@ -22,6 +22,12 @@ public sealed class NoOpWorktreeManager : IWorktreeManager
         CancellationToken cancellationToken)
         => throw new NotSupportedException();
 
+    public Task<WorktreeCreateResult> CreateAutomaticAsync(
+        string projectPath,
+        Guid codingRunId,
+        CancellationToken cancellationToken)
+        => throw new NotSupportedException();
+
     public Task RemoveAsync(WorktreeContext context, CancellationToken cancellationToken)
         => Task.CompletedTask;
 }

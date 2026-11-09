@@ -40,6 +40,23 @@ public sealed class GitWorktreeManagerTests
     }
 
     [Fact]
+    public async Task Creates_a_worktree_from_the_current_head_when_no_request_is_given()
+    {
+        using var repo = new TempGitRepository();
+        var head = repo.Commit("initial");
+        var root = Path.Combine(Path.GetTempPath(), $"agentos-worktrees-{Guid.NewGuid():N}");
+        var manager = CreateManager(root);
+
+        var result = await manager.CreateAutomaticAsync(repo.Path, Guid.NewGuid(), CancellationToken.None);
+
+        Assert.True(result.Success, result.ErrorMessage);
+        Assert.Equal(head, RunGit(result.Context!.Path, "rev-parse", "HEAD").Trim());
+
+        await manager.RemoveAsync(result.Context, CancellationToken.None);
+        Assert.False(Directory.Exists(result.Context.Path));
+    }
+
+    [Fact]
     public async Task Rejects_an_unknown_base_revision()
     {
         using var repo = new TempGitRepository();

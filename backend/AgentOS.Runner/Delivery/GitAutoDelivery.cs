@@ -248,6 +248,14 @@ public sealed class GitAutoDelivery(
         Action<string, string> log,
         CancellationToken cancellationToken)
     {
+        if (await IsLinkedWorktreeAsync(workspacePath, log, cancellationToken))
+        {
+            // The primary checkout owns the base branch; a linked worktree cannot check it out.
+            // The worktree manager removes this isolated checkout after delivery is recorded.
+            log("info", $"delivery: linked worktree remains on {config.Branch}");
+            return;
+        }
+
         var checkout = await RunGitAsync(workspacePath, ["checkout", config.BaseBranch], log, cancellationToken);
         if (checkout.ExitCode != 0)
         {
@@ -256,6 +264,32 @@ public sealed class GitAutoDelivery(
                 config.Branch,
                 config.BaseBranch);
         }
+    }
+
+    private async Task<bool> IsLinkedWorktreeAsync(
+        string workspacePath,
+        Action<string, string> log,
+        CancellationToken cancellationToken)
+    {
+        var gitDirectory = await RunGitAsync(workspacePath, ["rev-parse", "--git-dir"], log, cancellationToken);
+        var commonDirectory = await RunGitAsync(workspacePath, ["rev-parse", "--git-common-dir"], log, cancellationToken);
+
+        if (gitDirectory.ExitCode != 0
+            || commonDirectory.ExitCode != 0
+            || string.IsNullOrWhiteSpace(gitDirectory.Stdout)
+            || string.IsNullOrWhiteSpace(commonDirectory.Stdout))
+        {
+            return false;
+        }
+
+        static string Normalize(string workspace, string value)
+            => Path.TrimEndingDirectorySeparator(
+                Path.GetFullPath(Path.Combine(workspace, value.Trim())));
+
+        return !string.Equals(
+            Normalize(workspacePath, gitDirectory.Stdout),
+            Normalize(workspacePath, commonDirectory.Stdout),
+            OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
     }
 
     private async Task<PullRequestResult> CreatePullRequestAsync(

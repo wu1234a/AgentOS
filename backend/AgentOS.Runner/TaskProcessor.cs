@@ -39,6 +39,7 @@ public sealed class TaskProcessor(
 
         WorktreeContext? worktree = null;
         var workspacePath = decision.WorkspacePath!;
+        WorktreeCreateResult? created = null;
 
         if (worktrees.TryParseRequest(task.InputJson, out var worktreeRequest, out var requestError))
         {
@@ -54,7 +55,17 @@ public sealed class TaskProcessor(
                 return;
             }
 
-            var created = await worktrees.CreateAsync(workspacePath, worktreeRequest, stoppingToken);
+            created = await worktrees.CreateAsync(workspacePath, worktreeRequest, stoppingToken);
+        }
+        else if (!string.IsNullOrWhiteSpace(options.Value.WorktreeRoot))
+        {
+            // A configured worktree root makes isolation the default. The task can still opt into
+            // an explicit base revision with the git-worktree request above.
+            created = await worktrees.CreateAutomaticAsync(workspacePath, task.TaskId, stoppingToken);
+        }
+
+        if (created is not null)
+        {
             if (!created.Success || created.Context is null)
             {
                 logger.LogWarning(
