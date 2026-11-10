@@ -59,8 +59,13 @@ public sealed class TaskProcessor(
         }
         else if (!string.IsNullOrWhiteSpace(options.Value.WorktreeRoot))
         {
-            // A configured worktree root makes isolation the default. The task can still opt into
-            // an explicit base revision with the git-worktree request above.
+            // A configured worktree root makes isolation the default. Sync a clean base checkout
+            // first so the new worktree contains the latest merged main.
+            if (options.Value.AutoSyncBase)
+            {
+                await worktrees.SyncBaseAsync(workspacePath, stoppingToken);
+            }
+
             created = await worktrees.CreateAutomaticAsync(workspacePath, task.TaskId, stoppingToken);
         }
 

@@ -28,6 +28,9 @@ public sealed class NoOpWorktreeManager : IWorktreeManager
         CancellationToken cancellationToken)
         => throw new NotSupportedException();
 
+    public Task SyncBaseAsync(string projectPath, CancellationToken cancellationToken)
+        => Task.CompletedTask;
+
     public Task RemoveAsync(WorktreeContext context, CancellationToken cancellationToken)
         => Task.CompletedTask;
 }

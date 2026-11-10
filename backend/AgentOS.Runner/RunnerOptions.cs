@@ -23,6 +23,9 @@ public sealed class RunnerOptions
     /// <summary>Optional root for isolated per-Attempt Git worktrees.</summary>
     public string? WorktreeRoot { get; set; }
 
+    /// <summary>Fast-forward the clean base workspace before creating an automatic worktree.</summary>
+    public bool AutoSyncBase { get; set; } = true;
+
     /// <summary>Directories that may contain project workspaces.</summary>
     public string[] WorkspaceRoots { get; set; } = [];
 

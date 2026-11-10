@@ -37,6 +37,9 @@ public interface IWorktreeManager
         Guid codingRunId,
         CancellationToken cancellationToken);
 
+    /// <summary>Fast-forwards a clean base checkout so new worktrees include the latest merged main.</summary>
+    Task SyncBaseAsync(string projectPath, CancellationToken cancellationToken);
+
     Task RemoveAsync(WorktreeContext context, CancellationToken cancellationToken);
 }
 
@@ -118,6 +121,42 @@ public sealed class GitWorktreeManager(
             projectPath,
             new WorktreeRequest(codingRunId, head.Output.Trim().ToLowerInvariant()),
             cancellationToken);
+    }
+
+    public async Task SyncBaseAsync(string projectPath, CancellationToken cancellationToken)
+    {
+        var status = await RunGitAsync(
+            projectPath,
+            ["status", "--porcelain", "--untracked-files=all"],
+            cancellationToken);
+        if (!status.Success || !string.IsNullOrWhiteSpace(status.Output))
+        {
+            logger.LogInformation("Skipping base sync for {Path}: working tree is not clean.", projectPath);
+            return;
+        }
+
+        var upstream = await RunGitAsync(
+            projectPath,
+            ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
+            cancellationToken);
+        if (!upstream.Success)
+        {
+            logger.LogInformation("Skipping base sync for {Path}: branch has no upstream.", projectPath);
+            return;
+        }
+
+        var pull = await RunGitAsync(projectPath, ["pull", "--ff-only", "--prune"], cancellationToken);
+        if (pull.Success)
+        {
+            logger.LogInformation("Fast-forwarded base workspace {Path}.", projectPath);
+        }
+        else
+        {
+            logger.LogWarning(
+                "Base sync for {Path} failed; using the current HEAD. {Error}",
+                projectPath,
+                pull.Error);
+        }
     }
 
     public async Task<WorktreeCreateResult> CreateAsync(
