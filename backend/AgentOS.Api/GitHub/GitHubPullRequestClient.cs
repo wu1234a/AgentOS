@@ -14,6 +14,17 @@ public sealed record PullRequestMergeInfo(
     string HeadSha,
     string BaseRef);
 
+public sealed record PullRequestSummary(
+    int Number,
+    string State,
+    bool Draft,
+    bool? Mergeable,
+    string HeadSha,
+    string HeadRef,
+    string BaseRef);
+
+public sealed record PullRequestMergeResult(bool Success, string? Error);
+
 public interface IGitHubPullRequestClient
 {
     Task<PullRequestMetadata?> GetMetadataAsync(string repository, int number, CancellationToken cancellationToken);
@@ -22,6 +33,8 @@ public interface IGitHubPullRequestClient
     Task<PullRequestMergeInfo?> GetMergeInfoAsync(string repository, int number, CancellationToken cancellationToken);
     Task<int?> GetApprovalCountAsync(string repository, int number, CancellationToken cancellationToken);
     Task<string?> GetCombinedStatusAsync(string repository, string sha, CancellationToken cancellationToken);
+    Task<IReadOnlyList<PullRequestSummary>?> ListOpenPullRequestsAsync(string repository, CancellationToken cancellationToken);
+    Task<PullRequestMergeResult> MergeAsync(string repository, int number, string headSha, string mergeMethod, CancellationToken cancellationToken);
 }
 
 public sealed class GitHubPullRequestClient(HttpClient httpClient, Microsoft.Extensions.Options.IOptions<GitHubOptions> options) : IGitHubPullRequestClient
@@ -99,6 +112,93 @@ public sealed class GitHubPullRequestClient(HttpClient httpClient, Microsoft.Ext
             if (reviews.Count < 100) break;
         }
         return latest.Values.Count(state => state == "APPROVED");
+    }
+
+    public async Task<IReadOnlyList<PullRequestSummary>?> ListOpenPullRequestsAsync(
+        string repository,
+        CancellationToken cancellationToken)
+    {
+        var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"https://api.github.com/repos/{repository}/pulls?state=open&per_page=100&sort=created&direction=asc");
+        AddHeaders(request);
+        using var response = await httpClient.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            return null;
+        }
+
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+        if (document.RootElement.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        var items = new List<PullRequestSummary>();
+        foreach (var item in document.RootElement.EnumerateArray())
+        {
+            if (!item.TryGetProperty("number", out var number)
+                || !item.TryGetProperty("head", out var head)
+                || !head.TryGetProperty("sha", out var sha)
+                || !head.TryGetProperty("ref", out var headRef)
+                || !item.TryGetProperty("base", out var baseElement)
+                || !baseElement.TryGetProperty("ref", out var baseRef))
+            {
+                continue;
+            }
+
+            items.Add(new PullRequestSummary(
+                number.GetInt32(),
+                item.TryGetProperty("state", out var state) ? state.GetString() ?? "unknown" : "unknown",
+                item.TryGetProperty("draft", out var draft) && draft.GetBoolean(),
+                item.TryGetProperty("mergeable", out var mergeable)
+                    && mergeable.ValueKind is JsonValueKind.True or JsonValueKind.False
+                        ? mergeable.GetBoolean()
+                        : null,
+                sha.GetString() ?? string.Empty,
+                headRef.GetString() ?? string.Empty,
+                baseRef.GetString() ?? string.Empty));
+        }
+
+        return items;
+    }
+
+    public async Task<PullRequestMergeResult> MergeAsync(
+        string repository,
+        int number,
+        string headSha,
+        string mergeMethod,
+        CancellationToken cancellationToken)
+    {
+        using var request = CreateRequest(HttpMethod.Put, repository, number, "merge");
+        request.Content = new StringContent(
+            JsonSerializer.Serialize(new { sha = headSha, merge_method = mergeMethod }),
+            Encoding.UTF8,
+            "application/json");
+        using var response = await httpClient.SendAsync(request, cancellationToken);
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            return new PullRequestMergeResult(false, $"GitHub returned HTTP {(int)response.StatusCode}: {body}");
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+            if (document.RootElement.TryGetProperty("merged", out var merged) && merged.GetBoolean())
+            {
+                return new PullRequestMergeResult(true, null);
+            }
+
+            var message = document.RootElement.TryGetProperty("message", out var error)
+                ? error.GetString()
+                : null;
+            return new PullRequestMergeResult(false, message ?? "GitHub did not merge the pull request.");
+        }
+        catch (JsonException)
+        {
+            return new PullRequestMergeResult(false, "GitHub returned an invalid merge response.");
+        }
     }
 
     public async Task<string?> GetCombinedStatusAsync(string repository, string sha, CancellationToken cancellationToken)

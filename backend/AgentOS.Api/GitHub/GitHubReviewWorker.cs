@@ -103,11 +103,22 @@ public sealed class GitHubReviewWorker(
                                 throw new InvalidOperationException("GitHub review creation failed.");
                             }
 
-                            job.Status = "Succeeded";
+                            var hasBlockingFinding = review.Findings.Any(finding =>
+                                string.Equals(finding.Severity, "Critical", StringComparison.OrdinalIgnoreCase)
+                                || string.Equals(finding.Severity, "Major", StringComparison.OrdinalIgnoreCase));
+                            job.Status = hasBlockingFinding ? "Blocked" : "Succeeded";
                             job.GitHubReviewId = reviewId;
+                            if (hasBlockingFinding)
+                            {
+                                var message = $"Review has blocking findings. {review.Summary}".Trim();
+                                job.LastError = message.Length <= 1000 ? message : message[..1000];
+                            }
+                            else
+                            {
+                                job.LastError = null;
+                            }
                         }
 
-                        job.LastError = null;
                         job.UpdatedAtUtc = DateTime.UtcNow;
                         await dbContext.SaveChangesAsync(stoppingToken);
                     }

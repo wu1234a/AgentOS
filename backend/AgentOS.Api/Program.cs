@@ -71,6 +71,7 @@ builder.Services.AddScoped<QualityGateService>();
 builder.Services.AddScoped<MergeReadinessService>();
 builder.Services.AddScoped<IGitHubReviewQueue, GitHubReviewQueue>();
 builder.Services.AddHostedService<GitHubReviewWorker>();
+builder.Services.AddHostedService<GitHubAutoMergeWorker>();
 builder.Services.AddHostedService<ScheduledJobWorker>();
 builder.Services.AddHostedService<DeadLetterRecoveryWorker>();
 builder.Services.AddHttpClient<ITelegramClient, HttpTelegramClient>()

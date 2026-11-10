@@ -12,4 +12,5 @@ public sealed class GitHubOptions
     public int MaxReviewAttempts { get; set; } = 5;
     public Dictionary<string, QualityGateRepositoryOptions> QualityGates { get; set; } = [];
     public Dictionary<string, MergePolicyRepositoryOptions> MergePolicies { get; set; } = [];
+    public Dictionary<string, AutoMergeRepositoryOptions> AutoMerges { get; set; } = [];
 }

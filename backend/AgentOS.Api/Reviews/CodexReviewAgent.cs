@@ -109,7 +109,8 @@ public sealed class CodexReviewAgent(
                 foreach (var item in findingsValue.EnumerateArray())
                 {
                     if (item.ValueKind != JsonValueKind.Object
-                        || !TryGetString(item, "filePath", out var filePath)
+                        || (!TryGetString(item, "filePath", out var filePath)
+                            && !TryGetString(item, "file", out filePath))
                         || !TryGetString(item, "reason", out var reason)
                         || !TryGetString(item, "suggestion", out var suggestion))
                     {
