@@ -76,6 +76,37 @@ public sealed class PlannerOptions
     public int MaxContextCharacters { get; set; } = 8000;
 
     public int MaxDraftCharacters { get; set; } = 100_000;
+
+    public PlannerAutoDispatchOptions AutoDispatch { get; set; } = new();
+}
+
+public sealed class PlannerAutoDispatchOptions
+{
+    public bool Enabled { get; set; }
+
+    /// <summary>Only drafts belonging to this project slug are dispatched automatically.</summary>
+    public string ProjectSlug { get; set; } = string.Empty;
+
+    public string Source { get; set; } = "planner";
+
+    public string EventType { get; set; } = "draft.approved";
+
+    public string[] ValidationCommands { get; set; } = [];
+
+    public PlannerAutoDeliveryOptions Delivery { get; set; } = new();
+}
+
+public sealed class PlannerAutoDeliveryOptions
+{
+    public string? Repository { get; set; }
+
+    public string BaseBranch { get; set; } = "main";
+
+    public string Remote { get; set; } = "origin";
+
+    public string TokenEnvironmentVariable { get; set; } = "AGENTOS_GITHUB_TOKEN";
+
+    public bool RequirePullRequest { get; set; } = true;
 }
 
 public sealed record ApiCompletionRequest(

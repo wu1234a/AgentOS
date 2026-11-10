@@ -58,8 +58,44 @@ public static class PlannerEndpoints
     private static async Task<IResult> ApproveAsync(
         Guid draftId,
         PlannerService service,
+        PlannerDispatchService dispatch,
+        HttpContext httpContext,
+        ILogger<PlannerDispatchService> logger,
         CancellationToken cancellationToken)
-        => Map(await service.ApproveAsync(draftId, cancellationToken));
+    {
+        var result = await service.ApproveAsync(draftId, cancellationToken);
+        if (result is { Outcome: PlannerOutcome.Ok, Draft: not null })
+        {
+            try
+            {
+                var dispatched = await dispatch.DispatchAsync(result.Draft, cancellationToken);
+                httpContext.Response.Headers["X-AgentOS-Dispatch"] = dispatched.Outcome.ToString();
+                if (dispatched.EventId is { } eventId)
+                {
+                    httpContext.Response.Headers["X-AgentOS-Dispatch-Event"] = eventId.ToString();
+                }
+
+                httpContext.Response.Headers["X-AgentOS-Dispatch-Tasks"] =
+                    dispatched.TasksCreated.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+                if (dispatched.Outcome is PlannerDispatchOutcome.Failed or PlannerDispatchOutcome.NoTask)
+                {
+                    logger.LogWarning(
+                        "Planner draft {DraftId} approved but dispatch outcome was {Outcome}: {Code}.",
+                        draftId,
+                        dispatched.Outcome,
+                        dispatched.ErrorCode);
+                }
+            }
+            catch (Exception exception)
+            {
+                httpContext.Response.Headers["X-AgentOS-Dispatch"] = "Failed";
+                logger.LogError(exception, "Planner draft {DraftId} approved but auto-dispatch failed.", draftId);
+            }
+        }
+
+        return Map(result);
+    }
 
     private static async Task<IResult> RejectAsync(
         Guid draftId,

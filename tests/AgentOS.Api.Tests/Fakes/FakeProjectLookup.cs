@@ -22,6 +22,9 @@ public sealed class FakeProjectLookup : IProjectLookup
         => Task.FromResult(_projects.FirstOrDefault(project =>
             string.Equals(project.Slug, slug, StringComparison.OrdinalIgnoreCase)));
 
+    public Task<Project?> FindByIdAsync(Guid id, CancellationToken cancellationToken)
+        => Task.FromResult(_projects.FirstOrDefault(project => project.Id == id));
+
     private static Project Create(string name, string slug, bool isEnabled) => new()
     {
         Id = Guid.CreateVersion7(),

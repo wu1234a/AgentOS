@@ -6,4 +6,6 @@ namespace AgentOS.Application.Projects;
 public interface IProjectLookup
 {
     Task<Project?> FindBySlugAsync(string slug, CancellationToken cancellationToken);
+
+    Task<Project?> FindByIdAsync(Guid id, CancellationToken cancellationToken);
 }

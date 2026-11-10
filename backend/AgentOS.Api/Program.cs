@@ -94,6 +94,7 @@ builder.Services.AddScoped<AgentService>();
 builder.Services.AddScoped<ModelProfileService>();
 builder.Services.AddScoped<SkillService>();
 builder.Services.AddScoped<PlannerService>();
+builder.Services.AddScoped<PlannerDispatchService>();
 builder.Services.AddScoped<ProjectService>();
 builder.Services.AddScoped<ScheduledJobService>();
 builder.Services.Configure<UsageOptions>(builder.Configuration.GetSection("Usage"));

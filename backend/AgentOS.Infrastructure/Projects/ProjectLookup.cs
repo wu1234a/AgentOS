@@ -12,4 +12,9 @@ public sealed class ProjectLookup(AgentOSDbContext dbContext) : IProjectLookup
         => dbContext.Projects
             .AsNoTracking()
             .FirstOrDefaultAsync(project => project.Slug == slug, cancellationToken);
+
+    public Task<Project?> FindByIdAsync(Guid id, CancellationToken cancellationToken)
+        => dbContext.Projects
+            .AsNoTracking()
+            .FirstOrDefaultAsync(project => project.Id == id, cancellationToken);
 }
