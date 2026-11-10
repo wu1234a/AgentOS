@@ -99,8 +99,10 @@ public sealed class GitAutoDelivery(
 
         if (string.IsNullOrWhiteSpace(status.Stdout))
         {
-            log("info", "delivery: no changes to commit");
-            return AutoDeliveryResult.Ok();
+            log("error", "delivery is enabled but the task produced no changes");
+            return AutoDeliveryResult.Failed(
+                "delivery-no-changes",
+                "Delivery is enabled but the task produced no changes, so no branch or pull request could be created.");
         }
 
         var currentBranchResult = await RunGitAsync(workspacePath, ["rev-parse", "--abbrev-ref", "HEAD"], log, cancellationToken);

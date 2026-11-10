@@ -75,6 +75,51 @@ public sealed class GitAutoDeliveryTests
     }
 
     [Fact]
+    public async Task Fails_when_delivery_is_enabled_but_the_workspace_has_no_changes()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"agentos-empty-delivery-{Guid.NewGuid():N}");
+        var work = Path.Combine(root, "work");
+
+        try
+        {
+            Directory.CreateDirectory(work);
+            Git(work, "init", "-b", "main");
+            Git(work, "config", "user.name", "Test");
+            Git(work, "config", "user.email", "test@example.com");
+            File.WriteAllText(Path.Combine(work, "README.md"), "initial");
+            Git(work, "add", "-A");
+            Git(work, "commit", "-m", "initial");
+
+            var delivery = new GitAutoDelivery(
+                new ExternalProcessRunner(TimeProvider.System),
+                new FakeHttpClientFactory(new FakePullRequestHandler()),
+                NullLogger<GitAutoDelivery>.Instance);
+
+            var result = await delivery.DeliverAsync(
+                new AutoDeliveryConfig(
+                    "owner/repo",
+                    "main",
+                    "aos/empty",
+                    "empty delivery",
+                    "Empty delivery",
+                    "Automated test.",
+                    "origin",
+                    "AGENTOS_TEST_TOKEN",
+                    RequirePullRequest: true),
+                work,
+                (_, _) => { },
+                CancellationToken.None);
+
+            Assert.False(result.Success);
+            Assert.Equal("delivery-no-changes", result.ErrorCode);
+        }
+        finally
+        {
+            TryDelete(root);
+        }
+    }
+
+    [Fact]
     public async Task Delivers_from_a_linked_worktree_without_checking_out_the_base_branch()
     {
         var root = Path.Combine(Path.GetTempPath(), $"agentos-linked-delivery-{Guid.NewGuid():N}");
