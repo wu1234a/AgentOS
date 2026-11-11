@@ -1,3 +1,4 @@
+using AgentOS.Api.Backlog;
 using AgentOS.Api.Endpoints;
 using AgentOS.Api.Reviews;
 using AgentOS.Api.GitHub;
@@ -63,6 +64,7 @@ builder.Services.Configure<RunnerRegistrationOptions>(builder.Configuration.GetS
 builder.Services.Configure<SkillContentOptions>(builder.Configuration.GetSection("Skills"));
 builder.Services.Configure<ArtifactOptions>(builder.Configuration.GetSection("Artifacts"));
 builder.Services.Configure<PlannerOptions>(builder.Configuration.GetSection("Planner"));
+builder.Services.Configure<BacklogOptions>(builder.Configuration.GetSection("Backlog"));
 builder.Services.Configure<TelegramOptions>(builder.Configuration.GetSection("Telegram"));
 builder.Services.Configure<GitHubOptions>(builder.Configuration.GetSection("GitHub"));
 builder.Services.AddHttpClient<IGitHubPullRequestClient, GitHubPullRequestClient>();
@@ -72,6 +74,7 @@ builder.Services.AddScoped<MergeReadinessService>();
 builder.Services.AddScoped<IGitHubReviewQueue, GitHubReviewQueue>();
 builder.Services.AddHostedService<GitHubReviewWorker>();
 builder.Services.AddHostedService<GitHubAutoMergeWorker>();
+builder.Services.AddHostedService<BacklogWorker>();
 builder.Services.AddHostedService<ScheduledJobWorker>();
 builder.Services.AddHostedService<DeadLetterRecoveryWorker>();
 builder.Services.AddHttpClient<ITelegramClient, HttpTelegramClient>()
@@ -96,6 +99,7 @@ builder.Services.AddScoped<ModelProfileService>();
 builder.Services.AddScoped<SkillService>();
 builder.Services.AddScoped<PlannerService>();
 builder.Services.AddScoped<PlannerDispatchService>();
+builder.Services.AddScoped<BacklogService>();
 builder.Services.AddScoped<ProjectService>();
 builder.Services.AddScoped<ScheduledJobService>();
 builder.Services.Configure<UsageOptions>(builder.Configuration.GetSection("Usage"));
@@ -189,6 +193,7 @@ app.MapAgentEndpoints();
 app.MapModelProfileEndpoints();
 app.MapSkillEndpoints();
 app.MapPlannerEndpoints();
+app.MapBacklogEndpoints();
 app.MapProjectEndpoints();
 app.MapScheduledJobEndpoints();
 app.MapUsageEndpoints();

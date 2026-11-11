@@ -100,7 +100,18 @@ public sealed class GitHubReviewWorker(
                                 stoppingToken);
                             if (reviewId is null)
                             {
-                                throw new InvalidOperationException("GitHub review creation failed.");
+                                // Some tokens cannot publish reviews (for example due to content
+                                // rate limits). Keep the gate local rather than retrying forever;
+                                // try a regular PR comment as a best-effort fallback.
+                                var commented = await client.CreateCommentAsync(
+                                    job.Repository,
+                                    job.PullRequestNumber,
+                                    body,
+                                    stoppingToken);
+                                logger.LogWarning(
+                                    "Could not publish review for PR #{Number}; fallback comment posted: {Commented}.",
+                                    job.PullRequestNumber,
+                                    commented);
                             }
 
                             var hasBlockingFinding = review.Findings.Any(finding =>

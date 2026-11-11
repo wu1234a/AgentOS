@@ -30,6 +30,7 @@ public interface IGitHubPullRequestClient
     Task<PullRequestMetadata?> GetMetadataAsync(string repository, int number, CancellationToken cancellationToken);
     Task<string?> GetDiffAsync(string repository, int number, CancellationToken cancellationToken);
     Task<long?> CreateReviewAsync(string repository, int number, string headSha, string body, CancellationToken cancellationToken);
+    Task<bool> CreateCommentAsync(string repository, int number, string body, CancellationToken cancellationToken);
     Task<PullRequestMergeInfo?> GetMergeInfoAsync(string repository, int number, CancellationToken cancellationToken);
     Task<int?> GetApprovalCountAsync(string repository, int number, CancellationToken cancellationToken);
     Task<string?> GetCombinedStatusAsync(string repository, string sha, CancellationToken cancellationToken);
@@ -71,6 +72,24 @@ public sealed class GitHubPullRequestClient(HttpClient httpClient, Microsoft.Ext
         if (!response.IsSuccessStatusCode) return null;
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
         return document.RootElement.TryGetProperty("id", out var id) ? id.GetInt64() : null;
+    }
+
+    public async Task<bool> CreateCommentAsync(
+        string repository,
+        int number,
+        string body,
+        CancellationToken cancellationToken)
+    {
+        var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"https://api.github.com/repos/{repository}/issues/{number}/comments");
+        AddHeaders(request);
+        request.Content = new StringContent(
+            JsonSerializer.Serialize(new { body }),
+            Encoding.UTF8,
+            "application/json");
+        using var response = await httpClient.SendAsync(request, cancellationToken);
+        return response.IsSuccessStatusCode;
     }
 
     public async Task<PullRequestMergeInfo?> GetMergeInfoAsync(string repository, int number, CancellationToken cancellationToken)

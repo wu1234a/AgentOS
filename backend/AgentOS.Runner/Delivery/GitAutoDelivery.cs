@@ -99,10 +99,29 @@ public sealed class GitAutoDelivery(
 
         if (string.IsNullOrWhiteSpace(status.Stdout))
         {
-            log("error", "delivery is enabled but the task produced no changes");
-            return AutoDeliveryResult.Failed(
-                "delivery-no-changes",
-                "Delivery is enabled but the task produced no changes, so no branch or pull request could be created.");
+            // Some agents commit their own work. A clean tree is still deliverable when the
+            // current branch has commits that are not yet on the base branch.
+            var ahead = await RunGitAsync(
+                workspacePath,
+                ["rev-list", "--count", $"origin/{config.BaseBranch}..HEAD"],
+                log,
+                cancellationToken);
+            var hasCommittedWork = false;
+            if (ahead.ExitCode == 0
+                && int.TryParse(ahead.Stdout.Trim(), out var aheadCount))
+            {
+                hasCommittedWork = aheadCount > 0;
+            }
+
+            if (!hasCommittedWork)
+            {
+                log("error", "delivery is enabled but the task produced no changes");
+                return AutoDeliveryResult.Failed(
+                    "delivery-no-changes",
+                    "Delivery is enabled but the task produced no changes, so no branch or pull request could be created.");
+            }
+
+            log("info", $"delivery: using {ahead.Stdout.Trim()} already-committed change(s) on the task branch");
         }
 
         var currentBranchResult = await RunGitAsync(workspacePath, ["rev-parse", "--abbrev-ref", "HEAD"], log, cancellationToken);

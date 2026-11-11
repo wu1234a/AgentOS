@@ -75,6 +75,65 @@ public sealed class GitAutoDeliveryTests
     }
 
     [Fact]
+    public async Task Delivers_work_that_the_agent_already_committed()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"agentos-committed-delivery-{Guid.NewGuid():N}");
+        var remote = Path.Combine(root, "remote.git");
+        var work = Path.Combine(root, "work");
+        var tokenVariable = $"AGENTOS_TEST_TOKEN_{Guid.NewGuid():N}".ToUpperInvariant();
+
+        try
+        {
+            Directory.CreateDirectory(root);
+            Directory.CreateDirectory(work);
+            Git(root, "init", "--bare", remote);
+            Git(work, "init", "-b", "main");
+            Git(work, "config", "user.name", "Test");
+            Git(work, "config", "user.email", "test@example.com");
+            File.WriteAllText(Path.Combine(work, "README.md"), "initial");
+            Git(work, "add", "-A");
+            Git(work, "commit", "-m", "initial");
+            Git(work, "remote", "add", "origin", remote);
+            Git(work, "push", "-u", "origin", "main");
+
+            File.WriteAllText(Path.Combine(work, "feature.txt"), "agent commit");
+            Git(work, "add", "-A");
+            Git(work, "commit", "-m", "agent commit");
+            Environment.SetEnvironmentVariable(tokenVariable, "test-token");
+
+            var delivery = new GitAutoDelivery(
+                new ExternalProcessRunner(TimeProvider.System),
+                new FakeHttpClientFactory(new FakePullRequestHandler()),
+                NullLogger<GitAutoDelivery>.Instance);
+
+            var result = await delivery.DeliverAsync(
+                new AutoDeliveryConfig(
+                    "owner/repo",
+                    "main",
+                    "aos/agent-commit",
+                    "agent commit",
+                    "Agent commit",
+                    "Automated test.",
+                    "origin",
+                    tokenVariable,
+                    RequirePullRequest: true),
+                work,
+                (_, _) => { },
+                CancellationToken.None);
+
+            Assert.True(result.Success, result.ErrorMessage);
+            Assert.Equal("aos/agent-commit", result.Branch);
+            Assert.Contains("aos/agent-commit", Git(remote, "branch", "--list"));
+            Assert.Contains("aos/agent-commit", Git(work, "branch", "--list"));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(tokenVariable, null);
+            TryDelete(root);
+        }
+    }
+
+    [Fact]
     public async Task Fails_when_delivery_is_enabled_but_the_workspace_has_no_changes()
     {
         var root = Path.Combine(Path.GetTempPath(), $"agentos-empty-delivery-{Guid.NewGuid():N}");

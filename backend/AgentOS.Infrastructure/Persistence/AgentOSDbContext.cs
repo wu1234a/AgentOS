@@ -7,6 +7,7 @@ using AgentOS.Domain.Knowledge;
 using AgentOS.Domain.Quality;
 using AgentOS.Domain.Scheduling;
 using AgentOS.Domain.Artifacts;
+using AgentOS.Domain.Backlog;
 using AgentOS.Domain.Events;
 using AgentOS.Domain.ModelProfiles;
 using AgentOS.Domain.Projects;
@@ -62,6 +63,7 @@ public sealed class AgentOSDbContext(DbContextOptions<AgentOSDbContext> options)
     public DbSet<ApprovalRequest> ApprovalRequests => Set<ApprovalRequest>();
     public DbSet<DecisionMemory> DecisionMemories => Set<DecisionMemory>();
     public DbSet<PullRequestReviewJob> PullRequestReviewJobs => Set<PullRequestReviewJob>();
+    public DbSet<BacklogItem> BacklogItems => Set<BacklogItem>();
     public DbSet<QualityGateRun> QualityGateRuns => Set<QualityGateRun>();
     public DbSet<QualityGateEvaluation> QualityGateEvaluations => Set<QualityGateEvaluation>();
     public DbSet<ScheduledJob> ScheduledJobs => Set<ScheduledJob>();

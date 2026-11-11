@@ -172,6 +172,14 @@ public sealed class CodexReviewAgent(
             }
         }
 
+        // Review models sometimes prepend a short explanation before the JSON object.
+        var firstBrace = text.IndexOf('{');
+        var lastBrace = text.LastIndexOf('}');
+        if (firstBrace >= 0 && lastBrace > firstBrace)
+        {
+            text = text[firstBrace..(lastBrace + 1)];
+        }
+
         return text;
     }
 

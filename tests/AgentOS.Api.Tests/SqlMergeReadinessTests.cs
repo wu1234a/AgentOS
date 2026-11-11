@@ -57,6 +57,7 @@ public sealed class SqlMergeReadinessTests
             => Task.FromResult<PullRequestMetadata?>(new PullRequestMetadata(sha, "open"));
         public Task<string?> GetDiffAsync(string repository, int number, CancellationToken cancellationToken) => Task.FromResult<string?>(null);
         public Task<long?> CreateReviewAsync(string repository, int number, string headSha, string body, CancellationToken cancellationToken) => Task.FromResult<long?>(null);
+        public Task<bool> CreateCommentAsync(string repository, int number, string body, CancellationToken cancellationToken) => Task.FromResult(false);
         public Task<PullRequestMergeInfo?> GetMergeInfoAsync(string repository, int number, CancellationToken cancellationToken)
             => Task.FromResult<PullRequestMergeInfo?>(new PullRequestMergeInfo("open", false, true, "clean", sha, "master"));
         public Task<int?> GetApprovalCountAsync(string repository, int number, CancellationToken cancellationToken) => Task.FromResult<int?>(1);
