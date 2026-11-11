@@ -18,7 +18,12 @@ public sealed class OpenAiCompatibleAgentAdapter : IAgentAdapter
     private readonly HttpClient _httpClient;
 
     public OpenAiCompatibleAgentAdapter(HttpClient? httpClient = null)
-        => _httpClient = httpClient ?? new HttpClient { Timeout = System.Threading.Timeout.InfiniteTimeSpan };
+    {
+        _httpClient = httpClient ?? new HttpClient();
+        // The adapter enforces its own per-request timeout; the transport timeout must not
+        // cut off long review/completion requests at the default 100 seconds.
+        _httpClient.Timeout = System.Threading.Timeout.InfiniteTimeSpan;
+    }
 
     public string Code => "openai-compatible";
 
