@@ -127,7 +127,7 @@ docs/auto-merge-smoke-3.md removed
 
 ```text
 AgentOS build → 0 errors
-AgentOS tests → 300 passed / 64 skipped / 0 failed
+AgentOS tests → 301 passed / 64 skipped / 0 failed
 Backlog migration applied to AgentOS_Prod
 ```
 
