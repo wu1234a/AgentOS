@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -66,6 +67,40 @@ public sealed class OpenAiCompatibleAgentAdapter : IAgentAdapter
             return Unavailable(started, "model-not-configured", "Model id is required.");
         }
 
+        var targets = new List<ModelTarget>
+        {
+            new(request.Provider ?? provider.Code, model!, baseUrl, apiKey)
+        };
+        foreach (var fallback in settings.Fallbacks)
+        {
+            var fallbackProvider = ResolveProvider(fallback.Provider);
+            var fallbackBaseUrl = string.IsNullOrWhiteSpace(fallback.BaseUrl)
+                ? fallbackProvider?.BaseUrl ?? string.Empty
+                : fallback.BaseUrl;
+            var fallbackKey = fallbackProvider is null
+                ? null
+                : ResolveSecret(
+                    fallback.SecretReference,
+                    fallback.ApiKeyEnvironment,
+                    fallbackProvider.SecretEnvironmentVariable);
+
+            if (string.IsNullOrWhiteSpace(fallback.Model)
+                || string.IsNullOrWhiteSpace(fallbackBaseUrl)
+                || !Uri.TryCreate(fallbackBaseUrl, UriKind.Absolute, out var fallbackUri)
+                || fallbackUri.Scheme != Uri.UriSchemeHttps
+                || string.IsNullOrWhiteSpace(fallbackKey))
+            {
+                request.OnLog?.Invoke("warn", $"fallback model {fallback.Provider}/{fallback.Model} is not usable");
+                continue;
+            }
+
+            targets.Add(new ModelTarget(
+                fallback.Provider,
+                fallback.Model,
+                fallbackBaseUrl,
+                fallbackKey!));
+        }
+
         var workspace = Path.GetFullPath(request.WorkingDirectory);
         var messages = new List<object>
         {
@@ -73,15 +108,16 @@ public sealed class OpenAiCompatibleAgentAdapter : IAgentAdapter
             new { role = "user", content = request.Prompt }
         };
         var tools = BuildTools(request.Policy.SandboxMode);
-        var endpoint = new Uri(baseUri.ToString().TrimEnd('/') + "/chat/completions");
+        var targetIndex = 0;
 
         for (var step = 0; step < settings.MaxSteps; step++)
         {
+            var target = targets[targetIndex];
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(Math.Clamp(request.TimeoutSeconds, 10, 1800)));
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
             object payload = new
             {
-                model,
+                model = target.Model,
                 messages,
                 tools,
                 tool_choice = "auto",
@@ -89,11 +125,12 @@ public sealed class OpenAiCompatibleAgentAdapter : IAgentAdapter
                 max_tokens = settings.MaxTokens
             };
 
+            var endpoint = new Uri(target.BaseUrl.TrimEnd('/') + "/chat/completions");
             using var httpRequest = new HttpRequestMessage(HttpMethod.Post, endpoint)
             {
                 Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
             };
-            httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+            httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", target.ApiKey);
             httpRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
             HttpResponseMessage response;
@@ -101,17 +138,33 @@ public sealed class OpenAiCompatibleAgentAdapter : IAgentAdapter
             {
                 response = await _httpClient.SendAsync(httpRequest, linked.Token);
             }
-            catch (OperationCanceledException) when (timeout.IsCancellationRequested)
-            {
-                return Failed(started, "model-timeout", "Model request timed out.", retryable: true);
-            }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 return Cancelled(started);
             }
+            catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+            {
+                if (targetIndex < targets.Count - 1)
+                {
+                    request.OnLog?.Invoke("warn", $"model {target.Provider}/{target.Model} timed out; trying fallback");
+                    targetIndex++;
+                    step--;
+                    continue;
+                }
+
+                return Failed(started, "model-timeout", "Model request timed out.", retryable: true);
+            }
             catch (Exception exception)
             {
-                return Failed(started, "model-request-failed", Sanitize(exception.Message, apiKey), retryable: true);
+                if (targetIndex < targets.Count - 1)
+                {
+                    request.OnLog?.Invoke("warn", $"model {target.Provider}/{target.Model} request failed; trying fallback");
+                    targetIndex++;
+                    step--;
+                    continue;
+                }
+
+                return Failed(started, "model-request-failed", Sanitize(exception.Message, target.ApiKey), retryable: true);
             }
 
             using (response)
@@ -119,8 +172,18 @@ public sealed class OpenAiCompatibleAgentAdapter : IAgentAdapter
                 var body = await response.Content.ReadAsStringAsync(linked.Token);
                 if (!response.IsSuccessStatusCode)
                 {
+                    if (CanFallback(response.StatusCode) && targetIndex < targets.Count - 1)
+                    {
+                        request.OnLog?.Invoke(
+                            "warn",
+                            $"model {target.Provider}/{target.Model} returned HTTP {(int)response.StatusCode}; trying fallback");
+                        targetIndex++;
+                        step--;
+                        continue;
+                    }
+
                     return Failed(started, "model-http-error",
-                        Sanitize($"HTTP {(int)response.StatusCode}: {body}", apiKey), retryable: true);
+                        Sanitize($"HTTP {(int)response.StatusCode}: {body}", target.ApiKey), retryable: true);
                 }
 
                 using var document = JsonDocument.Parse(body);
@@ -158,6 +221,16 @@ public sealed class OpenAiCompatibleAgentAdapter : IAgentAdapter
                     continue;
                 }
 
+                if (string.IsNullOrWhiteSpace(content) && targetIndex < targets.Count - 1)
+                {
+                    request.OnLog?.Invoke(
+                        "warn",
+                        $"model {target.Provider}/{target.Model} returned empty content; trying fallback");
+                    targetIndex++;
+                    step--;
+                    continue;
+                }
+
                 return new AgentExecutionResult(
                     AgentExecutionStatus.Succeeded,
                     null,
@@ -174,6 +247,17 @@ public sealed class OpenAiCompatibleAgentAdapter : IAgentAdapter
 
         return Failed(started, "model-step-limit", $"Model exceeded {settings.MaxSteps} tool steps.", retryable: true);
     }
+
+    private static bool CanFallback(HttpStatusCode statusCode)
+        => statusCode is HttpStatusCode.Unauthorized
+            or HttpStatusCode.Forbidden
+            or HttpStatusCode.NotFound
+            or HttpStatusCode.RequestTimeout
+            or HttpStatusCode.TooManyRequests
+            or HttpStatusCode.InternalServerError
+            or HttpStatusCode.BadGateway
+            or HttpStatusCode.ServiceUnavailable
+            or HttpStatusCode.GatewayTimeout;
 
     private static ModelProviderPreset? ResolveProvider(string? provider)
     {
@@ -207,13 +291,45 @@ public sealed class OpenAiCompatibleAgentAdapter : IAgentAdapter
                 MaxTokens = root.TryGetProperty("maxTokens", out var maxTokens) && maxTokens.TryGetInt32(out var m) ? m : 8192,
                 MaxSteps = root.TryGetProperty("maxSteps", out var maxSteps) && maxSteps.TryGetInt32(out var s)
                     ? Math.Clamp(s, 4, 100)
-                    : DefaultMaxSteps
+                    : DefaultMaxSteps,
+                Fallbacks = ReadFallbacks(root)
             };
         }
         catch (JsonException)
         {
             return new ProviderSettings();
         }
+    }
+
+    private static IReadOnlyList<FallbackModelSettings> ReadFallbacks(JsonElement root)
+    {
+        if (!root.TryGetProperty("fallbacks", out var fallbacks)
+            || fallbacks.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        var result = new List<FallbackModelSettings>();
+        foreach (var item in fallbacks.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object
+                || !item.TryGetProperty("provider", out var provider)
+                || provider.ValueKind != JsonValueKind.String
+                || !item.TryGetProperty("model", out var model)
+                || model.ValueKind != JsonValueKind.String)
+            {
+                continue;
+            }
+
+            result.Add(new FallbackModelSettings(
+                provider.GetString() ?? string.Empty,
+                model.GetString() ?? string.Empty,
+                item.TryGetProperty("baseUrl", out var baseUrl) ? baseUrl.GetString() : null,
+                item.TryGetProperty("secretReference", out var secret) ? secret.GetString() : null,
+                item.TryGetProperty("apiKeyEnv", out var keyEnvironment) ? keyEnvironment.GetString() : null));
+        }
+
+        return result;
     }
 
     private static string? ResolveSecret(string? secretReference, string? configEnvironment, string presetEnvironment)
@@ -417,5 +533,19 @@ public sealed class OpenAiCompatibleAgentAdapter : IAgentAdapter
         public double Temperature { get; init; } = 0.1;
         public int MaxTokens { get; init; } = 8192;
         public int MaxSteps { get; init; } = DefaultMaxSteps;
+        public IReadOnlyList<FallbackModelSettings> Fallbacks { get; init; } = [];
     }
+
+    private sealed record FallbackModelSettings(
+        string Provider,
+        string Model,
+        string? BaseUrl,
+        string? SecretReference,
+        string? ApiKeyEnvironment);
+
+    private sealed record ModelTarget(
+        string Provider,
+        string Model,
+        string BaseUrl,
+        string ApiKey);
 }
