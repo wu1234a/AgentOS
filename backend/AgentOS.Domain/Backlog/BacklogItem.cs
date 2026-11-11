@@ -22,6 +22,12 @@ public sealed class BacklogItem
 
     public Guid? EventId { get; set; }
 
+    /// <summary>How many automatic repair items were derived from this item.</summary>
+    public int RepairAttempt { get; set; }
+
+    /// <summary>Original item id when this item was created as a repair.</summary>
+    public Guid? SourceItemId { get; set; }
+
     public DateTime CreatedAtUtc { get; init; }
 
     public DateTime UpdatedAtUtc { get; set; }

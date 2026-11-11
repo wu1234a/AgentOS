@@ -15,6 +15,7 @@ public sealed class BacklogItemConfiguration : IEntityTypeConfiguration<BacklogI
         builder.Property(item => item.Priority).HasMaxLength(20).IsRequired();
         builder.Property(item => item.Status).HasMaxLength(20).IsRequired();
         builder.Property(item => item.Error).HasMaxLength(1000);
+        builder.Property(item => item.RepairAttempt).HasDefaultValue(0);
         builder.Property(item => item.CreatedAtUtc).HasColumnType("datetime2(3)");
         builder.Property(item => item.UpdatedAtUtc).HasColumnType("datetime2(3)");
         builder.HasIndex(item => new { item.ProjectId, item.Status, item.CreatedAtUtc });

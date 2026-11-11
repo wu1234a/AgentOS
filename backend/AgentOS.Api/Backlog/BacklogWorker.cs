@@ -1,6 +1,7 @@
 using System.Text.Json;
 using AgentOS.Application.Events;
 using AgentOS.Application.Projects;
+using AgentOS.Domain.Backlog;
 using AgentOS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -66,20 +67,39 @@ public sealed class BacklogWorker(
                 continue;
             }
 
-            var nextStatus = task.Status switch
+            if (task.Status == DomainTaskStatus.Succeeded)
             {
-                DomainTaskStatus.Succeeded => "Completed",
-                DomainTaskStatus.Failed or DomainTaskStatus.Cancelled or DomainTaskStatus.Rejected => "TaskFailed",
-                _ => null
-            };
-            if (nextStatus is null)
+                item.Status = "Completed";
+                item.Error = null;
+                item.UpdatedAtUtc = DateTime.UtcNow;
+                continue;
+            }
+
+            if (task.Status is not (DomainTaskStatus.Failed or DomainTaskStatus.Cancelled or DomainTaskStatus.Rejected))
             {
                 continue;
             }
 
-            item.Status = nextStatus;
-            item.Error = nextStatus == "TaskFailed" ? $"Task ended with {task.Status}." : null;
+            var failureText = $"Task ended with {task.Status}: {task.ErrorMessage}".Trim();
+            item.Error = failureText.Length <= 1000 ? failureText : failureText[..1000];
             item.UpdatedAtUtc = DateTime.UtcNow;
+            if (task.Status == DomainTaskStatus.Failed
+                && item.RepairAttempt < Math.Max(0, options.Value.MaxRepairAttempts))
+            {
+                var repair = BuildRepairItem(item, task.ErrorCode, task.ErrorMessage);
+                if (repair is not null)
+                {
+                    dbContext.BacklogItems.Add(repair);
+                    item.Status = "RepairScheduled";
+                    logger.LogInformation(
+                        "Scheduled repair item {RepairId} for failed backlog item {ItemId}.",
+                        repair.Id,
+                        item.Id);
+                    continue;
+                }
+            }
+
+            item.Status = "TaskFailed";
         }
 
         if (dispatched.Count > 0)
@@ -187,4 +207,110 @@ public sealed class BacklogWorker(
             await dbContext.SaveChangesAsync(cancellationToken);
         }
     }
+
+    private static BacklogItem? BuildRepairItem(
+        BacklogItem item,
+        string? errorCode,
+        string? errorMessage)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(item.PayloadJson);
+            var root = document.RootElement;
+            var instruction = root.TryGetProperty("instruction", out var instructionElement)
+                ? instructionElement.GetString() ?? string.Empty
+                : string.Empty;
+            if (string.IsNullOrWhiteSpace(instruction))
+            {
+                return null;
+            }
+
+            var commands = new List<string>();
+            if (root.TryGetProperty("validationCommands", out var commandsElement)
+                && commandsElement.ValueKind == JsonValueKind.Array)
+            {
+                commands.AddRange(commandsElement.EnumerateArray()
+                    .Select(command => command.GetString())
+                    .Where(command => !string.IsNullOrWhiteSpace(command))
+                    .Select(command => command!));
+            }
+
+            var deliveryElement = root.TryGetProperty("delivery", out var configuredDelivery)
+                && configuredDelivery.ValueKind == JsonValueKind.Object
+                    ? configuredDelivery
+                    : (JsonElement?)null;
+
+            var repairId = Guid.CreateVersion7();
+            var title = item.Title + " (repair)";
+            if (title.Length > 200)
+            {
+                title = title[..200];
+            }
+
+            object? deliveryPayload = null;
+            if (deliveryElement is { } delivery)
+            {
+                deliveryPayload = new
+                {
+                    enabled = true,
+                    repository = ReadString(delivery, "repository"),
+                    baseBranch = ReadString(delivery, "baseBranch") ?? "main",
+                    branch = $"aos/backlog-{repairId:N}",
+                    commitMessage = title,
+                    pullRequestTitle = title,
+                    pullRequestBody = $"Repair for backlog item {item.Id}.",
+                    remote = ReadString(delivery, "remote") ?? "origin",
+                    tokenEnvironmentVariable = ReadString(delivery, "tokenEnvironmentVariable") ?? "AGENTOS_GITHUB_TOKEN",
+                    requirePullRequest = ReadBool(delivery, "requirePullRequest") ?? true
+                };
+            }
+
+            var failure = $"Error code: {errorCode ?? "unknown"}. Error: {errorMessage ?? "unknown"}";
+            var repairInstruction = $"""
+                {instruction}
+
+                ## Previous attempt failed
+                {failure}
+
+                Fix the failure and complete the original task. Do not repeat the failed approach.
+                """;
+
+            var payload = JsonSerializer.SerializeToElement(new
+            {
+                instruction = repairInstruction,
+                validationCommands = commands,
+                delivery = deliveryPayload
+            });
+
+            var now = DateTime.UtcNow;
+            return new BacklogItem
+            {
+                Id = repairId,
+                ProjectId = item.ProjectId,
+                Title = title,
+                PayloadJson = payload.GetRawText(),
+                Priority = item.Priority,
+                Status = "Pending",
+                RepairAttempt = item.RepairAttempt + 1,
+                SourceItemId = item.SourceItemId ?? item.Id,
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now
+            };
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static string? ReadString(JsonElement element, string name)
+        => element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : null;
+
+    private static bool? ReadBool(JsonElement element, string name)
+        => element.TryGetProperty(name, out var value)
+            && value.ValueKind is JsonValueKind.True or JsonValueKind.False
+                ? value.GetBoolean()
+                : null;
 }
