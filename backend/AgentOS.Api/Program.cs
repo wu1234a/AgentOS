@@ -100,6 +100,7 @@ builder.Services.AddScoped<SkillService>();
 builder.Services.AddScoped<PlannerService>();
 builder.Services.AddScoped<PlannerDispatchService>();
 builder.Services.AddScoped<BacklogService>();
+builder.Services.AddScoped<BacklogPlannerService>();
 builder.Services.AddScoped<ProjectService>();
 builder.Services.AddScoped<ScheduledJobService>();
 builder.Services.Configure<UsageOptions>(builder.Configuration.GetSection("Usage"));
