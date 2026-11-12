@@ -9,6 +9,8 @@ namespace AgentOS.Api.Backlog;
 public sealed class CreateBacklogItemRequest
 {
     public Guid? ProjectId { get; init; }
+    public Guid? PlanId { get; init; }
+    public string? EpicKey { get; init; }
     public string? Title { get; init; }
     public string? Instruction { get; init; }
     public string[]? ValidationCommands { get; init; }
@@ -28,6 +30,8 @@ public sealed class BacklogDeliveryRequest
 public sealed record BacklogItemView(
     Guid Id,
     Guid ProjectId,
+    Guid? PlanId,
+    string? EpicKey,
     string Title,
     string Status,
     string Priority,
@@ -138,6 +142,8 @@ public sealed class BacklogService(
         {
             Id = id,
             ProjectId = project.Id,
+            PlanId = request.PlanId,
+            EpicKey = string.IsNullOrWhiteSpace(request.EpicKey) ? null : request.EpicKey.Trim(),
             Title = title,
             PayloadJson = payload.GetRawText(),
             Priority = priority,
@@ -189,6 +195,8 @@ public sealed class BacklogService(
         => new(
             item.Id,
             item.ProjectId,
+            item.PlanId,
+            item.EpicKey,
             item.Title,
             item.Status,
             item.Priority,

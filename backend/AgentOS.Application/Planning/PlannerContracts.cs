@@ -77,6 +77,9 @@ public sealed class PlannerOptions
 
     public int MaxDraftCharacters { get; set; } = 100_000;
 
+    /// <summary>Preferred profile for the multi-agent project planning board.</summary>
+    public string? ProjectPlanModelProfileCode { get; set; } = "deepseek-reviewer";
+
     /// <summary>Additional model profiles tried after the default Planner profile fails.</summary>
     public string[] BacklogFallbackProfileCodes { get; set; } = [];
 

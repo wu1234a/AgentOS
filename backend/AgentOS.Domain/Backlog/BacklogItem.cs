@@ -10,6 +10,12 @@ public sealed class BacklogItem
 
     public Guid ProjectId { get; init; }
 
+    /// <summary>Project plan that produced this item, when it came from an approved plan.</summary>
+    public Guid? PlanId { get; set; }
+
+    /// <summary>Roadmap epic/milestone key from the originating plan.</summary>
+    public string? EpicKey { get; set; }
+
     public string Title { get; set; } = string.Empty;
 
     /// <summary>Full task payload (instruction, validation commands, delivery).</summary>

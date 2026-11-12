@@ -1,0 +1,364 @@
+using System.Text.Json;
+using AgentOS.Api.Backlog;
+using AgentOS.Application.Planning;
+using AgentOS.Application.Projects;
+using AgentOS.Domain.Planning;
+using AgentOS.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+
+namespace AgentOS.Api.ProjectPlanning;
+
+public sealed class CreateProjectPlanRequest
+{
+    public Guid? ProjectId { get; init; }
+    public string? Title { get; init; }
+    public string? Goal { get; init; }
+    public string? Constraints { get; init; }
+    public BacklogDeliveryRequest? Delivery { get; init; }
+}
+
+public sealed record ProjectPlanView(
+    Guid Id,
+    Guid ProjectId,
+    string Title,
+    string Goal,
+    string? Constraints,
+    string Status,
+    string ModelProfileCode,
+    string? ProposalsJson,
+    string? CritiquesJson,
+    string? FinalPlanJson,
+    string? Error,
+    DateTime CreatedAtUtc,
+    DateTime UpdatedAtUtc,
+    DateTime? DecidedAtUtc);
+
+public sealed record ProjectPlanCreateResult(
+    bool Success,
+    ProjectPlanView? Plan,
+    string? ErrorCode,
+    string? ErrorMessage);
+
+public sealed record ProjectPlanApprovalResult(
+    bool Success,
+    ProjectPlanView? Plan,
+    string? ErrorCode,
+    string? ErrorMessage);
+
+public sealed record ProjectPlanTask(
+    string Kind,
+    string Epic,
+    string Title,
+    string Instruction);
+
+public sealed class ProjectPlanService(
+    AgentOSDbContext dbContext,
+    IProjectLookup projects,
+    BacklogService backlog,
+    IOptions<PlannerOptions> plannerOptions,
+    TimeProvider timeProvider)
+{
+    private static readonly HashSet<string> AllowedKinds =
+        new(StringComparer.OrdinalIgnoreCase) { "backend", "frontend", "docs", "full" };
+
+    public async Task<ProjectPlanCreateResult> CreateAsync(
+        CreateProjectPlanRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request.ProjectId is not { } projectId)
+        {
+            return Fail("projectId is required.");
+        }
+
+        var project = await projects.FindByIdAsync(projectId, cancellationToken);
+        if (project is null || !project.IsEnabled)
+        {
+            return Fail("Project does not exist or is disabled.");
+        }
+
+        var title = request.Title?.Trim() ?? string.Empty;
+        var goal = request.Goal?.Trim() ?? string.Empty;
+        if (title.Length is < 3 or > 200)
+        {
+            return Fail("title must be between 3 and 200 characters.");
+        }
+
+        if (goal.Length is < 10 or > 8000)
+        {
+            return Fail("goal must be between 10 and 8000 characters.");
+        }
+
+        var constraints = string.IsNullOrWhiteSpace(request.Constraints)
+            ? null
+            : request.Constraints.Trim();
+        if (constraints is { Length: > 8000 })
+        {
+            return Fail("constraints must be 8000 characters or fewer.");
+        }
+
+        var delivery = request.Delivery ?? new BacklogDeliveryRequest();
+        if (string.IsNullOrWhiteSpace(delivery.Repository))
+        {
+            return Fail("delivery.repository is required.");
+        }
+
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+        var plan = new ProjectPlan
+        {
+            Id = Guid.CreateVersion7(),
+            ProjectId = project.Id,
+            Title = title,
+            Goal = goal,
+            Constraints = constraints,
+            DeliveryJson = JsonSerializer.Serialize(delivery),
+            ModelProfileCode = plannerOptions.Value.DefaultModelProfileCode ?? "kimi-planner",
+            Status = "Queued",
+            CreatedAtUtc = now,
+            UpdatedAtUtc = now
+        };
+        dbContext.ProjectPlans.Add(plan);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return new ProjectPlanCreateResult(true, ToView(plan), null, null);
+    }
+
+    public async Task<IReadOnlyList<ProjectPlanView>> ListAsync(
+        string? status,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        var query = dbContext.ProjectPlans.AsNoTracking();
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            query = query.Where(plan => plan.Status == status.Trim());
+        }
+
+        var plans = await query
+            .OrderByDescending(plan => plan.CreatedAtUtc)
+            .Take(Math.Clamp(limit, 1, 100))
+            .ToListAsync(cancellationToken);
+        return plans.Select(ToView).ToList();
+    }
+
+    public async Task<ProjectPlanView?> GetAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var plan = await dbContext.ProjectPlans.AsNoTracking()
+            .FirstOrDefaultAsync(candidate => candidate.Id == id, cancellationToken);
+        return plan is null ? null : ToView(plan);
+    }
+
+    public async Task<ProjectPlanApprovalResult> ApproveAsync(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var plan = await dbContext.ProjectPlans.FirstOrDefaultAsync(
+            candidate => candidate.Id == id,
+            cancellationToken);
+        if (plan is null)
+        {
+            return new ProjectPlanApprovalResult(false, null, "plan-not-found", "Project plan was not found.");
+        }
+
+        if (plan.Status != "PendingReview")
+        {
+            return new ProjectPlanApprovalResult(
+                false,
+                ToView(plan),
+                "plan-not-pending",
+                $"Project plan is {plan.Status}, not PendingReview.");
+        }
+
+        var tasks = ParseTasks(plan.FinalPlanJson);
+        if (tasks.Count == 0)
+        {
+            return new ProjectPlanApprovalResult(
+                false,
+                ToView(plan),
+                "plan-has-no-tasks",
+                "The plan does not contain valid tasks.");
+        }
+
+        BacklogDeliveryRequest? delivery;
+        try
+        {
+            delivery = JsonSerializer.Deserialize<BacklogDeliveryRequest>(plan.DeliveryJson);
+        }
+        catch (JsonException)
+        {
+            delivery = null;
+        }
+
+        if (delivery is null || string.IsNullOrWhiteSpace(delivery.Repository))
+        {
+            return new ProjectPlanApprovalResult(
+                false,
+                ToView(plan),
+                "plan-delivery-missing",
+                "The plan has no valid delivery configuration.");
+        }
+
+        var created = new List<string>();
+        foreach (var task in tasks)
+        {
+            var commands = ValidationCommandsFor(task.Kind);
+            if (commands.Length == 0)
+            {
+                continue;
+            }
+
+            var result = await backlog.CreateAsync(
+                new CreateBacklogItemRequest
+                {
+                    ProjectId = plan.ProjectId,
+                    PlanId = plan.Id,
+                    EpicKey = task.Epic,
+                    Title = task.Title,
+                    Instruction = task.Instruction,
+                    ValidationCommands = commands,
+                    Delivery = delivery,
+                    Priority = "normal"
+                },
+                cancellationToken);
+
+            if (!result.Success)
+            {
+                return new ProjectPlanApprovalResult(
+                    false,
+                    ToView(plan),
+                    "plan-backlog-create-failed",
+                    $"Could not create task '{task.Title}'.");
+            }
+
+            created.Add(task.Title);
+        }
+
+        if (created.Count == 0)
+        {
+            return new ProjectPlanApprovalResult(
+                false,
+                ToView(plan),
+                "plan-has-no-valid-tasks",
+                "No valid tasks could be created.");
+        }
+
+        plan.Status = "Approved";
+        plan.DecidedAtUtc = timeProvider.GetUtcNow().UtcDateTime;
+        plan.UpdatedAtUtc = plan.DecidedAtUtc.Value;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return new ProjectPlanApprovalResult(true, ToView(plan), null, null);
+    }
+
+    public async Task<ProjectPlanApprovalResult> RejectAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var plan = await dbContext.ProjectPlans.FirstOrDefaultAsync(
+            candidate => candidate.Id == id,
+            cancellationToken);
+        if (plan is null)
+        {
+            return new ProjectPlanApprovalResult(false, null, "plan-not-found", "Project plan was not found.");
+        }
+
+        if (plan.Status != "PendingReview")
+        {
+            return new ProjectPlanApprovalResult(
+                false,
+                ToView(plan),
+                "plan-not-pending",
+                $"Project plan is {plan.Status}, not PendingReview.");
+        }
+
+        plan.Status = "Rejected";
+        plan.DecidedAtUtc = timeProvider.GetUtcNow().UtcDateTime;
+        plan.UpdatedAtUtc = plan.DecidedAtUtc.Value;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return new ProjectPlanApprovalResult(true, ToView(plan), null, null);
+    }
+
+    internal static IReadOnlyList<ProjectPlanTask> ParseTasks(string? finalPlanJson)
+    {
+        if (string.IsNullOrWhiteSpace(finalPlanJson))
+        {
+            return [];
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(finalPlanJson);
+            if (!document.RootElement.TryGetProperty("tasks", out var tasks)
+                || tasks.ValueKind != JsonValueKind.Array)
+            {
+                return [];
+            }
+
+            var result = new List<ProjectPlanTask>();
+            foreach (var item in tasks.EnumerateArray())
+            {
+                if (result.Count >= 20
+                    || item.ValueKind != JsonValueKind.Object
+                    || !item.TryGetProperty("kind", out var kind)
+                    || !item.TryGetProperty("title", out var title)
+                    || !item.TryGetProperty("instruction", out var instruction)
+                    || kind.ValueKind != JsonValueKind.String
+                    || title.ValueKind != JsonValueKind.String
+                    || instruction.ValueKind != JsonValueKind.String)
+                {
+                    continue;
+                }
+
+                var kindValue = kind.GetString()?.Trim().ToLowerInvariant() ?? string.Empty;
+                var titleValue = title.GetString()?.Trim() ?? string.Empty;
+                var instructionValue = instruction.GetString()?.Trim() ?? string.Empty;
+                var epic = item.TryGetProperty("epic", out var epicElement)
+                    && epicElement.ValueKind == JsonValueKind.String
+                        ? epicElement.GetString()?.Trim() ?? "default"
+                        : "default";
+
+                if (!AllowedKinds.Contains(kindValue)
+                    || titleValue.Length is < 3 or > 200
+                    || instructionValue.Length is < 10 or > 20_000
+                    || epic.Length > 100)
+                {
+                    continue;
+                }
+
+                result.Add(new ProjectPlanTask(kindValue, epic, titleValue, instructionValue));
+            }
+
+            return result;
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+    }
+
+    private static string[] ValidationCommandsFor(string kind)
+        => kind switch
+        {
+            "backend" => ["dotnet build 3dERP.slnx", "dotnet test 3dERP.slnx --no-build"],
+            "frontend" => ["npm --prefix web ci", "npm --prefix web run build"],
+            "docs" => ["dotnet build 3dERP.slnx"],
+            "full" => ["dotnet build 3dERP.slnx", "dotnet test 3dERP.slnx --no-build", "npm --prefix web ci", "npm --prefix web run build"],
+            _ => []
+        };
+
+    private static ProjectPlanCreateResult Fail(string message)
+        => new(false, null, "invalid-plan", message);
+
+    private static ProjectPlanView ToView(ProjectPlan plan)
+        => new(
+            plan.Id,
+            plan.ProjectId,
+            plan.Title,
+            plan.Goal,
+            plan.Constraints,
+            plan.Status,
+            plan.ModelProfileCode,
+            plan.ProposalsJson,
+            plan.CritiquesJson,
+            plan.FinalPlanJson,
+            plan.Error,
+            plan.CreatedAtUtc,
+            plan.UpdatedAtUtc,
+            plan.DecidedAtUtc);
+}
