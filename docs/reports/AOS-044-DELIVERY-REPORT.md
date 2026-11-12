@@ -92,8 +92,7 @@ Watchdog：
 
 ```text
 AgentOS build → 0 errors
-AgentOS tests → 302 passed / 64 skipped / 1 flaky
-flaky rerun → 5/5 passed
+AgentOS tests → 305 passed / 64 skipped / 0 failed
 ```
 
 ## 8. 已知限制
