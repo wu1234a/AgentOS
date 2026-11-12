@@ -76,97 +76,128 @@ public sealed class GitHubAutoMergeWorker(
             return;
         }
 
-        foreach (var pullRequest in pullRequests)
+        // Merge in PR-number order. Only the first eligible PR is advanced in one cycle, so a
+        // later PR cannot land before an earlier one that is still awaiting review or a rebase.
+        var pullRequest = pullRequests
+            .Where(candidate =>
+                string.Equals(candidate.State, "open", StringComparison.OrdinalIgnoreCase)
+                && !candidate.Draft
+                && string.Equals(candidate.BaseRef, policy.BaseBranch, StringComparison.OrdinalIgnoreCase)
+                && candidate.HeadRef.StartsWith(policy.BranchPrefix, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(candidate => candidate.Number)
+            .FirstOrDefault();
+        if (pullRequest is null)
         {
-            if (!string.Equals(pullRequest.State, "open", StringComparison.OrdinalIgnoreCase)
-                || pullRequest.Draft
-                || !string.Equals(pullRequest.BaseRef, policy.BaseBranch, StringComparison.OrdinalIgnoreCase)
-                || !pullRequest.HeadRef.StartsWith(policy.BranchPrefix, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
+            return;
+        }
 
-            var review = await dbContext.PullRequestReviewJobs
-                .AsNoTracking()
-                .FirstOrDefaultAsync(
-                    job => job.Repository == repository
-                        && job.PullRequestNumber == pullRequest.Number
-                        && job.HeadSha == pullRequest.HeadSha,
-                    cancellationToken);
+        var review = await dbContext.PullRequestReviewJobs
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                job => job.Repository == repository
+                    && job.PullRequestNumber == pullRequest.Number
+                    && job.HeadSha == pullRequest.HeadSha,
+                cancellationToken);
 
-            if (review is null)
-            {
-                await reviewQueue.EnqueueAsync(
-                    repository,
-                    pullRequest.Number,
-                    pullRequest.HeadSha,
-                    "auto-merge",
-                    $"auto-merge:{repository}:{pullRequest.Number}:{pullRequest.HeadSha}",
-                    cancellationToken);
-                logger.LogInformation(
-                    "Queued review for {Repository} PR #{Number} at {Sha}.",
-                    repository,
-                    pullRequest.Number,
-                    pullRequest.HeadSha);
-                continue;
-            }
-
-            if (review.Status is "Pending" or "Running")
-            {
-                continue;
-            }
-
-            if (policy.RequireReview && review.Status != "Succeeded")
-            {
-                logger.LogInformation(
-                    "Skipping auto-merge for {Repository} PR #{Number}: review is {Status}.",
-                    repository,
-                    pullRequest.Number,
-                    review.Status);
-                continue;
-            }
-
-            var mergeable = pullRequest.Mergeable;
-            if (mergeable is null)
-            {
-                // GitHub's list endpoint commonly returns mergeable=null; refresh the single PR.
-                var info = await client.GetMergeInfoAsync(repository, pullRequest.Number, cancellationToken);
-                mergeable = info?.Mergeable;
-            }
-
-            if (mergeable != true)
-            {
-                logger.LogInformation(
-                    "Skipping auto-merge for {Repository} PR #{Number}: mergeable={Mergeable}.",
-                    repository,
-                    pullRequest.Number,
-                    mergeable);
-                continue;
-            }
-
-            var merge = await client.MergeAsync(
+        if (review is null)
+        {
+            await reviewQueue.EnqueueAsync(
                 repository,
                 pullRequest.Number,
                 pullRequest.HeadSha,
-                policy.MergeMethod,
+                "auto-merge",
+                $"auto-merge:{repository}:{pullRequest.Number}:{pullRequest.HeadSha}",
                 cancellationToken);
+            logger.LogInformation(
+                "Queued review for {Repository} PR #{Number} at {Sha}.",
+                repository,
+                pullRequest.Number,
+                pullRequest.HeadSha);
+            return;
+        }
 
-            if (merge.Success)
+        if (review.Status is "Pending" or "Running")
+        {
+            return;
+        }
+
+        if (policy.RequireReview && review.Status != "Succeeded")
+        {
+            logger.LogInformation(
+                "Waiting for {Repository} PR #{Number}: review is {Status}; later PRs stay queued.",
+                repository,
+                pullRequest.Number,
+                review.Status);
+            return;
+        }
+
+        var mergeable = pullRequest.Mergeable;
+        if (mergeable is null)
+        {
+            // GitHub's list endpoint commonly returns mergeable=null; refresh the single PR.
+            var info = await client.GetMergeInfoAsync(repository, pullRequest.Number, cancellationToken);
+            mergeable = info?.Mergeable;
+        }
+
+        if (mergeable != true)
+        {
+            if (policy.AutoUpdateBranch && pullRequests.Count > 1)
             {
-                logger.LogInformation(
-                    "Auto-merged {Repository} PR #{Number} at {Sha}.",
+                var update = await client.UpdateBranchAsync(
                     repository,
                     pullRequest.Number,
-                    pullRequest.HeadSha);
+                    pullRequest.HeadSha,
+                    cancellationToken);
+                if (update.Success)
+                {
+                    logger.LogInformation(
+                        "Requested branch update for {Repository} PR #{Number}; it will be re-reviewed.",
+                        repository,
+                        pullRequest.Number);
+                }
+                else
+                {
+                    logger.LogWarning(
+                        "Could not update {Repository} PR #{Number}: {Error}.",
+                        repository,
+                        pullRequest.Number,
+                        update.Error);
+                }
             }
             else
             {
-                logger.LogWarning(
-                    "Auto-merge failed for {Repository} PR #{Number}: {Error}.",
+                logger.LogInformation(
+                    "Waiting for {Repository} PR #{Number}: mergeable={Mergeable}; later PRs stay queued.",
                     repository,
                     pullRequest.Number,
-                    merge.Error);
+                    mergeable);
             }
+
+            return;
+        }
+
+        var merge = await client.MergeAsync(
+            repository,
+            pullRequest.Number,
+            pullRequest.HeadSha,
+            policy.MergeMethod,
+            cancellationToken);
+
+        if (merge.Success)
+        {
+            logger.LogInformation(
+                "Auto-merged {Repository} PR #{Number} at {Sha}; later PRs will be handled next cycle.",
+                repository,
+                pullRequest.Number,
+                pullRequest.HeadSha);
+        }
+        else
+        {
+            logger.LogWarning(
+                "Auto-merge failed for {Repository} PR #{Number}: {Error}.",
+                repository,
+                pullRequest.Number,
+                merge.Error);
         }
     }
 }

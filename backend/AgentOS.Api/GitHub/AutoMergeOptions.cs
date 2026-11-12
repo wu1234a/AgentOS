@@ -18,4 +18,7 @@ public sealed class AutoMergeRepositoryOptions
     public int PollSeconds { get; set; } = 30;
 
     public bool RequireReview { get; set; } = true;
+
+    /// <summary>Ask GitHub to update stale branches before retrying the merge.</summary>
+    public bool AutoUpdateBranch { get; set; } = true;
 }

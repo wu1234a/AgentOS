@@ -25,6 +25,8 @@ public sealed record PullRequestSummary(
 
 public sealed record PullRequestMergeResult(bool Success, string? Error);
 
+public sealed record PullRequestUpdateResult(bool Success, string? Error);
+
 public interface IGitHubPullRequestClient
 {
     Task<PullRequestMetadata?> GetMetadataAsync(string repository, int number, CancellationToken cancellationToken);
@@ -36,6 +38,7 @@ public interface IGitHubPullRequestClient
     Task<string?> GetCombinedStatusAsync(string repository, string sha, CancellationToken cancellationToken);
     Task<IReadOnlyList<PullRequestSummary>?> ListOpenPullRequestsAsync(string repository, CancellationToken cancellationToken);
     Task<PullRequestMergeResult> MergeAsync(string repository, int number, string headSha, string mergeMethod, CancellationToken cancellationToken);
+    Task<PullRequestUpdateResult> UpdateBranchAsync(string repository, int number, string headSha, CancellationToken cancellationToken);
 }
 
 public sealed class GitHubPullRequestClient(HttpClient httpClient, Microsoft.Extensions.Options.IOptions<GitHubOptions> options) : IGitHubPullRequestClient
@@ -218,6 +221,29 @@ public sealed class GitHubPullRequestClient(HttpClient httpClient, Microsoft.Ext
         {
             return new PullRequestMergeResult(false, "GitHub returned an invalid merge response.");
         }
+    }
+
+    public async Task<PullRequestUpdateResult> UpdateBranchAsync(
+        string repository,
+        int number,
+        string headSha,
+        CancellationToken cancellationToken)
+    {
+        using var request = CreateRequest(HttpMethod.Put, repository, number, "update-branch");
+        request.Content = new StringContent(
+            JsonSerializer.Serialize(new { expected_head_sha = headSha }),
+            Encoding.UTF8,
+            "application/json");
+        using var response = await httpClient.SendAsync(request, cancellationToken);
+        if (response.IsSuccessStatusCode)
+        {
+            return new PullRequestUpdateResult(true, null);
+        }
+
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        return new PullRequestUpdateResult(
+            false,
+            $"GitHub returned HTTP {(int)response.StatusCode}: {body}");
     }
 
     public async Task<string?> GetCombinedStatusAsync(string repository, string sha, CancellationToken cancellationToken)

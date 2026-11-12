@@ -67,6 +67,8 @@ public sealed class SqlMergeReadinessTests
                 [new PullRequestSummary(7, "open", false, true, sha, "aos/test", "master")]);
         public Task<PullRequestMergeResult> MergeAsync(string repository, int number, string headSha, string mergeMethod, CancellationToken cancellationToken)
             => Task.FromResult(new PullRequestMergeResult(true, null));
+        public Task<PullRequestUpdateResult> UpdateBranchAsync(string repository, int number, string headSha, CancellationToken cancellationToken)
+            => Task.FromResult(new PullRequestUpdateResult(true, null));
     }
 
     private sealed class FakeStatusClient : IGitHubCommitStatusClient

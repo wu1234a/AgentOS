@@ -35,7 +35,8 @@ public sealed class BacklogPlannerService(
     BacklogService backlog,
     IModelProfileRepository modelProfiles,
     IApiCompletionClient completionClient,
-    IOptions<PlannerOptions> plannerOptions)
+    IOptions<PlannerOptions> plannerOptions,
+    ILogger<BacklogPlannerService> logger)
 {
     private static readonly HashSet<string> AllowedKinds =
         new(StringComparer.OrdinalIgnoreCase) { "backend", "frontend", "docs", "full" };
@@ -68,55 +69,92 @@ public sealed class BacklogPlannerService(
         }
 
         var configuration = plannerOptions.Value;
-        var profile = string.IsNullOrWhiteSpace(configuration.DefaultModelProfileCode)
-            ? null
-            : await modelProfiles.FindByCodeAsync(configuration.DefaultModelProfileCode, cancellationToken);
-        if (profile is null || !profile.IsEnabled
-            || !string.Equals(profile.ExecutionMode, "api", StringComparison.OrdinalIgnoreCase))
-        {
-            return GenerateBacklogResult.Failed(
-                "planner-model-unavailable",
-                "Planner requires an enabled API model profile.");
-        }
-
-        var apiKey = string.IsNullOrWhiteSpace(profile.SecretReference)
-            ? Environment.GetEnvironmentVariable(DefaultSecretEnvironment(profile.Provider))
-            : Environment.GetEnvironmentVariable(profile.SecretReference);
-        if (string.IsNullOrWhiteSpace(apiKey))
-        {
-            return GenerateBacklogResult.Failed(
-                "planner-secret-unavailable",
-                "Planner API key is not available.");
-        }
-
-        var settings = ParseSettings(profile);
         var maxItems = Math.Clamp(request.MaxItems ?? 5, 1, 10);
-        var completion = await completionClient.CompleteAsync(
-            new ApiCompletionRequest(
-                settings.BaseUrl,
-                apiKey,
-                profile.Model,
-                BuildSystemPrompt(maxItems),
-                BuildUserPrompt(goal, context),
-                settings.Temperature,
-                settings.MaxTokens,
-                Math.Clamp(profile.TimeoutSeconds, 10, 600),
-                profile.Provider),
-            cancellationToken);
+        var profileCodes = new[] { configuration.DefaultModelProfileCode }
+            .Concat(configuration.BacklogFallbackProfileCodes ?? [])
+            .Where(code => !string.IsNullOrWhiteSpace(code))
+            .Select(code => code!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
-        if (!completion.Success || string.IsNullOrWhiteSpace(completion.Content))
+        IReadOnlyList<GeneratedBacklogTask>? parsed = null;
+        string? lastErrorCode = null;
+        string? lastErrorMessage = null;
+        foreach (var profileCode in profileCodes)
         {
-            return GenerateBacklogResult.Failed(
-                completion.ErrorCode ?? "planner-provider-error",
-                completion.ErrorMessage ?? "Planner returned no content.");
+            var profile = await modelProfiles.FindByCodeAsync(profileCode, cancellationToken);
+            if (profile is null || !profile.IsEnabled
+                || !string.Equals(profile.ExecutionMode, "api", StringComparison.OrdinalIgnoreCase))
+            {
+                logger.LogWarning("Backlog planner profile {ProfileCode} is unavailable.", profileCode);
+                continue;
+            }
+
+            var apiKey = string.IsNullOrWhiteSpace(profile.SecretReference)
+                ? Environment.GetEnvironmentVariable(DefaultSecretEnvironment(profile.Provider))
+                : Environment.GetEnvironmentVariable(profile.SecretReference);
+            if (string.IsNullOrWhiteSpace(apiKey))
+            {
+                logger.LogWarning("Backlog planner profile {ProfileCode} has no API key.", profileCode);
+                lastErrorCode = "planner-secret-unavailable";
+                lastErrorMessage = $"No API key is available for profile {profileCode}.";
+                continue;
+            }
+
+            var settings = ParseSettings(profile);
+            for (var attempt = 1; attempt <= 2; attempt++)
+            {
+                var completion = await completionClient.CompleteAsync(
+                    new ApiCompletionRequest(
+                        settings.BaseUrl,
+                        apiKey,
+                        profile.Model,
+                        BuildSystemPrompt(maxItems),
+                        BuildUserPrompt(goal, context),
+                        settings.Temperature,
+                        settings.MaxTokens,
+                        Math.Clamp(profile.TimeoutSeconds, 10, 600),
+                        profile.Provider),
+                    cancellationToken);
+
+                if (!completion.Success || string.IsNullOrWhiteSpace(completion.Content))
+                {
+                    lastErrorCode = completion.ErrorCode ?? "planner-provider-error";
+                    lastErrorMessage = completion.ErrorMessage ?? "Planner returned no content.";
+                    logger.LogWarning(
+                        "Backlog planner profile {ProfileCode} attempt {Attempt} failed: {Code}.",
+                        profileCode,
+                        attempt,
+                        lastErrorCode);
+                    continue;
+                }
+
+                var candidate = ParseTasks(completion.Content, maxItems);
+                if (candidate.Count > 0)
+                {
+                    parsed = candidate;
+                    break;
+                }
+
+                lastErrorCode = "planner-output-invalid";
+                lastErrorMessage = "Planner did not return a valid task array.";
+                logger.LogWarning(
+                    "Backlog planner profile {ProfileCode} attempt {Attempt} returned invalid output.",
+                    profileCode,
+                    attempt);
+            }
+
+            if (parsed is not null)
+            {
+                break;
+            }
         }
 
-        var parsed = ParseTasks(completion.Content, maxItems);
-        if (parsed.Count == 0)
+        if (parsed is null)
         {
             return GenerateBacklogResult.Failed(
-                "planner-output-invalid",
-                "Planner did not return a valid task array.");
+                lastErrorCode ?? "planner-model-unavailable",
+                lastErrorMessage ?? "No Planner model could generate a valid backlog.");
         }
 
         var items = new List<BacklogItemView>();

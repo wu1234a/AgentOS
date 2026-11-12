@@ -77,6 +77,9 @@ public sealed class PlannerOptions
 
     public int MaxDraftCharacters { get; set; } = 100_000;
 
+    /// <summary>Additional model profiles tried after the default Planner profile fails.</summary>
+    public string[] BacklogFallbackProfileCodes { get; set; } = [];
+
     public PlannerAutoDispatchOptions AutoDispatch { get; set; } = new();
 }
 
