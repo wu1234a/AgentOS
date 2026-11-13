@@ -12,7 +12,9 @@ public sealed record ProjectPlanModelResult(
     string? ErrorCode,
     string? ErrorMessage,
     int PromptTokens = 0,
-    int CompletionTokens = 0);
+    int CompletionTokens = 0,
+    decimal PromptPricePerMillion = 0,
+    decimal CompletionPricePerMillion = 0);
 
 /// <summary>
 /// Calls the configured Planner model with the same fallback behavior as Backlog generation.
@@ -85,7 +87,9 @@ public sealed class ProjectPlanModelRunner(
                         null,
                         null,
                         completion.PromptTokens ?? 0,
-                        completion.CompletionTokens ?? 0);
+                        completion.CompletionTokens ?? 0,
+                        settings.PromptPricePerMillion,
+                        settings.CompletionPricePerMillion);
                 }
 
                 lastCode = completion.ErrorCode ?? "planner-provider-error";
@@ -134,12 +138,14 @@ public sealed class ProjectPlanModelRunner(
             _ => string.Empty
         };
 
-    private static (string BaseUrl, double? Temperature, int? MaxTokens) ParseSettings(
+    private static (string BaseUrl, double? Temperature, int? MaxTokens, decimal PromptPricePerMillion, decimal CompletionPricePerMillion) ParseSettings(
         AgentOS.Domain.ModelProfiles.ModelProfile profile)
     {
         var baseUrl = DefaultBaseUrl(profile.Provider);
         double? temperature = null;
         int? maxTokens = null;
+        decimal promptPrice = 0;
+        decimal completionPrice = 0;
         try
         {
             using var document = JsonDocument.Parse(profile.ConfigurationJson);
@@ -164,6 +170,20 @@ public sealed class ProjectPlanModelRunner(
                 {
                     maxTokens = parsedTokens;
                 }
+
+                if (document.RootElement.TryGetProperty("inputPricePerMillion", out var inputPrice)
+                    && inputPrice.ValueKind == JsonValueKind.Number
+                    && inputPrice.TryGetDecimal(out var parsedInputPrice))
+                {
+                    promptPrice = parsedInputPrice;
+                }
+
+                if (document.RootElement.TryGetProperty("outputPricePerMillion", out var outputPrice)
+                    && outputPrice.ValueKind == JsonValueKind.Number
+                    && outputPrice.TryGetDecimal(out var parsedOutputPrice))
+                {
+                    completionPrice = parsedOutputPrice;
+                }
             }
         }
         catch (JsonException)
@@ -171,6 +191,6 @@ public sealed class ProjectPlanModelRunner(
             // Profile validation guarantees JSON; defaults are safe.
         }
 
-        return (baseUrl, temperature, maxTokens);
+        return (baseUrl, temperature, maxTokens, promptPrice, completionPrice);
     }
 }

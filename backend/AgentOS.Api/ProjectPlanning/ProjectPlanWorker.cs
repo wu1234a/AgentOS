@@ -145,9 +145,16 @@ public sealed class ProjectPlanWorker(
         RecordUsage(plan, synthesis, pricing);
 
         var finalJson = ExtractJsonObject(synthesis.Content);
-        if (ProjectPlanService.ParseTasks(finalJson).Count == 0)
+        var generatedTasks = ProjectPlanService.ParseTasks(finalJson);
+        if (generatedTasks.Count == 0)
         {
             throw new InvalidOperationException("Planner chair returned no valid task list.");
+        }
+
+        var dependencyError = ProjectPlanService.ValidateDependencies(generatedTasks);
+        if (dependencyError is not null)
+        {
+            throw new InvalidOperationException($"Planner chair returned an invalid dependency graph: {dependencyError}");
         }
 
         plan.FinalPlanJson = finalJson;
@@ -337,9 +344,15 @@ public sealed class ProjectPlanWorker(
         plan.PromptTokens += prompt;
         plan.CompletionTokens += completion;
         plan.TokensUsed += prompt + completion;
+        var inputPrice = result.PromptPricePerMillion > 0
+            ? result.PromptPricePerMillion
+            : pricing.ProjectPlanInputPricePerMillion;
+        var outputPrice = result.CompletionPricePerMillion > 0
+            ? result.CompletionPricePerMillion
+            : pricing.ProjectPlanOutputPricePerMillion;
         plan.EstimatedCost +=
-            (prompt / 1_000_000m) * pricing.ProjectPlanInputPricePerMillion
-            + (completion / 1_000_000m) * pricing.ProjectPlanOutputPricePerMillion;
+            (prompt / 1_000_000m) * inputPrice
+            + (completion / 1_000_000m) * outputPrice;
     }
 
     private static string Truncate(string value, int max)
