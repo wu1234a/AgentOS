@@ -23,6 +23,13 @@
 - `backend/AgentOS.Api/appsettings.json`
 - `backend/AgentOS.Application/Planning/PlannerContracts.cs`
 
+前端：
+
+- `frontend/agentos-web/src/api/projectPlans.js`（新增）
+- `frontend/agentos-web/src/views/ProjectPlansView.vue`（新增）
+- `frontend/agentos-web/src/router/index.js`
+- `frontend/agentos-web/src/layouts/AppLayout.vue`
+
 测试：
 
 - `tests/AgentOS.Api.Tests/ProjectPlanServiceTests.cs`（新增）
@@ -104,14 +111,34 @@ EpicKey: M1/M2/M3/M4
 
 为避免演示计划立即执行，16 条 Backlog 已置为 `Hold`；真正执行时将其恢复为 `Pending`。
 
-## 5. 验证
+## 5. 前端
+
+`/project-plans` 页面：
+
+- 立项列表、状态过滤、10 秒轮询。
+- 新建立项：项目、标题、目标、约束、交付仓库/分支。
+- 详情抽屉：推荐方案、路线图、任务拆解、风险、验收指标。
+- 提案 / 交叉评审 / 原始 JSON 三个标签页。
+- PendingReview 时可批准或拒绝。
+- 批准后提示任务已进入 Backlog。
+
+构建：
+
+```text
+npm --prefix frontend/agentos-web run build
+vite build → 1731 modules transformed
+```
+
+## 6. 验证
 
 ```text
 dotnet build backend/AgentOS.slnx → 0 errors
 AgentOS tests → 307 passed / 64 skipped / 0 failed
+frontend build → vite 1731 modules transformed
+Playwright → 列表和详情抽屉加载，0 page errors
 ```
 
-## 6. 安全与成本
+## 7. 安全与成本
 
 - 规划最多 7 次模型调用，不会无限辩论。
 - 目标/约束作为不可信数据处理。
@@ -120,20 +147,18 @@ AgentOS tests → 307 passed / 64 skipped / 0 failed
 - 批准后任务仍需经过 Runner 隔离、校验、PR、评审、合并。
 - 没有真实费用预算控制，仅有调用次数上限。
 
-## 7. 已知限制
+## 8. 已知限制
 
-- 没有前端立项评审页面。
 - 规划 profile 固定为配置值，不支持请求级选择。
 - 没有多轮追问/人工插入意见。
 - 规划失败后不会自动重试整个 board，只能新建计划。
 - Backlog 目前只能用 SQL 从 Hold 恢复为 Pending，尚无 API。
 - 规划结果质量依赖模型，需要人工批准。
 
-## 8. 后续
+## 9. 后续
 
-1. 前端 Project Plan 评审页。
-2. 支持人工补充意见并触发第二轮。
-3. 费用/Token 预算上限。
-4. Plan 版本和修订。
-5. Hold/Pending 的 API。
-6. 自动把批准计划送入执行并关联里程碑完成度。
+1. 支持人工补充意见并触发第二轮。
+2. 费用/Token 预算上限。
+3. Plan 版本和修订。
+4. Hold/Pending 的 API。
+5. 自动把批准计划送入执行并关联里程碑完成度。

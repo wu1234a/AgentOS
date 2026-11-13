@@ -5,3 +5,4 @@ dist/
 .vs/
 backend/AgentOS.Runner/runner-*.log
 backend/AgentOS.Runner/runner-*.err.log
+backend/AgentOS.Api/wwwroot/

@@ -11,6 +11,7 @@ import AgentsView from '../views/AgentsView.vue'
 import ModelProfilesView from '../views/ModelProfilesView.vue'
 import SkillsView from '../views/SkillsView.vue'
 import PlannerView from '../views/PlannerView.vue'
+import ProjectPlansView from '../views/ProjectPlansView.vue'
 import CodingRunsView from '../views/CodingRunsView.vue'
 import ApprovalsView from '../views/ApprovalsView.vue'
 import ProjectsView from '../views/ProjectsView.vue'
@@ -62,6 +63,12 @@ const router = createRouter({
       name: 'planner',
       component: PlannerView,
       meta: { title: 'Planner' }
+    },
+    {
+      path: '/project-plans',
+      name: 'project-plans',
+      component: ProjectPlansView,
+      meta: { title: 'Project Plans' }
     },
     {
       path: '/approvals',
