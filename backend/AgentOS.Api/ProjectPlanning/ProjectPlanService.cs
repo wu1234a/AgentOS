@@ -15,6 +15,8 @@ public sealed class CreateProjectPlanRequest
     public string? Title { get; init; }
     public string? Goal { get; init; }
     public string? Constraints { get; init; }
+    public int? TokenBudget { get; init; }
+    public bool? RequiresReleaseApproval { get; init; }
     public BacklogDeliveryRequest? Delivery { get; init; }
 }
 
@@ -37,6 +39,13 @@ public sealed record ProjectPlanView(
     string? Error,
     int Revision,
     string? Feedback,
+    int TokenBudget,
+    int TokensUsed,
+    int ModelCalls,
+    string? PreviousFinalPlanJson,
+    int? PreviousRevision,
+    bool RequiresReleaseApproval,
+    DateTime? ReleaseApprovedAtUtc,
     DateTime CreatedAtUtc,
     DateTime UpdatedAtUtc,
     DateTime? DecidedAtUtc);
@@ -141,6 +150,8 @@ public sealed class ProjectPlanService(
             Constraints = constraints,
             DeliveryJson = JsonSerializer.Serialize(delivery),
             ModelProfileCode = plannerOptions.Value.DefaultModelProfileCode ?? "kimi-planner",
+            TokenBudget = Math.Clamp(request.TokenBudget ?? 60_000, 10_000, 500_000),
+            RequiresReleaseApproval = request.RequiresReleaseApproval ?? true,
             Status = "Queued",
             CreatedAtUtc = now,
             UpdatedAtUtc = now
@@ -195,6 +206,16 @@ public sealed class ProjectPlanService(
                 $"Project plan is {plan.Status}, not Approved.");
         }
 
+        if (plan.RequiresReleaseApproval && plan.ReleaseApprovedAtUtc is null)
+        {
+            return new ProjectPlanReleaseResult(
+                false,
+                0,
+                ToView(plan),
+                "plan-release-approval-required",
+                "This plan requires a second explicit release approval.");
+        }
+
         var held = await dbContext.BacklogItems
             .Where(item => item.PlanId == plan.Id && item.Status == "Hold")
             .ToListAsync(cancellationToken);
@@ -218,6 +239,34 @@ public sealed class ProjectPlanService(
         plan.UpdatedAtUtc = now;
         await dbContext.SaveChangesAsync(cancellationToken);
         return new ProjectPlanReleaseResult(true, held.Count, ToView(plan), null, null);
+    }
+
+    public async Task<ProjectPlanApprovalResult> ApproveReleaseAsync(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var plan = await dbContext.ProjectPlans.FirstOrDefaultAsync(
+            candidate => candidate.Id == id,
+            cancellationToken);
+        if (plan is null)
+        {
+            return new ProjectPlanApprovalResult(false, null, "plan-not-found", "Project plan was not found.");
+        }
+
+        if (plan.Status != "Approved")
+        {
+            return new ProjectPlanApprovalResult(
+                false,
+                ToView(plan),
+                "plan-not-approved",
+                $"Project plan is {plan.Status}, not Approved.");
+        }
+
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+        plan.ReleaseApprovedAtUtc = now;
+        plan.UpdatedAtUtc = now;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return new ProjectPlanApprovalResult(true, ToView(plan), null, null);
     }
 
     public async Task<ProjectPlanProgressView?> GetProgressAsync(
@@ -286,12 +335,15 @@ public sealed class ProjectPlanService(
 
         plan.Status = "Queued";
         plan.Error = null;
+        plan.PreviousFinalPlanJson = plan.FinalPlanJson;
+        plan.PreviousRevision = plan.Revision;
         plan.Revision++;
         plan.Feedback = feedback;
         plan.FinalPlanJson = null;
         plan.ProposalsJson = null;
         plan.CritiquesJson = null;
         plan.DecidedAtUtc = null;
+        plan.ReleaseApprovedAtUtc = null;
         plan.UpdatedAtUtc = timeProvider.GetUtcNow().UtcDateTime;
         await dbContext.SaveChangesAsync(cancellationToken);
         return new ProjectPlanApprovalResult(true, ToView(plan), null, null);
@@ -510,6 +562,13 @@ public sealed class ProjectPlanService(
             plan.Error,
             plan.Revision,
             plan.Feedback,
+            plan.TokenBudget,
+            plan.TokensUsed,
+            plan.ModelCalls,
+            plan.PreviousFinalPlanJson,
+            plan.PreviousRevision,
+            plan.RequiresReleaseApproval,
+            plan.ReleaseApprovedAtUtc,
             plan.CreatedAtUtc,
             plan.UpdatedAtUtc,
             plan.DecidedAtUtc);

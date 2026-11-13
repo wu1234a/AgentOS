@@ -882,16 +882,33 @@ namespace AgentOS.Infrastructure.Migrations
                         .HasMaxLength(8000)
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int>("ModelCalls")
+                        .HasColumnType("int");
+
                     b.Property<string>("ModelProfileCode")
                         .IsRequired()
                         .HasMaxLength(80)
                         .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("PreviousFinalPlanJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("PreviousRevision")
+                        .HasColumnType("int");
 
                     b.Property<Guid>("ProjectId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("ProposalsJson")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("ReleaseApprovedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("RequiresReleaseApproval")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
 
                     b.Property<int>("Revision")
                         .ValueGeneratedOnAdd()
@@ -907,6 +924,14 @@ namespace AgentOS.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("TokenBudget")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(60000);
+
+                    b.Property<int>("TokensUsed")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("UpdatedAtUtc")
                         .HasColumnType("datetime2(3)");

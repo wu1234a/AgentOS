@@ -22,6 +22,9 @@ public sealed class ProjectPlanConfiguration : IEntityTypeConfiguration<ProjectP
         builder.Property(plan => plan.Error).HasMaxLength(1000);
         builder.Property(plan => plan.Feedback).HasMaxLength(8000);
         builder.Property(plan => plan.Revision).HasDefaultValue(1);
+        builder.Property(plan => plan.TokenBudget).HasDefaultValue(60_000);
+        builder.Property(plan => plan.PreviousFinalPlanJson).HasColumnType("nvarchar(max)");
+        builder.Property(plan => plan.RequiresReleaseApproval).HasDefaultValue(true);
         builder.Property(plan => plan.CreatedAtUtc).HasColumnType("datetime2(3)");
         builder.Property(plan => plan.UpdatedAtUtc).HasColumnType("datetime2(3)");
         builder.HasIndex(plan => new { plan.ProjectId, plan.Status, plan.CreatedAtUtc });

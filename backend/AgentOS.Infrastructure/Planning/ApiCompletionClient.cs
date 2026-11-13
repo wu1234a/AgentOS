@@ -110,7 +110,32 @@ public sealed class ApiCompletionClient(
                 return Failure("planner-invalid-response", "Provider response did not contain message content.");
             }
 
-            return new ApiCompletionResult(true, content.GetString(), null, null, 200);
+            int? promptTokens = null;
+            int? completionTokens = null;
+            if (document.RootElement.TryGetProperty("usage", out var usage)
+                && usage.ValueKind == JsonValueKind.Object)
+            {
+                if (usage.TryGetProperty("prompt_tokens", out var prompt)
+                    && prompt.TryGetInt32(out var promptValue))
+                {
+                    promptTokens = promptValue;
+                }
+
+                if (usage.TryGetProperty("completion_tokens", out var completion)
+                    && completion.TryGetInt32(out var completionValue))
+                {
+                    completionTokens = completionValue;
+                }
+            }
+
+            return new ApiCompletionResult(
+                true,
+                content.GetString(),
+                null,
+                null,
+                200,
+                promptTokens,
+                completionTokens);
         }
         catch (OperationCanceledException) when (timeout.IsCancellationRequested)
         {

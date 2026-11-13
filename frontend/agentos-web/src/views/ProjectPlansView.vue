@@ -4,6 +4,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { listProjects } from '../api/projects'
 import {
   approveProjectPlan,
+  approveProjectPlanRelease,
   createProjectPlan,
   getProjectPlan,
   getProjectPlanProgress,
@@ -27,6 +28,7 @@ const activeTab = ref('plan')
 const progress = ref(null)
 const feedback = ref('')
 const releasing = ref(false)
+const approvingRelease = ref(false)
 const revising = ref(false)
 
 const form = reactive({
@@ -34,6 +36,8 @@ const form = reactive({
   title: '',
   goal: '',
   constraints: '',
+  tokenBudget: 60000,
+  requiresReleaseApproval: true,
   repository: 'wu1234a/3dERP',
   baseBranch: 'main',
   remote: 'origin',
@@ -44,6 +48,7 @@ const form = reactive({
 let pollTimer
 
 const finalPlan = computed(() => parseJson(selected.value?.finalPlanJson))
+const previousPlan = computed(() => parseJson(selected.value?.previousFinalPlanJson))
 const proposals = computed(() => parseJson(selected.value?.proposalsJson) || {})
 const critiques = computed(() => parseJson(selected.value?.critiquesJson) || {})
 const roadmap = computed(() => finalPlan.value?.roadmap || [])
@@ -119,6 +124,8 @@ function openCreate() {
     title: '',
     goal: '',
     constraints: '',
+    tokenBudget: 60000,
+    requiresReleaseApproval: true,
     repository: 'wu1234a/3dERP',
     baseBranch: 'main',
     remote: 'origin',
@@ -140,6 +147,8 @@ async function save() {
       title: form.title,
       goal: form.goal,
       constraints: form.constraints || null,
+      tokenBudget: form.tokenBudget,
+      requiresReleaseApproval: form.requiresReleaseApproval,
       delivery: {
         repository: form.repository,
         baseBranch: form.baseBranch,
@@ -200,6 +209,25 @@ async function decide(action) {
     if (exception !== 'cancel' && exception !== 'close') {
       ElMessage.error(exception.message || String(exception))
     }
+  }
+}
+
+async function approveRelease() {
+  if (!selected.value) return
+  try {
+    await ElMessageBox.confirm('二次确认后，该计划才允许启动执行。确认批准？', '批准启动', {
+      type: 'warning'
+    })
+    approvingRelease.value = true
+    await approveProjectPlanRelease(selected.value.id)
+    ElMessage.success('已批准启动')
+    selected.value = await getProjectPlan(selected.value.id)
+  } catch (exception) {
+    if (exception !== 'cancel' && exception !== 'close') {
+      ElMessage.error(exception.message || String(exception))
+    }
+  } finally {
+    approvingRelease.value = false
   }
 }
 
@@ -319,6 +347,12 @@ onUnmounted(() => clearInterval(pollTimer))
         <el-form-item label="约束">
           <el-input v-model="form.constraints" type="textarea" :rows="3" maxlength="8000" show-word-limit placeholder="预算、周期、团队、技术栈、不可改动项、风险偏好" />
         </el-form-item>
+        <el-form-item label="Token 预算">
+          <el-input-number v-model="form.tokenBudget" :min="10000" :max="500000" :step="10000" />
+        </el-form-item>
+        <el-form-item label="启动需二次审批">
+          <el-switch v-model="form.requiresReleaseApproval" />
+        </el-form-item>
         <el-divider content-position="left">交付配置</el-divider>
         <el-form-item label="仓库"><el-input v-model="form.repository" placeholder="owner/repo" /></el-form-item>
         <el-form-item label="基础分支"><el-input v-model="form.baseBranch" /></el-form-item>
@@ -345,6 +379,11 @@ onUnmounted(() => clearInterval(pollTimer))
           <el-descriptions :column="3" border class="detail-meta">
             <el-descriptions-item label="规划模型">{{ selected.modelProfileCode }}</el-descriptions-item>
             <el-descriptions-item label="修订版本">v{{ selected.revision }}</el-descriptions-item>
+            <el-descriptions-item label="Token">{{ selected.tokensUsed }} / {{ selected.tokenBudget }}</el-descriptions-item>
+            <el-descriptions-item label="模型调用">{{ selected.modelCalls }} / 7</el-descriptions-item>
+            <el-descriptions-item label="启动审批">
+              {{ selected.releaseApprovedAtUtc ? formatUtc(selected.releaseApprovedAtUtc) : (selected.requiresReleaseApproval ? '待二次批准' : '不需要') }}
+            </el-descriptions-item>
             <el-descriptions-item label="创建时间">{{ formatUtc(selected.createdAtUtc) }}</el-descriptions-item>
             <el-descriptions-item label="决策时间">{{ formatUtc(selected.decidedAtUtc) }}</el-descriptions-item>
             <el-descriptions-item label="约束" :span="2">{{ selected.constraints || '—' }}</el-descriptions-item>
@@ -429,6 +468,20 @@ onUnmounted(() => clearInterval(pollTimer))
               <el-empty v-else description="最终方案尚未生成" />
             </el-tab-pane>
 
+            <el-tab-pane v-if="previousPlan" label="上一版" name="previous">
+              <el-card shadow="never" class="plan-card">
+                <template #header><b>v{{ selected.previousRevision }} 推荐方案</b></template>
+                <p class="recommended">{{ previousPlan.recommendedOption }}</p>
+                <p class="muted">{{ previousPlan.rationale }}</p>
+              </el-card>
+              <h4>上一版任务（{{ (previousPlan.tasks || []).length }}）</h4>
+              <el-table :data="previousPlan.tasks || []" size="small">
+                <el-table-column prop="epic" label="Epic" width="90" />
+                <el-table-column prop="kind" label="类型" width="100" />
+                <el-table-column prop="title" label="任务" min-width="280" />
+              </el-table>
+            </el-tab-pane>
+
             <el-tab-pane label="提案" name="proposals">
               <el-collapse>
                 <el-collapse-item v-for="(content, role) in proposals" :key="role" :title="role" :name="role">
@@ -482,7 +535,15 @@ onUnmounted(() => clearInterval(pollTimer))
               拒绝
             </el-button>
             <el-button
-              v-if="selected.status === 'Approved' && heldCount > 0"
+              v-if="selected.status === 'Approved' && selected.requiresReleaseApproval && !selected.releaseApprovedAtUtc"
+              type="warning"
+              :loading="approvingRelease"
+              @click="approveRelease"
+            >
+              批准启动
+            </el-button>
+            <el-button
+              v-if="selected.status === 'Approved' && heldCount > 0 && (!selected.requiresReleaseApproval || selected.releaseApprovedAtUtc)"
               type="primary"
               :loading="releasing"
               @click="release"

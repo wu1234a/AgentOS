@@ -77,6 +77,7 @@ public sealed class ProjectPlanWorker(
         var proposalJson = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var analyst in Analysts)
         {
+            EnsureBudget(plan);
             var result = await model.CompleteAsync(
                 BuildProposalSystemPrompt(analyst),
                 BuildContextPrompt(plan),
@@ -88,6 +89,8 @@ public sealed class ProjectPlanWorker(
                     $"Planner {analyst.Role} proposal failed: {result.ErrorCode} {result.ErrorMessage}");
             }
 
+            RecordUsage(plan, result);
+            await dbContext.SaveChangesAsync(cancellationToken);
             proposals[analyst.Role] = result.Content;
             proposalJson[analyst.Role] = result.Content;
             AddContribution(dbContext, plan, analyst.Role, 1, result.Content, result.ProfileCode);
@@ -101,6 +104,7 @@ public sealed class ProjectPlanWorker(
         var critiqueJson = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var analyst in Analysts)
         {
+            EnsureBudget(plan);
             var result = await model.CompleteAsync(
                 BuildCritiqueSystemPrompt(analyst),
                 BuildCritiquePrompt(plan, proposals),
@@ -112,6 +116,8 @@ public sealed class ProjectPlanWorker(
                     $"Planner {analyst.Role} critique failed: {result.ErrorCode} {result.ErrorMessage}");
             }
 
+            RecordUsage(plan, result);
+            await dbContext.SaveChangesAsync(cancellationToken);
             critiques[analyst.Role] = result.Content;
             critiqueJson[analyst.Role] = result.Content;
             AddContribution(dbContext, plan, analyst.Role, 2, result.Content, result.ProfileCode);
@@ -121,6 +127,7 @@ public sealed class ProjectPlanWorker(
         plan.UpdatedAtUtc = DateTime.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        EnsureBudget(plan);
         var synthesis = await model.CompleteAsync(
             BuildChairSystemPrompt(),
             BuildSynthesisPrompt(plan, proposals, critiques),
@@ -131,6 +138,8 @@ public sealed class ProjectPlanWorker(
             throw new InvalidOperationException(
                 $"Planner chair synthesis failed: {synthesis.ErrorCode} {synthesis.ErrorMessage}");
         }
+
+        RecordUsage(plan, synthesis);
 
         var finalJson = ExtractJsonObject(synthesis.Content);
         if (ProjectPlanService.ParseTasks(finalJson).Count == 0)
@@ -278,6 +287,27 @@ public sealed class ProjectPlanWorker(
         return firstBrace >= 0 && lastBrace > firstBrace
             ? text[firstBrace..(lastBrace + 1)]
             : text;
+    }
+
+    private static void EnsureBudget(ProjectPlan plan)
+    {
+        if (plan.TokenBudget > 0 && plan.TokensUsed >= plan.TokenBudget)
+        {
+            throw new InvalidOperationException(
+                $"Planning token budget exhausted ({plan.TokensUsed}/{plan.TokenBudget}).");
+        }
+    }
+
+    private static void RecordUsage(ProjectPlan plan, ProjectPlanModelResult result)
+    {
+        var prompt = result.PromptTokens > 0
+            ? result.PromptTokens
+            : Math.Max(1, (result.Content?.Length ?? 0) / 4);
+        var completion = result.CompletionTokens > 0
+            ? result.CompletionTokens
+            : Math.Max(1, (result.Content?.Length ?? 0) / 4);
+        plan.ModelCalls++;
+        plan.TokensUsed += prompt + completion;
     }
 
     private static string Truncate(string value, int max)

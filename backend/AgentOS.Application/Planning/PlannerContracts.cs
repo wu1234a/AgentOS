@@ -131,7 +131,9 @@ public sealed record ApiCompletionResult(
     string? Content,
     string? ErrorCode,
     string? ErrorMessage,
-    int? StatusCode);
+    int? StatusCode,
+    int? PromptTokens = null,
+    int? CompletionTokens = null);
 
 /// <summary>OpenAI-compatible chat completion client used by the Planner (Kimi/OpenAI).</summary>
 public interface IApiCompletionClient

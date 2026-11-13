@@ -10,7 +10,9 @@ public sealed record ProjectPlanModelResult(
     string? Content,
     string? ProfileCode,
     string? ErrorCode,
-    string? ErrorMessage);
+    string? ErrorMessage,
+    int PromptTokens = 0,
+    int CompletionTokens = 0);
 
 /// <summary>
 /// Calls the configured Planner model with the same fallback behavior as Backlog generation.
@@ -76,7 +78,14 @@ public sealed class ProjectPlanModelRunner(
 
                 if (completion.Success && !string.IsNullOrWhiteSpace(completion.Content))
                 {
-                    return new ProjectPlanModelResult(true, completion.Content.Trim(), profile.Code, null, null);
+                    return new ProjectPlanModelResult(
+                        true,
+                        completion.Content.Trim(),
+                        profile.Code,
+                        null,
+                        null,
+                        completion.PromptTokens ?? 0,
+                        completion.CompletionTokens ?? 0);
                 }
 
                 lastCode = completion.ErrorCode ?? "planner-provider-error";

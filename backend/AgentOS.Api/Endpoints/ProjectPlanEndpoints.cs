@@ -14,6 +14,7 @@ public static class ProjectPlanEndpoints
         group.MapPost("", CreateAsync);
         group.MapPost("/{planId:guid}/approve", ApproveAsync);
         group.MapPost("/{planId:guid}/reject", RejectAsync);
+        group.MapPost("/{planId:guid}/approve-release", ApproveReleaseAsync);
         group.MapPost("/{planId:guid}/release", ReleaseAsync);
         group.MapPost("/{planId:guid}/revise", ReviseAsync);
         group.MapGet("/{planId:guid}/progress", ProgressAsync);
@@ -63,6 +64,12 @@ public static class ProjectPlanEndpoints
         CancellationToken cancellationToken)
         => MapDecision(await service.RejectAsync(planId, cancellationToken));
 
+    private static async Task<IResult> ApproveReleaseAsync(
+        Guid planId,
+        ProjectPlanService service,
+        CancellationToken cancellationToken)
+        => MapDecision(await service.ApproveReleaseAsync(planId, cancellationToken));
+
     private static async Task<IResult> ReleaseAsync(
         Guid planId,
         ProjectPlanService service,
@@ -76,7 +83,7 @@ public static class ProjectPlanEndpoints
 
         var status = result.ErrorCode == "plan-not-found"
             ? StatusCodes.Status404NotFound
-            : result.ErrorCode == "plan-not-approved"
+            : result.ErrorCode is "plan-not-approved" or "plan-release-approval-required"
                 ? StatusCodes.Status409Conflict
                 : StatusCodes.Status400BadRequest;
         return Results.Problem(

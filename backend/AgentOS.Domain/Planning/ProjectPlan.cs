@@ -37,6 +37,22 @@ public sealed class ProjectPlan
     /// <summary>Latest human feedback used by the next planning round.</summary>
     public string? Feedback { get; set; }
 
+    public int TokenBudget { get; set; } = 60_000;
+
+    public int TokensUsed { get; set; }
+
+    public int ModelCalls { get; set; }
+
+    /// <summary>Final plan from the previous revision, retained for comparison.</summary>
+    public string? PreviousFinalPlanJson { get; set; }
+
+    public int? PreviousRevision { get; set; }
+
+    /// <summary>When true, release requires a second explicit human approval.</summary>
+    public bool RequiresReleaseApproval { get; set; } = true;
+
+    public DateTime? ReleaseApprovedAtUtc { get; set; }
+
     public DateTime CreatedAtUtc { get; init; }
 
     public DateTime UpdatedAtUtc { get; set; }

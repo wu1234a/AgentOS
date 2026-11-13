@@ -24,6 +24,10 @@ export function rejectProjectPlan(planId) {
   return http.post(`/api/v1/project-plans/${planId}/reject`).then((response) => response.data)
 }
 
+export function approveProjectPlanRelease(planId) {
+  return http.post(`/api/v1/project-plans/${planId}/approve-release`).then((response) => response.data)
+}
+
 export function releaseProjectPlan(planId) {
   return http.post(`/api/v1/project-plans/${planId}/release`).then((response) => response.data)
 }
