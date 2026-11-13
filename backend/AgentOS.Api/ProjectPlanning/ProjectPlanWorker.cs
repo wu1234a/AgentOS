@@ -195,6 +195,7 @@ public sealed class ProjectPlanWorker(
            <title>{plan.Title}</title>
            <goal>{plan.Goal}</goal>
            <constraints>{plan.Constraints ?? "(none)"}</constraints>
+           <humanFeedback>{plan.Feedback ?? "(none)"}</humanFeedback>
            """;
 
     private static string BuildCritiquePrompt(
@@ -205,6 +206,7 @@ public sealed class ProjectPlanWorker(
         builder.AppendLine($"<title>{plan.Title}</title>");
         builder.AppendLine($"<goal>{plan.Goal}</goal>");
         builder.AppendLine($"<constraints>{plan.Constraints ?? "(none)"}</constraints>");
+        builder.AppendLine($"<humanFeedback>{plan.Feedback ?? "(none)"}</humanFeedback>");
         foreach (var proposal in proposals)
         {
             builder.AppendLine($"<proposal role=\"{proposal.Key}\">{proposal.Value}</proposal>");
@@ -244,6 +246,7 @@ public sealed class ProjectPlanWorker(
         builder.AppendLine($"<title>{plan.Title}</title>");
         builder.AppendLine($"<goal>{plan.Goal}</goal>");
         builder.AppendLine($"<constraints>{plan.Constraints ?? "(none)"}</constraints>");
+        builder.AppendLine($"<humanFeedback>{plan.Feedback ?? "(none)"}</humanFeedback>");
         foreach (var proposal in proposals)
         {
             builder.AppendLine($"<proposal role=\"{proposal.Key}\">{proposal.Value}</proposal>");

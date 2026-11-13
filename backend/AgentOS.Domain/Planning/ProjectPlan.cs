@@ -31,6 +31,12 @@ public sealed class ProjectPlan
 
     public string? Error { get; set; }
 
+    /// <summary>Revision number; incremented when a human asks the board to re-plan.</summary>
+    public int Revision { get; set; } = 1;
+
+    /// <summary>Latest human feedback used by the next planning round.</summary>
+    public string? Feedback { get; set; }
+
     public DateTime CreatedAtUtc { get; init; }
 
     public DateTime UpdatedAtUtc { get; set; }

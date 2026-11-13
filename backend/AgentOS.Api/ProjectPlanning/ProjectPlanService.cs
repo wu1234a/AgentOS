@@ -18,6 +18,11 @@ public sealed class CreateProjectPlanRequest
     public BacklogDeliveryRequest? Delivery { get; init; }
 }
 
+public sealed class ReviseProjectPlanRequest
+{
+    public string? Feedback { get; init; }
+}
+
 public sealed record ProjectPlanView(
     Guid Id,
     Guid ProjectId,
@@ -30,9 +35,32 @@ public sealed record ProjectPlanView(
     string? CritiquesJson,
     string? FinalPlanJson,
     string? Error,
+    int Revision,
+    string? Feedback,
     DateTime CreatedAtUtc,
     DateTime UpdatedAtUtc,
     DateTime? DecidedAtUtc);
+
+public sealed record ProjectPlanEpicProgress(
+    string EpicKey,
+    int Total,
+    int Pending,
+    int Hold,
+    int Active,
+    int Completed,
+    int Failed);
+
+public sealed record ProjectPlanProgressView(
+    Guid PlanId,
+    int Total,
+    IReadOnlyList<ProjectPlanEpicProgress> Epics);
+
+public sealed record ProjectPlanReleaseResult(
+    bool Success,
+    int Released,
+    ProjectPlanView? Plan,
+    string? ErrorCode,
+    string? ErrorMessage);
 
 public sealed record ProjectPlanCreateResult(
     bool Success,
@@ -145,6 +173,128 @@ public sealed class ProjectPlanService(
         var plan = await dbContext.ProjectPlans.AsNoTracking()
             .FirstOrDefaultAsync(candidate => candidate.Id == id, cancellationToken);
         return plan is null ? null : ToView(plan);
+    }
+
+    public async Task<ProjectPlanReleaseResult> ReleaseAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var plan = await dbContext.ProjectPlans.FirstOrDefaultAsync(
+            candidate => candidate.Id == id,
+            cancellationToken);
+        if (plan is null)
+        {
+            return new ProjectPlanReleaseResult(false, 0, null, "plan-not-found", "Project plan was not found.");
+        }
+
+        if (plan.Status != "Approved")
+        {
+            return new ProjectPlanReleaseResult(
+                false,
+                0,
+                ToView(plan),
+                "plan-not-approved",
+                $"Project plan is {plan.Status}, not Approved.");
+        }
+
+        var held = await dbContext.BacklogItems
+            .Where(item => item.PlanId == plan.Id && item.Status == "Hold")
+            .ToListAsync(cancellationToken);
+        if (held.Count == 0)
+        {
+            return new ProjectPlanReleaseResult(
+                false,
+                0,
+                ToView(plan),
+                "plan-no-held-tasks",
+                "There are no held Backlog items to release.");
+        }
+
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+        foreach (var item in held)
+        {
+            item.Status = "Pending";
+            item.UpdatedAtUtc = now;
+        }
+
+        plan.UpdatedAtUtc = now;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return new ProjectPlanReleaseResult(true, held.Count, ToView(plan), null, null);
+    }
+
+    public async Task<ProjectPlanProgressView?> GetProgressAsync(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var exists = await dbContext.ProjectPlans.AsNoTracking()
+            .AnyAsync(plan => plan.Id == id, cancellationToken);
+        if (!exists)
+        {
+            return null;
+        }
+
+        var items = await dbContext.BacklogItems.AsNoTracking()
+            .Where(item => item.PlanId == id)
+            .Select(item => new { item.EpicKey, item.Status })
+            .ToListAsync(cancellationToken);
+
+        var epics = items
+            .GroupBy(item => string.IsNullOrWhiteSpace(item.EpicKey) ? "unassigned" : item.EpicKey!)
+            .OrderBy(group => group.Key)
+            .Select(group => new ProjectPlanEpicProgress(
+                group.Key,
+                group.Count(),
+                group.Count(item => item.Status == "Pending"),
+                group.Count(item => item.Status == "Hold"),
+                group.Count(item => item.Status is "Dispatched" or "InProgress" or "RepairScheduled"),
+                group.Count(item => item.Status == "Completed"),
+                group.Count(item => item.Status is "Failed" or "TaskFailed" or "NeedsAttention")))
+            .ToList();
+
+        return new ProjectPlanProgressView(id, items.Count, epics);
+    }
+
+    public async Task<ProjectPlanApprovalResult> ReviseAsync(
+        Guid id,
+        ReviseProjectPlanRequest request,
+        CancellationToken cancellationToken)
+    {
+        var plan = await dbContext.ProjectPlans.FirstOrDefaultAsync(
+            candidate => candidate.Id == id,
+            cancellationToken);
+        if (plan is null)
+        {
+            return new ProjectPlanApprovalResult(false, null, "plan-not-found", "Project plan was not found.");
+        }
+
+        if (plan.Status is not ("PendingReview" or "Failed"))
+        {
+            return new ProjectPlanApprovalResult(
+                false,
+                ToView(plan),
+                "plan-not-revisable",
+                $"Project plan is {plan.Status}; only PendingReview or Failed plans can be revised.");
+        }
+
+        var feedback = request.Feedback?.Trim() ?? string.Empty;
+        if (feedback.Length is < 5 or > 8000)
+        {
+            return new ProjectPlanApprovalResult(
+                false,
+                ToView(plan),
+                "invalid-feedback",
+                "feedback must be between 5 and 8000 characters.");
+        }
+
+        plan.Status = "Queued";
+        plan.Error = null;
+        plan.Revision++;
+        plan.Feedback = feedback;
+        plan.FinalPlanJson = null;
+        plan.ProposalsJson = null;
+        plan.CritiquesJson = null;
+        plan.DecidedAtUtc = null;
+        plan.UpdatedAtUtc = timeProvider.GetUtcNow().UtcDateTime;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return new ProjectPlanApprovalResult(true, ToView(plan), null, null);
     }
 
     public async Task<ProjectPlanApprovalResult> ApproveAsync(
@@ -358,6 +508,8 @@ public sealed class ProjectPlanService(
             plan.CritiquesJson,
             plan.FinalPlanJson,
             plan.Error,
+            plan.Revision,
+            plan.Feedback,
             plan.CreatedAtUtc,
             plan.UpdatedAtUtc,
             plan.DecidedAtUtc);

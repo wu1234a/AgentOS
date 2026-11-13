@@ -6,8 +6,11 @@ import {
   approveProjectPlan,
   createProjectPlan,
   getProjectPlan,
+  getProjectPlanProgress,
   listProjectPlans,
-  rejectProjectPlan
+  rejectProjectPlan,
+  releaseProjectPlan,
+  reviseProjectPlan
 } from '../api/projectPlans'
 import { formatUtc } from '../utils/format'
 
@@ -21,6 +24,10 @@ const detailVisible = ref(false)
 const selected = ref(null)
 const detailLoading = ref(false)
 const activeTab = ref('plan')
+const progress = ref(null)
+const feedback = ref('')
+const releasing = ref(false)
+const revising = ref(false)
 
 const form = reactive({
   projectId: '',
@@ -43,6 +50,8 @@ const roadmap = computed(() => finalPlan.value?.roadmap || [])
 const tasks = computed(() => finalPlan.value?.tasks || [])
 const risks = computed(() => finalPlan.value?.risks || [])
 const metrics = computed(() => finalPlan.value?.acceptanceMetrics || [])
+const heldCount = computed(() => (progress.value?.epics || []).reduce((sum, epic) => sum + epic.hold, 0))
+const completedCount = computed(() => (progress.value?.epics || []).reduce((sum, epic) => sum + epic.completed, 0))
 
 function parseJson(value) {
   if (!value) return null
@@ -84,6 +93,7 @@ async function load() {
       const refreshed = items.value.find((item) => item.id === selected.value.id)
       if (refreshed && refreshed.status !== selected.value.status) {
         selected.value = await getProjectPlan(selected.value.id)
+        await loadProgress()
       }
     }
   } catch (exception) {
@@ -146,12 +156,23 @@ async function save() {
   }
 }
 
+async function loadProgress() {
+  if (!selected.value) return
+  try {
+    progress.value = await getProjectPlanProgress(selected.value.id)
+  } catch {
+    progress.value = null
+  }
+}
+
 async function openDetail(row) {
   detailLoading.value = true
   detailVisible.value = true
   activeTab.value = 'plan'
+  feedback.value = ''
   try {
     selected.value = await getProjectPlan(row.id)
+    await loadProgress()
   } catch (exception) {
     ElMessage.error(exception.message)
   } finally {
@@ -179,6 +200,55 @@ async function decide(action) {
     if (exception !== 'cancel' && exception !== 'close') {
       ElMessage.error(exception.message || String(exception))
     }
+  }
+}
+
+async function release() {
+  if (!selected.value) return
+  try {
+    await ElMessageBox.confirm(
+      `将 ${heldCount.value} 条 Hold 任务恢复为 Pending，并开始执行。确认继续？`,
+      '启动执行',
+      { type: 'warning' }
+    )
+    releasing.value = true
+    const result = await releaseProjectPlan(selected.value.id)
+    ElMessage.success(`已启动 ${result.released} 条 Backlog`)
+    await load()
+    await loadProgress()
+  } catch (exception) {
+    if (exception !== 'cancel' && exception !== 'close') {
+      ElMessage.error(exception.message || String(exception))
+    }
+  } finally {
+    releasing.value = false
+  }
+}
+
+async function revise() {
+  if (!selected.value) return
+  if (feedback.value.trim().length < 5) {
+    ElMessage.warning('请填写至少 5 个字符的修订意见')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm('将丢弃当前草稿并重新运行规划委员会，确认继续？', '按意见重新规划', {
+      type: 'warning'
+    })
+    revising.value = true
+    await reviseProjectPlan(selected.value.id, feedback.value)
+    ElMessage.success('已提交修订意见，规划委员会重新工作')
+    feedback.value = ''
+    await load()
+    selected.value = await getProjectPlan(selected.value.id)
+    await loadProgress()
+  } catch (exception) {
+    if (exception !== 'cancel' && exception !== 'close') {
+      ElMessage.error(exception.message || String(exception))
+    }
+  } finally {
+    revising.value = false
   }
 }
 
@@ -274,9 +344,11 @@ onUnmounted(() => clearInterval(pollTimer))
 
           <el-descriptions :column="3" border class="detail-meta">
             <el-descriptions-item label="规划模型">{{ selected.modelProfileCode }}</el-descriptions-item>
+            <el-descriptions-item label="修订版本">v{{ selected.revision }}</el-descriptions-item>
             <el-descriptions-item label="创建时间">{{ formatUtc(selected.createdAtUtc) }}</el-descriptions-item>
             <el-descriptions-item label="决策时间">{{ formatUtc(selected.decidedAtUtc) }}</el-descriptions-item>
-            <el-descriptions-item label="约束" :span="3">{{ selected.constraints || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="约束" :span="2">{{ selected.constraints || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="人工意见" :span="2">{{ selected.feedback || '—' }}</el-descriptions-item>
             <el-descriptions-item v-if="selected.error" label="错误" :span="3">
               <span class="danger-text">{{ selected.error }}</span>
             </el-descriptions-item>
@@ -290,6 +362,24 @@ onUnmounted(() => clearInterval(pollTimer))
             :closable="false"
             class="plan-progress"
           />
+
+          <el-card v-if="progress" shadow="never" class="progress-card">
+            <template #header>
+              <div class="progress-head">
+                <b>执行进度</b>
+                <span class="muted">共 {{ progress.total }} 条 · 已完成 {{ completedCount }} · Hold {{ heldCount }}</span>
+              </div>
+            </template>
+            <el-table :data="progress.epics" size="small" empty-text="暂无 Backlog">
+              <el-table-column prop="epicKey" label="Epic" width="110" />
+              <el-table-column prop="total" label="总数" width="80" />
+              <el-table-column prop="pending" label="Pending" width="90" />
+              <el-table-column prop="hold" label="Hold" width="80" />
+              <el-table-column prop="active" label="执行中" width="90" />
+              <el-table-column prop="completed" label="完成" width="80" />
+              <el-table-column prop="failed" label="失败" width="80" />
+            </el-table>
+          </el-card>
 
           <el-tabs v-model="activeTab" class="plan-tabs">
             <el-tab-pane label="最终方案" name="plan">
@@ -360,6 +450,21 @@ onUnmounted(() => clearInterval(pollTimer))
             </el-tab-pane>
           </el-tabs>
 
+          <div v-if="selected.status === 'PendingReview' || selected.status === 'Failed'" class="revise-box">
+            <div class="revise-label">人工修订意见</div>
+            <el-input
+              v-model="feedback"
+              type="textarea"
+              :rows="3"
+              maxlength="8000"
+              show-word-limit
+              placeholder="例如：首期只做库存报表，不做采购/销售；必须复用现有权限过滤。"
+            />
+            <el-button type="warning" plain :loading="revising" class="revise-button" @click="revise">
+              按意见重新规划
+            </el-button>
+          </div>
+
           <div class="drawer-actions">
             <el-button
               v-if="selected.status === 'PendingReview'"
@@ -375,6 +480,14 @@ onUnmounted(() => clearInterval(pollTimer))
               @click="decide('reject')"
             >
               拒绝
+            </el-button>
+            <el-button
+              v-if="selected.status === 'Approved' && heldCount > 0"
+              type="primary"
+              :loading="releasing"
+              @click="release"
+            >
+              启动执行（{{ heldCount }}）
             </el-button>
           </div>
         </template>
@@ -437,6 +550,33 @@ onUnmounted(() => clearInterval(pollTimer))
 
 .plan-progress {
   margin-bottom: 12px;
+}
+
+.progress-card {
+  margin-bottom: 12px;
+}
+
+.progress-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.revise-box {
+  margin-top: 18px;
+  padding: 14px;
+  border: 1px solid #fde68a;
+  background: #fffbeb;
+  border-radius: 8px;
+}
+
+.revise-label {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.revise-button {
+  margin-top: 8px;
 }
 
 .plan-tabs {

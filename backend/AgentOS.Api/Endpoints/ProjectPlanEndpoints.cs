@@ -14,6 +14,9 @@ public static class ProjectPlanEndpoints
         group.MapPost("", CreateAsync);
         group.MapPost("/{planId:guid}/approve", ApproveAsync);
         group.MapPost("/{planId:guid}/reject", RejectAsync);
+        group.MapPost("/{planId:guid}/release", ReleaseAsync);
+        group.MapPost("/{planId:guid}/revise", ReviseAsync);
+        group.MapGet("/{planId:guid}/progress", ProgressAsync);
         return app;
     }
 
@@ -60,6 +63,45 @@ public static class ProjectPlanEndpoints
         CancellationToken cancellationToken)
         => MapDecision(await service.RejectAsync(planId, cancellationToken));
 
+    private static async Task<IResult> ReleaseAsync(
+        Guid planId,
+        ProjectPlanService service,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.ReleaseAsync(planId, cancellationToken);
+        if (result.Success)
+        {
+            return Results.Ok(new { released = result.Released, plan = result.Plan });
+        }
+
+        var status = result.ErrorCode == "plan-not-found"
+            ? StatusCodes.Status404NotFound
+            : result.ErrorCode == "plan-not-approved"
+                ? StatusCodes.Status409Conflict
+                : StatusCodes.Status400BadRequest;
+        return Results.Problem(
+            statusCode: status,
+            title: "Project plan release failed",
+            detail: result.ErrorMessage,
+            extensions: new Dictionary<string, object?> { ["code"] = result.ErrorCode });
+    }
+
+    private static async Task<IResult> ReviseAsync(
+        Guid planId,
+        ReviseProjectPlanRequest request,
+        ProjectPlanService service,
+        CancellationToken cancellationToken)
+        => MapDecision(await service.ReviseAsync(planId, request, cancellationToken));
+
+    private static async Task<IResult> ProgressAsync(
+        Guid planId,
+        ProjectPlanService service,
+        CancellationToken cancellationToken)
+    {
+        var progress = await service.GetProgressAsync(planId, cancellationToken);
+        return progress is null ? Results.NotFound() : Results.Ok(progress);
+    }
+
     private static IResult MapDecision(ProjectPlanApprovalResult result)
     {
         if (result.Success)
@@ -69,7 +111,7 @@ public static class ProjectPlanEndpoints
 
         var status = result.ErrorCode == "plan-not-found"
             ? StatusCodes.Status404NotFound
-            : result.ErrorCode == "plan-not-pending"
+            : result.ErrorCode is "plan-not-pending" or "plan-not-revisable"
                 ? StatusCodes.Status409Conflict
                 : StatusCodes.Status400BadRequest;
         return Results.Problem(

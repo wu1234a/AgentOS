@@ -23,3 +23,15 @@ export function approveProjectPlan(planId) {
 export function rejectProjectPlan(planId) {
   return http.post(`/api/v1/project-plans/${planId}/reject`).then((response) => response.data)
 }
+
+export function releaseProjectPlan(planId) {
+  return http.post(`/api/v1/project-plans/${planId}/release`).then((response) => response.data)
+}
+
+export function reviseProjectPlan(planId, feedback) {
+  return http.post(`/api/v1/project-plans/${planId}/revise`, { feedback }).then((response) => response.data)
+}
+
+export function getProjectPlanProgress(planId) {
+  return http.get(`/api/v1/project-plans/${planId}/progress`).then((response) => response.data)
+}

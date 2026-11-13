@@ -870,6 +870,10 @@ namespace AgentOS.Infrastructure.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
 
+                    b.Property<string>("Feedback")
+                        .HasMaxLength(8000)
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("FinalPlanJson")
                         .HasColumnType("nvarchar(max)");
 
@@ -888,6 +892,11 @@ namespace AgentOS.Infrastructure.Migrations
 
                     b.Property<string>("ProposalsJson")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Revision")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(1);
 
                     b.Property<string>("Status")
                         .IsRequired()
