@@ -28,6 +28,7 @@ public sealed class ReviseProjectPlanRequest
 public sealed class ReleaseProjectPlanRequest
 {
     public Guid[]? BacklogItemIds { get; init; }
+    public string[]? EpicKeys { get; init; }
 }
 
 public sealed record ProjectPlanView(
@@ -71,9 +72,11 @@ public sealed record ProjectPlanEpicProgress(
 
 public sealed record ProjectPlanItemProgress(
     Guid Id,
+    string TaskKey,
     string Title,
     string EpicKey,
-    string Status);
+    string Status,
+    IReadOnlyList<string> DependsOn);
 
 public sealed record ProjectPlanProgressView(
     Guid PlanId,
@@ -290,6 +293,30 @@ public sealed class ProjectPlanService(
             held = requested;
         }
 
+        var requestedEpics = request?.EpicKeys?
+            .Where(key => !string.IsNullOrWhiteSpace(key))
+            .Select(key => key.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray() ?? [];
+        if (requestedEpics.Length > 0)
+        {
+            var byEpic = held
+                .Where(item => item.EpicKey is not null
+                    && requestedEpics.Contains(item.EpicKey, StringComparer.OrdinalIgnoreCase))
+                .ToList();
+            if (byEpic.Count == 0)
+            {
+                return new ProjectPlanReleaseResult(
+                    false,
+                    0,
+                    ToView(plan),
+                    "plan-epics-not-held",
+                    "No selected Epic has held Backlog items.");
+            }
+
+            held = byEpic;
+        }
+
         if (held.Count == 0)
         {
             return new ProjectPlanReleaseResult(
@@ -355,7 +382,7 @@ public sealed class ProjectPlanService(
 
         var items = await dbContext.BacklogItems.AsNoTracking()
             .Where(item => item.PlanId == id)
-            .Select(item => new { item.Id, item.Title, item.EpicKey, item.Status })
+            .Select(item => new { item.Id, item.TaskKey, item.Title, item.EpicKey, item.Status, item.DependsOnJson })
             .ToListAsync(cancellationToken);
 
         var epics = items
@@ -374,11 +401,13 @@ public sealed class ProjectPlanService(
         var itemViews = items
             .Select(item => new ProjectPlanItemProgress(
                 item.Id,
+                item.TaskKey ?? string.Empty,
                 item.Title,
                 string.IsNullOrWhiteSpace(item.EpicKey) ? "unassigned" : item.EpicKey!,
-                item.Status))
+                item.Status,
+                ParseDependencyList(item.DependsOnJson)))
             .OrderBy(item => item.EpicKey)
-            .ThenBy(item => item.Title)
+            .ThenBy(item => item.TaskKey)
             .ToList();
         return new ProjectPlanProgressView(id, items.Count, epics, itemViews);
     }
@@ -463,6 +492,16 @@ public sealed class ProjectPlanService(
                 ToView(plan),
                 "plan-has-no-tasks",
                 "The plan does not contain valid tasks.");
+        }
+
+        var dependencyError = ValidateDependencies(tasks);
+        if (dependencyError is not null)
+        {
+            return new ProjectPlanApprovalResult(
+                false,
+                ToView(plan),
+                "plan-dependency-invalid",
+                dependencyError);
         }
 
         BacklogDeliveryRequest? delivery;
@@ -654,6 +693,80 @@ public sealed class ProjectPlanService(
         catch (JsonException)
         {
             return [];
+        }
+    }
+
+    private static IReadOnlyList<string> ParseDependencyList(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return [];
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<string[]>(value) ?? [];
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+    }
+
+    internal static string? ValidateDependencies(IReadOnlyList<ProjectPlanTask> tasks)
+    {
+        var byKey = new Dictionary<string, ProjectPlanTask>(StringComparer.OrdinalIgnoreCase);
+        foreach (var task in tasks)
+        {
+            if (!byKey.TryAdd(task.TaskKey, task))
+            {
+                return $"Duplicate taskKey '{task.TaskKey}'.";
+            }
+        }
+
+        foreach (var task in tasks)
+        {
+            foreach (var dependency in task.DependsOn)
+            {
+                if (!byKey.ContainsKey(dependency))
+                {
+                    return $"Task '{task.TaskKey}' depends on missing task '{dependency}'.";
+                }
+            }
+        }
+
+        var state = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var taskKey in byKey.Keys)
+        {
+            if (Visit(taskKey, byKey, state))
+            {
+                return $"Dependency cycle detected at '{taskKey}'.";
+            }
+        }
+
+        return null;
+
+        static bool Visit(
+            string key,
+            IReadOnlyDictionary<string, ProjectPlanTask> byKey,
+            IDictionary<string, int> state)
+        {
+            if (state.TryGetValue(key, out var current))
+            {
+                return current == 1;
+            }
+
+            state[key] = 1;
+            foreach (var dependency in byKey[key].DependsOn)
+            {
+                if (Visit(dependency, byKey, state))
+                {
+                    return true;
+                }
+            }
+
+            state[key] = 2;
+            return false;
         }
     }
 

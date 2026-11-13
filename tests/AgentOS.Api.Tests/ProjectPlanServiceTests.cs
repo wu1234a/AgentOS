@@ -41,4 +41,31 @@ public sealed class ProjectPlanServiceTests
 
         Assert.Empty(ProjectPlanService.ParseTasks(json));
     }
+
+    [Fact]
+    public void Rejects_missing_dependency()
+    {
+        var tasks = new[]
+        {
+            new ProjectPlanTask("T1", "backend", "M1", "A", "Do A properly.", ["T9"])
+        };
+
+        var error = ProjectPlanService.ValidateDependencies(tasks);
+
+        Assert.Contains("missing", error);
+    }
+
+    [Fact]
+    public void Rejects_dependency_cycle()
+    {
+        var tasks = new[]
+        {
+            new ProjectPlanTask("T1", "backend", "M1", "A", "Do A properly.", ["T2"]),
+            new ProjectPlanTask("T2", "frontend", "M1", "B", "Do B properly.", ["T1"])
+        };
+
+        var error = ProjectPlanService.ValidateDependencies(tasks);
+
+        Assert.Contains("cycle", error);
+    }
 }

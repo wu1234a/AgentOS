@@ -30,6 +30,8 @@ const progress = ref(null)
 const revisions = ref([])
 const revisionViewVisible = ref(false)
 const revisionView = ref(null)
+const revisionDiffVisible = ref(false)
+const revisionDiff = ref(null)
 const feedback = ref('')
 const selectedBacklogIds = ref([])
 const releasing = ref(false)
@@ -62,6 +64,44 @@ const risks = computed(() => finalPlan.value?.risks || [])
 const metrics = computed(() => finalPlan.value?.acceptanceMetrics || [])
 const heldCount = computed(() => (progress.value?.epics || []).reduce((sum, epic) => sum + epic.hold, 0))
 const completedCount = computed(() => (progress.value?.epics || []).reduce((sum, epic) => sum + epic.completed, 0))
+const criticalPath = computed(() => {
+  const byKey = new Map()
+  for (const task of tasks.value) {
+    if (task.taskKey) byKey.set(task.taskKey, task)
+  }
+
+  const memo = new Map()
+  const visiting = new Set()
+
+  function longest(taskKey) {
+    if (memo.has(taskKey)) return memo.get(taskKey)
+    if (visiting.has(taskKey)) return []
+    visiting.add(taskKey)
+    const task = byKey.get(taskKey)
+    if (!task) {
+      visiting.delete(taskKey)
+      return []
+    }
+
+    let best = []
+    for (const dependency of task.dependsOn || []) {
+      const chain = longest(dependency)
+      if (chain.length > best.length) best = chain
+    }
+
+    const result = [...best, taskKey]
+    memo.set(taskKey, result)
+    visiting.delete(taskKey)
+    return result
+  }
+
+  let best = []
+  for (const taskKey of byKey.keys()) {
+    const chain = longest(taskKey)
+    if (chain.length > best.length) best = chain
+  }
+  return best
+})
 
 function parseJson(value) {
   if (!value) return null
@@ -193,6 +233,28 @@ function openRevision(revision) {
   revisionViewVisible.value = true
 }
 
+function compareRevision(revision) {
+  const before = parseJson(revision.finalPlanJson)
+  const after = parseJson(selected.value?.finalPlanJson)
+  if (!before || !after) return
+
+  const beforeTasks = new Map((before.tasks || []).map((task) => [task.taskKey || task.title, task]))
+  const afterTasks = new Map((after.tasks || []).map((task) => [task.taskKey || task.title, task]))
+  const added = [...afterTasks.keys()].filter((key) => !beforeTasks.has(key))
+  const removed = [...beforeTasks.keys()].filter((key) => !afterTasks.has(key))
+  const changed = [...afterTasks.keys()].filter((key) => {
+    const previous = beforeTasks.get(key)
+    const current = afterTasks.get(key)
+    return previous
+      && (previous.title !== current.title
+        || previous.instruction !== current.instruction
+        || JSON.stringify(previous.dependsOn || []) !== JSON.stringify(current.dependsOn || []))
+  })
+
+  revisionDiff.value = { revision: revision.revision, added, removed, changed }
+  revisionDiffVisible.value = true
+}
+
 function prettyRevision(value) {
   const parsed = parseJson(value)
   return parsed ? JSON.stringify(parsed, null, 2) : (value || '—')
@@ -271,7 +333,8 @@ async function release(ids = null) {
       { type: 'warning' }
     )
     releasing.value = true
-    const result = await releaseProjectPlan(selected.value.id, ids || undefined)
+    const payload = ids?.length ? { backlogItemIds: ids } : {}
+    const result = await releaseProjectPlan(selected.value.id, payload)
     ElMessage.success(`已启动 ${result.released} 条 Backlog`)
     await load()
     await loadProgress()
@@ -290,6 +353,23 @@ function releaseSelected() {
 
 function releaseAll() {
   return release()
+}
+
+async function releaseEpic(epicKey) {
+  if (!selected.value) return
+  try {
+    await ElMessageBox.confirm(`启动 Epic ${epicKey} 中全部 Hold 任务？`, '启动 Epic', { type: 'warning' })
+    releasing.value = true
+    const result = await releaseProjectPlan(selected.value.id, { epicKeys: [epicKey] })
+    ElMessage.success(`Epic ${epicKey} 已启动 ${result.released} 条 Backlog`)
+    await Promise.all([load(), loadProgress()])
+  } catch (exception) {
+    if (exception !== 'cancel' && exception !== 'close') {
+      ElMessage.error(exception.message || String(exception))
+    }
+  } finally {
+    releasing.value = false
+  }
 }
 
 async function revise() {
@@ -459,6 +539,19 @@ onUnmounted(() => clearInterval(pollTimer))
               <el-table-column prop="active" label="执行中" width="90" />
               <el-table-column prop="completed" label="完成" width="80" />
               <el-table-column prop="failed" label="失败" width="80" />
+              <el-table-column label="操作" width="120">
+                <template #default="{ row }">
+                  <el-button
+                    v-if="selected.status === 'Approved' && row.hold > 0 && (!selected.requiresReleaseApproval || selected.releaseApprovedAtUtc)"
+                    link
+                    type="primary"
+                    :loading="releasing"
+                    @click="releaseEpic(row.epicKey)"
+                  >
+                    启动 Epic
+                  </el-button>
+                </template>
+              </el-table-column>
             </el-table>
             <div class="muted item-table-title">Backlog 明细（可多选后只启动选中项）</div>
             <el-table
@@ -468,8 +561,12 @@ onUnmounted(() => clearInterval(pollTimer))
               @selection-change="onProgressSelection"
             >
               <el-table-column type="selection" width="42" />
-              <el-table-column prop="title" label="任务" min-width="320" />
+              <el-table-column prop="taskKey" label="Key" width="80" />
+              <el-table-column prop="title" label="任务" min-width="280" />
               <el-table-column prop="epicKey" label="Epic" width="90" />
+              <el-table-column label="依赖" width="120">
+                <template #default="{ row }">{{ (row.dependsOn || []).join(', ') || '—' }}</template>
+              </el-table-column>
               <el-table-column prop="status" label="状态" width="120" />
             </el-table>
           </el-card>
@@ -507,6 +604,9 @@ onUnmounted(() => clearInterval(pollTimer))
                   </el-table-column>
                   <el-table-column prop="instruction" label="指令" min-width="320" show-overflow-tooltip />
                 </el-table>
+                <div v-if="criticalPath.length" class="muted critical-path">
+                  关键路径：{{ criticalPath.join(' → ') }}
+                </div>
 
                 <div class="two-columns">
                   <div>
@@ -574,9 +674,10 @@ onUnmounted(() => clearInterval(pollTimer))
                 <el-table-column label="创建时间" width="180">
                   <template #default="{ row }">{{ formatUtc(row.createdAtUtc) }}</template>
                 </el-table-column>
-                <el-table-column label="操作" width="100">
+                <el-table-column label="操作" width="140">
                   <template #default="{ row }">
                     <el-button link type="primary" @click="openRevision(row)">查看</el-button>
+                    <el-button link type="warning" @click="compareRevision(row)">对比</el-button>
                   </template>
                 </el-table-column>
               </el-table>
@@ -651,6 +752,18 @@ onUnmounted(() => clearInterval(pollTimer))
     <el-dialog v-model="revisionViewVisible" :title="`版本 v${revisionView?.revision || ''}`" width="70%">
       <pre class="plan-pre">{{ prettyRevision(revisionView?.finalPlanJson) }}</pre>
     </el-dialog>
+
+    <el-dialog v-model="revisionDiffVisible" title="版本任务差异" width="620px">
+      <template v-if="revisionDiff">
+        <p class="muted">对比 v{{ revisionDiff.revision }} → 当前 v{{ selected?.revision }}</p>
+        <h4>新增（{{ revisionDiff.added.length }}）</h4>
+        <ul class="plain-list"><li v-for="key in revisionDiff.added" :key="key">{{ key }}</li></ul>
+        <h4>删除（{{ revisionDiff.removed.length }}）</h4>
+        <ul class="plain-list"><li v-for="key in revisionDiff.removed" :key="key">{{ key }}</li></ul>
+        <h4>变更（{{ revisionDiff.changed.length }}）</h4>
+        <ul class="plain-list"><li v-for="key in revisionDiff.changed" :key="key">{{ key }}</li></ul>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -722,6 +835,11 @@ onUnmounted(() => clearInterval(pollTimer))
 
 .item-table-title {
   margin: 14px 0 8px;
+  font-size: 13px;
+}
+
+.critical-path {
+  margin: 8px 0 12px;
   font-size: 13px;
 }
 

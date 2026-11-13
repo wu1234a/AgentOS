@@ -36,9 +36,9 @@ export function approveProjectPlanRelease(planId) {
     .then((response) => response.data)
 }
 
-export function releaseProjectPlan(planId, backlogItemIds = undefined) {
+export function releaseProjectPlan(planId, payload = {}) {
   return http
-    .post(`/api/v1/project-plans/${planId}/release`, backlogItemIds?.length ? { backlogItemIds } : {})
+    .post(`/api/v1/project-plans/${planId}/release`, payload)
     .then((response) => response.data)
 }
 
