@@ -1,6 +1,6 @@
 # AgentOS 文档索引
 
-- 当前代码：`58a6cd1`
+- 当前代码：`2b7ab51`
 - 更新时间：2026-11-14
 
 ## 面向使用
@@ -8,6 +8,10 @@
 - [使用教程](USER-GUIDE.md) — 环境、启动、界面、立项、Backlog、模型、排障
 - [本地部署](deployment-local.md)
 - [GitHub 配置](GITHUB-CONFIG.md)
+
+## 目标形态与改进路线
+
+- [目标项目运营模型](PROJECT-OPERATING-MODEL.md) — 最终项目流程、角色、文档体系、分阶段改进路线
 
 ## 面向开发
 
