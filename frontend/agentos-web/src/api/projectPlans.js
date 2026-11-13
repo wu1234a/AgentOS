@@ -1,5 +1,7 @@
 import http from './http'
 
+const decisionOptions = { headers: { 'X-AgentOS-Actor': 'web-admin' } }
+
 export function listProjectPlans({ status, limit = 50 } = {}) {
   return http
     .get('/api/v1/project-plans', { params: { status, limit } })
@@ -17,15 +19,21 @@ export function createProjectPlan(payload) {
 }
 
 export function approveProjectPlan(planId) {
-  return http.post(`/api/v1/project-plans/${planId}/approve`).then((response) => response.data)
+  return http
+    .post(`/api/v1/project-plans/${planId}/approve`, null, decisionOptions)
+    .then((response) => response.data)
 }
 
 export function rejectProjectPlan(planId) {
-  return http.post(`/api/v1/project-plans/${planId}/reject`).then((response) => response.data)
+  return http
+    .post(`/api/v1/project-plans/${planId}/reject`, null, decisionOptions)
+    .then((response) => response.data)
 }
 
 export function approveProjectPlanRelease(planId) {
-  return http.post(`/api/v1/project-plans/${planId}/approve-release`).then((response) => response.data)
+  return http
+    .post(`/api/v1/project-plans/${planId}/approve-release`, null, decisionOptions)
+    .then((response) => response.data)
 }
 
 export function releaseProjectPlan(planId, backlogItemIds = undefined) {
@@ -40,4 +48,8 @@ export function reviseProjectPlan(planId, feedback) {
 
 export function getProjectPlanProgress(planId) {
   return http.get(`/api/v1/project-plans/${planId}/progress`).then((response) => response.data)
+}
+
+export function getProjectPlanRevisions(planId) {
+  return http.get(`/api/v1/project-plans/${planId}/revisions`).then((response) => response.data)
 }

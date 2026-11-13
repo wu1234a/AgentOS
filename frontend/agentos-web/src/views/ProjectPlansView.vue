@@ -8,6 +8,7 @@ import {
   createProjectPlan,
   getProjectPlan,
   getProjectPlanProgress,
+  getProjectPlanRevisions,
   listProjectPlans,
   rejectProjectPlan,
   releaseProjectPlan,
@@ -26,6 +27,9 @@ const selected = ref(null)
 const detailLoading = ref(false)
 const activeTab = ref('plan')
 const progress = ref(null)
+const revisions = ref([])
+const revisionViewVisible = ref(false)
+const revisionView = ref(null)
 const feedback = ref('')
 const selectedBacklogIds = ref([])
 const releasing = ref(false)
@@ -175,6 +179,25 @@ async function loadProgress() {
   }
 }
 
+async function loadRevisions() {
+  if (!selected.value) return
+  try {
+    revisions.value = await getProjectPlanRevisions(selected.value.id)
+  } catch {
+    revisions.value = []
+  }
+}
+
+function openRevision(revision) {
+  revisionView.value = revision
+  revisionViewVisible.value = true
+}
+
+function prettyRevision(value) {
+  const parsed = parseJson(value)
+  return parsed ? JSON.stringify(parsed, null, 2) : (value || '—')
+}
+
 async function openDetail(row) {
   detailLoading.value = true
   detailVisible.value = true
@@ -183,7 +206,7 @@ async function openDetail(row) {
   selectedBacklogIds.value = []
   try {
     selected.value = await getProjectPlan(row.id)
-    await loadProgress()
+    await Promise.all([loadProgress(), loadRevisions()])
   } catch (exception) {
     ElMessage.error(exception.message)
   } finally {
@@ -207,6 +230,7 @@ async function decide(action) {
     }
     await load()
     selected.value = await getProjectPlan(selected.value.id)
+    await loadRevisions()
   } catch (exception) {
     if (exception !== 'cancel' && exception !== 'close') {
       ElMessage.error(exception.message || String(exception))
@@ -285,7 +309,7 @@ async function revise() {
     feedback.value = ''
     await load()
     selected.value = await getProjectPlan(selected.value.id)
-    await loadProgress()
+    await Promise.all([loadProgress(), loadRevisions()])
   } catch (exception) {
     if (exception !== 'cancel' && exception !== 'close') {
       ElMessage.error(exception.message || String(exception))
@@ -400,6 +424,8 @@ onUnmounted(() => clearInterval(pollTimer))
             <el-descriptions-item label="启动审批">
               {{ selected.releaseApprovedAtUtc ? formatUtc(selected.releaseApprovedAtUtc) : (selected.requiresReleaseApproval ? '待二次批准' : '不需要') }}
             </el-descriptions-item>
+            <el-descriptions-item label="方案批准人">{{ selected.decidedBy || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="启动批准人">{{ selected.releaseApprovedBy || '—' }}</el-descriptions-item>
             <el-descriptions-item label="创建时间">{{ formatUtc(selected.createdAtUtc) }}</el-descriptions-item>
             <el-descriptions-item label="决策时间">{{ formatUtc(selected.decidedAtUtc) }}</el-descriptions-item>
             <el-descriptions-item label="约束" :span="2">{{ selected.constraints || '—' }}</el-descriptions-item>
@@ -534,6 +560,28 @@ onUnmounted(() => clearInterval(pollTimer))
               </el-collapse>
             </el-tab-pane>
 
+            <el-tab-pane label="版本历史" name="revisions">
+              <el-table :data="revisions" size="small" empty-text="暂无版本快照">
+                <el-table-column prop="revision" label="版本" width="80">
+                  <template #default="{ row }">v{{ row.revision }}</template>
+                </el-table-column>
+                <el-table-column prop="modelProfileCode" label="模型" width="160" />
+                <el-table-column prop="tokensUsed" label="Tokens" width="100" />
+                <el-table-column label="费用" width="100">
+                  <template #default="{ row }">${{ Number(row.estimatedCost || 0).toFixed(4) }}</template>
+                </el-table-column>
+                <el-table-column prop="feedback" label="人工意见" min-width="220" show-overflow-tooltip />
+                <el-table-column label="创建时间" width="180">
+                  <template #default="{ row }">{{ formatUtc(row.createdAtUtc) }}</template>
+                </el-table-column>
+                <el-table-column label="操作" width="100">
+                  <template #default="{ row }">
+                    <el-button link type="primary" @click="openRevision(row)">查看</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </el-tab-pane>
+
             <el-tab-pane label="原始 JSON" name="raw">
               <pre class="plan-pre">{{ prettyJson(selected.finalPlanJson) }}</pre>
             </el-tab-pane>
@@ -599,6 +647,10 @@ onUnmounted(() => clearInterval(pollTimer))
         </template>
       </div>
     </el-drawer>
+
+    <el-dialog v-model="revisionViewVisible" :title="`版本 v${revisionView?.revision || ''}`" width="70%">
+      <pre class="plan-pre">{{ prettyRevision(revisionView?.finalPlanJson) }}</pre>
+    </el-dialog>
   </div>
 </template>
 

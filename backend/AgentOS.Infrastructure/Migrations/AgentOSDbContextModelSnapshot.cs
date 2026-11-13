@@ -865,6 +865,10 @@ namespace AgentOS.Infrastructure.Migrations
                     b.Property<DateTime?>("DecidedAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("DecidedBy")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
                     b.Property<string>("DeliveryJson")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -914,6 +918,10 @@ namespace AgentOS.Infrastructure.Migrations
 
                     b.Property<DateTime?>("ReleaseApprovedAtUtc")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("ReleaseApprovedBy")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
 
                     b.Property<bool>("RequiresReleaseApproval")
                         .ValueGeneratedOnAdd()
@@ -987,6 +995,49 @@ namespace AgentOS.Infrastructure.Migrations
                     b.HasIndex("PlanId", "Round", "Role");
 
                     b.ToTable("ProjectPlanContributions", (string)null);
+                });
+
+            modelBuilder.Entity("AgentOS.Domain.Planning.ProjectPlanRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<decimal>("EstimatedCost")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<string>("Feedback")
+                        .HasMaxLength(8000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("FinalPlanJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ModelProfileCode")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<Guid>("PlanId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TokensUsed")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PlanId", "Revision")
+                        .IsUnique();
+
+                    b.ToTable("ProjectPlanRevisions", (string)null);
                 });
 
             modelBuilder.Entity("AgentOS.Domain.Projects.Project", b =>

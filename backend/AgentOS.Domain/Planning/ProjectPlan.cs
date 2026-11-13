@@ -59,6 +59,10 @@ public sealed class ProjectPlan
 
     public DateTime? ReleaseApprovedAtUtc { get; set; }
 
+    public string? DecidedBy { get; set; }
+
+    public string? ReleaseApprovedBy { get; set; }
+
     public DateTime CreatedAtUtc { get; init; }
 
     public DateTime UpdatedAtUtc { get; set; }

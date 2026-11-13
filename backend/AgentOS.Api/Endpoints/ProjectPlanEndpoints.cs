@@ -14,6 +14,7 @@ public static class ProjectPlanEndpoints
         group.MapPost("", CreateAsync);
         group.MapPost("/{planId:guid}/approve", ApproveAsync);
         group.MapPost("/{planId:guid}/reject", RejectAsync);
+        group.MapGet("/{planId:guid}/revisions", RevisionsAsync);
         group.MapPost("/{planId:guid}/approve-release", ApproveReleaseAsync);
         group.MapPost("/{planId:guid}/release", ReleaseAsync);
         group.MapPost("/{planId:guid}/revise", ReviseAsync);
@@ -54,21 +55,24 @@ public static class ProjectPlanEndpoints
 
     private static async Task<IResult> ApproveAsync(
         Guid planId,
+        HttpRequest request,
         ProjectPlanService service,
         CancellationToken cancellationToken)
-        => MapDecision(await service.ApproveAsync(planId, cancellationToken));
+        => MapDecision(await service.ApproveAsync(planId, Actor(request), cancellationToken));
 
     private static async Task<IResult> RejectAsync(
         Guid planId,
+        HttpRequest request,
         ProjectPlanService service,
         CancellationToken cancellationToken)
-        => MapDecision(await service.RejectAsync(planId, cancellationToken));
+        => MapDecision(await service.RejectAsync(planId, Actor(request), cancellationToken));
 
     private static async Task<IResult> ApproveReleaseAsync(
         Guid planId,
+        HttpRequest request,
         ProjectPlanService service,
         CancellationToken cancellationToken)
-        => MapDecision(await service.ApproveReleaseAsync(planId, cancellationToken));
+        => MapDecision(await service.ApproveReleaseAsync(planId, Actor(request), cancellationToken));
 
     private static async Task<IResult> ReleaseAsync(
         Guid planId,
@@ -108,6 +112,18 @@ public static class ProjectPlanEndpoints
     {
         var progress = await service.GetProgressAsync(planId, cancellationToken);
         return progress is null ? Results.NotFound() : Results.Ok(progress);
+    }
+
+    private static async Task<IResult> RevisionsAsync(
+        Guid planId,
+        ProjectPlanService service,
+        CancellationToken cancellationToken)
+        => Results.Ok(await service.GetRevisionsAsync(planId, cancellationToken));
+
+    private static string Actor(HttpRequest request)
+    {
+        var value = request.Headers["X-AgentOS-Actor"].FirstOrDefault()?.Trim();
+        return string.IsNullOrWhiteSpace(value) ? "api-key" : value;
     }
 
     private static IResult MapDecision(ProjectPlanApprovalResult result)

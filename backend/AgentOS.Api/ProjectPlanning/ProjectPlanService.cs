@@ -54,6 +54,8 @@ public sealed record ProjectPlanView(
     int? PreviousRevision,
     bool RequiresReleaseApproval,
     DateTime? ReleaseApprovedAtUtc,
+    string? DecidedBy,
+    string? ReleaseApprovedBy,
     DateTime CreatedAtUtc,
     DateTime UpdatedAtUtc,
     DateTime? DecidedAtUtc);
@@ -85,6 +87,16 @@ public sealed record ProjectPlanReleaseResult(
     ProjectPlanView? Plan,
     string? ErrorCode,
     string? ErrorMessage);
+
+public sealed record ProjectPlanRevisionView(
+    Guid Id,
+    int Revision,
+    string FinalPlanJson,
+    string? Feedback,
+    string ModelProfileCode,
+    int TokensUsed,
+    decimal EstimatedCost,
+    DateTime CreatedAtUtc);
 
 public sealed record ProjectPlanCreateResult(
     bool Success,
@@ -203,6 +215,25 @@ public sealed class ProjectPlanService(
         return plan is null ? null : ToView(plan);
     }
 
+    public async Task<IReadOnlyList<ProjectPlanRevisionView>> GetRevisionsAsync(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var revisions = await dbContext.ProjectPlanRevisions.AsNoTracking()
+            .Where(revision => revision.PlanId == id)
+            .OrderByDescending(revision => revision.Revision)
+            .ToListAsync(cancellationToken);
+        return revisions.Select(revision => new ProjectPlanRevisionView(
+            revision.Id,
+            revision.Revision,
+            revision.FinalPlanJson,
+            revision.Feedback,
+            revision.ModelProfileCode,
+            revision.TokensUsed,
+            revision.EstimatedCost,
+            revision.CreatedAtUtc)).ToList();
+    }
+
     public async Task<ProjectPlanReleaseResult> ReleaseAsync(
         Guid id,
         ReleaseProjectPlanRequest? request,
@@ -283,6 +314,7 @@ public sealed class ProjectPlanService(
 
     public async Task<ProjectPlanApprovalResult> ApproveReleaseAsync(
         Guid id,
+        string actor,
         CancellationToken cancellationToken)
     {
         var plan = await dbContext.ProjectPlans.FirstOrDefaultAsync(
@@ -304,6 +336,7 @@ public sealed class ProjectPlanService(
 
         var now = timeProvider.GetUtcNow().UtcDateTime;
         plan.ReleaseApprovedAtUtc = now;
+        plan.ReleaseApprovedBy = actor;
         plan.UpdatedAtUtc = now;
         await dbContext.SaveChangesAsync(cancellationToken);
         return new ProjectPlanApprovalResult(true, ToView(plan), null, null);
@@ -392,7 +425,9 @@ public sealed class ProjectPlanService(
         plan.ProposalsJson = null;
         plan.CritiquesJson = null;
         plan.DecidedAtUtc = null;
+        plan.DecidedBy = null;
         plan.ReleaseApprovedAtUtc = null;
+        plan.ReleaseApprovedBy = null;
         plan.UpdatedAtUtc = timeProvider.GetUtcNow().UtcDateTime;
         await dbContext.SaveChangesAsync(cancellationToken);
         return new ProjectPlanApprovalResult(true, ToView(plan), null, null);
@@ -400,6 +435,7 @@ public sealed class ProjectPlanService(
 
     public async Task<ProjectPlanApprovalResult> ApproveAsync(
         Guid id,
+        string actor,
         CancellationToken cancellationToken)
     {
         var plan = await dbContext.ProjectPlans.FirstOrDefaultAsync(
@@ -493,13 +529,17 @@ public sealed class ProjectPlanService(
         }
 
         plan.Status = "Approved";
+        plan.DecidedBy = actor;
         plan.DecidedAtUtc = timeProvider.GetUtcNow().UtcDateTime;
         plan.UpdatedAtUtc = plan.DecidedAtUtc.Value;
         await dbContext.SaveChangesAsync(cancellationToken);
         return new ProjectPlanApprovalResult(true, ToView(plan), null, null);
     }
 
-    public async Task<ProjectPlanApprovalResult> RejectAsync(Guid id, CancellationToken cancellationToken)
+    public async Task<ProjectPlanApprovalResult> RejectAsync(
+        Guid id,
+        string actor,
+        CancellationToken cancellationToken)
     {
         var plan = await dbContext.ProjectPlans.FirstOrDefaultAsync(
             candidate => candidate.Id == id,
@@ -519,6 +559,7 @@ public sealed class ProjectPlanService(
         }
 
         plan.Status = "Rejected";
+        plan.DecidedBy = actor;
         plan.DecidedAtUtc = timeProvider.GetUtcNow().UtcDateTime;
         plan.UpdatedAtUtc = plan.DecidedAtUtc.Value;
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -652,6 +693,8 @@ public sealed class ProjectPlanService(
             plan.PreviousRevision,
             plan.RequiresReleaseApproval,
             plan.ReleaseApprovedAtUtc,
+            plan.DecidedBy,
+            plan.ReleaseApprovedBy,
             plan.CreatedAtUtc,
             plan.UpdatedAtUtc,
             plan.DecidedAtUtc);

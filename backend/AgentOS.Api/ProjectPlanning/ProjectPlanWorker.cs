@@ -152,6 +152,26 @@ public sealed class ProjectPlanWorker(
 
         plan.FinalPlanJson = finalJson;
         plan.ModelProfileCode = synthesis.ProfileCode ?? plan.ModelProfileCode;
+        var snapshotExists = await dbContext.ProjectPlanRevisions
+            .AnyAsync(
+                revision => revision.PlanId == plan.Id && revision.Revision == plan.Revision,
+                cancellationToken);
+        if (!snapshotExists)
+        {
+            dbContext.ProjectPlanRevisions.Add(new ProjectPlanRevision
+            {
+                Id = Guid.CreateVersion7(),
+                PlanId = plan.Id,
+                Revision = plan.Revision,
+                FinalPlanJson = finalJson,
+                Feedback = plan.Feedback,
+                ModelProfileCode = plan.ModelProfileCode,
+                TokensUsed = plan.TokensUsed,
+                EstimatedCost = plan.EstimatedCost,
+                CreatedAtUtc = DateTime.UtcNow
+            });
+        }
+
         plan.Status = "PendingReview";
         plan.Error = null;
         plan.UpdatedAtUtc = DateTime.UtcNow;
