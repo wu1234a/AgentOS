@@ -80,6 +80,12 @@ public sealed class PlannerOptions
     /// <summary>Preferred profile for the multi-agent project planning board.</summary>
     public string? ProjectPlanModelProfileCode { get; set; } = "deepseek-reviewer";
 
+    /// <summary>Rough planning price estimate, USD per 1M prompt tokens.</summary>
+    public decimal ProjectPlanInputPricePerMillion { get; set; } = 0.5m;
+
+    /// <summary>Rough planning price estimate, USD per 1M completion tokens.</summary>
+    public decimal ProjectPlanOutputPricePerMillion { get; set; } = 2m;
+
     /// <summary>Additional model profiles tried after the default Planner profile fails.</summary>
     public string[] BacklogFallbackProfileCodes { get; set; } = [];
 

@@ -27,6 +27,7 @@ const detailLoading = ref(false)
 const activeTab = ref('plan')
 const progress = ref(null)
 const feedback = ref('')
+const selectedBacklogIds = ref([])
 const releasing = ref(false)
 const approvingRelease = ref(false)
 const revising = ref(false)
@@ -179,6 +180,7 @@ async function openDetail(row) {
   detailVisible.value = true
   activeTab.value = 'plan'
   feedback.value = ''
+  selectedBacklogIds.value = []
   try {
     selected.value = await getProjectPlan(row.id)
     await loadProgress()
@@ -231,16 +233,21 @@ async function approveRelease() {
   }
 }
 
-async function release() {
+function onProgressSelection(rows) {
+  selectedBacklogIds.value = rows.map((row) => row.id)
+}
+
+async function release(ids = null) {
   if (!selected.value) return
+  const count = ids?.length || heldCount.value
   try {
     await ElMessageBox.confirm(
-      `将 ${heldCount.value} 条 Hold 任务恢复为 Pending，并开始执行。确认继续？`,
+      `将 ${count} 条 Hold 任务恢复为 Pending，并开始执行。确认继续？`,
       '启动执行',
       { type: 'warning' }
     )
     releasing.value = true
-    const result = await releaseProjectPlan(selected.value.id)
+    const result = await releaseProjectPlan(selected.value.id, ids || undefined)
     ElMessage.success(`已启动 ${result.released} 条 Backlog`)
     await load()
     await loadProgress()
@@ -251,6 +258,14 @@ async function release() {
   } finally {
     releasing.value = false
   }
+}
+
+function releaseSelected() {
+  return release(selectedBacklogIds.value)
+}
+
+function releaseAll() {
+  return release()
 }
 
 async function revise() {
@@ -380,6 +395,7 @@ onUnmounted(() => clearInterval(pollTimer))
             <el-descriptions-item label="规划模型">{{ selected.modelProfileCode }}</el-descriptions-item>
             <el-descriptions-item label="修订版本">v{{ selected.revision }}</el-descriptions-item>
             <el-descriptions-item label="Token">{{ selected.tokensUsed }} / {{ selected.tokenBudget }}</el-descriptions-item>
+            <el-descriptions-item label="估算费用">${{ Number(selected.estimatedCost || 0).toFixed(4) }}</el-descriptions-item>
             <el-descriptions-item label="模型调用">{{ selected.modelCalls }} / 7</el-descriptions-item>
             <el-descriptions-item label="启动审批">
               {{ selected.releaseApprovedAtUtc ? formatUtc(selected.releaseApprovedAtUtc) : (selected.requiresReleaseApproval ? '待二次批准' : '不需要') }}
@@ -418,6 +434,18 @@ onUnmounted(() => clearInterval(pollTimer))
               <el-table-column prop="completed" label="完成" width="80" />
               <el-table-column prop="failed" label="失败" width="80" />
             </el-table>
+            <div class="muted item-table-title">Backlog 明细（可多选后只启动选中项）</div>
+            <el-table
+              :data="progress.items"
+              size="small"
+              empty-text="暂无 Backlog"
+              @selection-change="onProgressSelection"
+            >
+              <el-table-column type="selection" width="42" />
+              <el-table-column prop="title" label="任务" min-width="320" />
+              <el-table-column prop="epicKey" label="Epic" width="90" />
+              <el-table-column prop="status" label="状态" width="120" />
+            </el-table>
           </el-card>
 
           <el-tabs v-model="activeTab" class="plan-tabs">
@@ -444,10 +472,14 @@ onUnmounted(() => clearInterval(pollTimer))
 
                 <h4>任务拆解（{{ tasks.length }}）</h4>
                 <el-table :data="tasks" size="small" empty-text="暂无任务">
+                  <el-table-column prop="taskKey" label="Key" width="80" />
                   <el-table-column prop="epic" label="Epic" width="90" />
                   <el-table-column prop="kind" label="类型" width="100" />
                   <el-table-column prop="title" label="任务" min-width="240" />
-                  <el-table-column prop="instruction" label="指令" min-width="360" show-overflow-tooltip />
+                  <el-table-column label="依赖" width="120">
+                    <template #default="{ row }">{{ (row.dependsOn || []).join(', ') || '—' }}</template>
+                  </el-table-column>
+                  <el-table-column prop="instruction" label="指令" min-width="320" show-overflow-tooltip />
                 </el-table>
 
                 <div class="two-columns">
@@ -476,9 +508,13 @@ onUnmounted(() => clearInterval(pollTimer))
               </el-card>
               <h4>上一版任务（{{ (previousPlan.tasks || []).length }}）</h4>
               <el-table :data="previousPlan.tasks || []" size="small">
+                <el-table-column prop="taskKey" label="Key" width="80" />
                 <el-table-column prop="epic" label="Epic" width="90" />
                 <el-table-column prop="kind" label="类型" width="100" />
                 <el-table-column prop="title" label="任务" min-width="280" />
+                <el-table-column label="依赖" width="120">
+                  <template #default="{ row }">{{ (row.dependsOn || []).join(', ') || '—' }}</template>
+                </el-table-column>
               </el-table>
             </el-tab-pane>
 
@@ -543,12 +579,21 @@ onUnmounted(() => clearInterval(pollTimer))
               批准启动
             </el-button>
             <el-button
-              v-if="selected.status === 'Approved' && heldCount > 0 && (!selected.requiresReleaseApproval || selected.releaseApprovedAtUtc)"
+              v-if="selected.status === 'Approved' && selectedBacklogIds.length > 0 && (!selected.requiresReleaseApproval || selected.releaseApprovedAtUtc)"
               type="primary"
               :loading="releasing"
-              @click="release"
+              @click="releaseSelected"
             >
-              启动执行（{{ heldCount }}）
+              启动选中（{{ selectedBacklogIds.length }}）
+            </el-button>
+            <el-button
+              v-if="selected.status === 'Approved' && heldCount > 0 && (!selected.requiresReleaseApproval || selected.releaseApprovedAtUtc)"
+              type="primary"
+              plain
+              :loading="releasing"
+              @click="releaseAll"
+            >
+              启动全部（{{ heldCount }}）
             </el-button>
           </div>
         </template>
@@ -621,6 +666,11 @@ onUnmounted(() => clearInterval(pollTimer))
   display: flex;
   justify-content: space-between;
   gap: 12px;
+}
+
+.item-table-title {
+  margin: 14px 0 8px;
+  font-size: 13px;
 }
 
 .revise-box {

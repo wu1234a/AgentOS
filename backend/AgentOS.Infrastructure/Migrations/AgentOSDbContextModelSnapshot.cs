@@ -849,6 +849,9 @@ namespace AgentOS.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<int>("CompletionTokens")
+                        .HasColumnType("int");
+
                     b.Property<string>("Constraints")
                         .HasMaxLength(8000)
                         .HasColumnType("nvarchar(max)");
@@ -869,6 +872,10 @@ namespace AgentOS.Infrastructure.Migrations
                     b.Property<string>("Error")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
+
+                    b.Property<decimal>("EstimatedCost")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<string>("Feedback")
                         .HasMaxLength(8000)
@@ -898,6 +905,9 @@ namespace AgentOS.Infrastructure.Migrations
 
                     b.Property<Guid>("ProjectId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("PromptTokens")
+                        .HasColumnType("int");
 
                     b.Property<string>("ProposalsJson")
                         .HasColumnType("nvarchar(max)");

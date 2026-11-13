@@ -11,8 +11,8 @@ public sealed class ProjectPlanServiceTests
             {
               "recommendedOption": "A",
               "tasks": [
-                {"kind":"backend","epic":"M1","title":"Add API","instruction":"Implement the API and tests."},
-                {"kind":"frontend","epic":"M2","title":"Add UI","instruction":"Implement the Vue page."}
+                {"taskKey":"T1","dependsOn":[],"kind":"backend","epic":"M1","title":"Add API","instruction":"Implement the API and tests."},
+                {"taskKey":"T2","dependsOn":["T1"],"kind":"frontend","epic":"M2","title":"Add UI","instruction":"Implement the Vue page."}
               ]
             }
             """;
@@ -23,6 +23,8 @@ public sealed class ProjectPlanServiceTests
         Assert.Equal("backend", tasks[0].Kind);
         Assert.Equal("M1", tasks[0].Epic);
         Assert.Equal("M2", tasks[1].Epic);
+        Assert.Equal("T2", tasks[1].TaskKey);
+        Assert.Equal(["T1"], tasks[1].DependsOn);
     }
 
     [Fact]

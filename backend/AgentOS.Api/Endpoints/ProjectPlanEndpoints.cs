@@ -72,10 +72,11 @@ public static class ProjectPlanEndpoints
 
     private static async Task<IResult> ReleaseAsync(
         Guid planId,
+        ReleaseProjectPlanRequest? request,
         ProjectPlanService service,
         CancellationToken cancellationToken)
     {
-        var result = await service.ReleaseAsync(planId, cancellationToken);
+        var result = await service.ReleaseAsync(planId, request, cancellationToken);
         if (result.Success)
         {
             return Results.Ok(new { released = result.Released, plan = result.Plan });

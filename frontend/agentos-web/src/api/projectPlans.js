@@ -28,8 +28,10 @@ export function approveProjectPlanRelease(planId) {
   return http.post(`/api/v1/project-plans/${planId}/approve-release`).then((response) => response.data)
 }
 
-export function releaseProjectPlan(planId) {
-  return http.post(`/api/v1/project-plans/${planId}/release`).then((response) => response.data)
+export function releaseProjectPlan(planId, backlogItemIds = undefined) {
+  return http
+    .post(`/api/v1/project-plans/${planId}/release`, backlogItemIds?.length ? { backlogItemIds } : {})
+    .then((response) => response.data)
 }
 
 export function reviseProjectPlan(planId, feedback) {

@@ -25,6 +25,11 @@ public sealed class ReviseProjectPlanRequest
     public string? Feedback { get; init; }
 }
 
+public sealed class ReleaseProjectPlanRequest
+{
+    public Guid[]? BacklogItemIds { get; init; }
+}
+
 public sealed record ProjectPlanView(
     Guid Id,
     Guid ProjectId,
@@ -41,6 +46,9 @@ public sealed record ProjectPlanView(
     string? Feedback,
     int TokenBudget,
     int TokensUsed,
+    int PromptTokens,
+    int CompletionTokens,
+    decimal EstimatedCost,
     int ModelCalls,
     string? PreviousFinalPlanJson,
     int? PreviousRevision,
@@ -59,10 +67,17 @@ public sealed record ProjectPlanEpicProgress(
     int Completed,
     int Failed);
 
+public sealed record ProjectPlanItemProgress(
+    Guid Id,
+    string Title,
+    string EpicKey,
+    string Status);
+
 public sealed record ProjectPlanProgressView(
     Guid PlanId,
     int Total,
-    IReadOnlyList<ProjectPlanEpicProgress> Epics);
+    IReadOnlyList<ProjectPlanEpicProgress> Epics,
+    IReadOnlyList<ProjectPlanItemProgress> Items);
 
 public sealed record ProjectPlanReleaseResult(
     bool Success,
@@ -84,10 +99,12 @@ public sealed record ProjectPlanApprovalResult(
     string? ErrorMessage);
 
 public sealed record ProjectPlanTask(
+    string TaskKey,
     string Kind,
     string Epic,
     string Title,
-    string Instruction);
+    string Instruction,
+    IReadOnlyList<string> DependsOn);
 
 public sealed class ProjectPlanService(
     AgentOSDbContext dbContext,
@@ -186,7 +203,10 @@ public sealed class ProjectPlanService(
         return plan is null ? null : ToView(plan);
     }
 
-    public async Task<ProjectPlanReleaseResult> ReleaseAsync(Guid id, CancellationToken cancellationToken)
+    public async Task<ProjectPlanReleaseResult> ReleaseAsync(
+        Guid id,
+        ReleaseProjectPlanRequest? request,
+        CancellationToken cancellationToken)
     {
         var plan = await dbContext.ProjectPlans.FirstOrDefaultAsync(
             candidate => candidate.Id == id,
@@ -216,9 +236,29 @@ public sealed class ProjectPlanService(
                 "This plan requires a second explicit release approval.");
         }
 
+        var requestedIds = request?.BacklogItemIds?
+            .Where(itemId => itemId != Guid.Empty)
+            .Distinct()
+            .ToArray() ?? [];
         var held = await dbContext.BacklogItems
             .Where(item => item.PlanId == plan.Id && item.Status == "Hold")
             .ToListAsync(cancellationToken);
+        if (requestedIds.Length > 0)
+        {
+            var requested = held.Where(item => requestedIds.Contains(item.Id)).ToList();
+            if (requested.Count != requestedIds.Length)
+            {
+                return new ProjectPlanReleaseResult(
+                    false,
+                    0,
+                    ToView(plan),
+                    "plan-items-not-held",
+                    "Every selected Backlog item must belong to this plan and be Hold.");
+            }
+
+            held = requested;
+        }
+
         if (held.Count == 0)
         {
             return new ProjectPlanReleaseResult(
@@ -282,7 +322,7 @@ public sealed class ProjectPlanService(
 
         var items = await dbContext.BacklogItems.AsNoTracking()
             .Where(item => item.PlanId == id)
-            .Select(item => new { item.EpicKey, item.Status })
+            .Select(item => new { item.Id, item.Title, item.EpicKey, item.Status })
             .ToListAsync(cancellationToken);
 
         var epics = items
@@ -298,7 +338,16 @@ public sealed class ProjectPlanService(
                 group.Count(item => item.Status is "Failed" or "TaskFailed" or "NeedsAttention")))
             .ToList();
 
-        return new ProjectPlanProgressView(id, items.Count, epics);
+        var itemViews = items
+            .Select(item => new ProjectPlanItemProgress(
+                item.Id,
+                item.Title,
+                string.IsNullOrWhiteSpace(item.EpicKey) ? "unassigned" : item.EpicKey!,
+                item.Status))
+            .OrderBy(item => item.EpicKey)
+            .ThenBy(item => item.Title)
+            .ToList();
+        return new ProjectPlanProgressView(id, items.Count, epics, itemViews);
     }
 
     public async Task<ProjectPlanApprovalResult> ReviseAsync(
@@ -493,8 +542,10 @@ public sealed class ProjectPlanService(
             }
 
             var result = new List<ProjectPlanTask>();
+            var ordinal = 0;
             foreach (var item in tasks.EnumerateArray())
             {
+                ordinal++;
                 if (result.Count >= 20
                     || item.ValueKind != JsonValueKind.Object
                     || !item.TryGetProperty("kind", out var kind)
@@ -514,16 +565,45 @@ public sealed class ProjectPlanService(
                     && epicElement.ValueKind == JsonValueKind.String
                         ? epicElement.GetString()?.Trim() ?? "default"
                         : "default";
+                var taskKey = item.TryGetProperty("taskKey", out var keyElement)
+                    && keyElement.ValueKind == JsonValueKind.String
+                        ? keyElement.GetString()?.Trim() ?? $"T{ordinal}"
+                        : $"T{ordinal}";
+                var dependsOn = new List<string>();
+                if (item.TryGetProperty("dependsOn", out var dependsElement)
+                    && dependsElement.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var dependency in dependsElement.EnumerateArray())
+                    {
+                        if (dependsOn.Count >= 10 || dependency.ValueKind != JsonValueKind.String)
+                        {
+                            continue;
+                        }
+
+                        var value = dependency.GetString()?.Trim();
+                        if (!string.IsNullOrWhiteSpace(value))
+                        {
+                            dependsOn.Add(value);
+                        }
+                    }
+                }
 
                 if (!AllowedKinds.Contains(kindValue)
                     || titleValue.Length is < 3 or > 200
                     || instructionValue.Length is < 10 or > 20_000
-                    || epic.Length > 100)
+                    || epic.Length > 100
+                    || taskKey.Length is < 1 or > 40)
                 {
                     continue;
                 }
 
-                result.Add(new ProjectPlanTask(kindValue, epic, titleValue, instructionValue));
+                result.Add(new ProjectPlanTask(
+                    taskKey,
+                    kindValue,
+                    epic,
+                    titleValue,
+                    instructionValue,
+                    dependsOn));
             }
 
             return result;
@@ -564,6 +644,9 @@ public sealed class ProjectPlanService(
             plan.Feedback,
             plan.TokenBudget,
             plan.TokensUsed,
+            plan.PromptTokens,
+            plan.CompletionTokens,
+            plan.EstimatedCost,
             plan.ModelCalls,
             plan.PreviousFinalPlanJson,
             plan.PreviousRevision,

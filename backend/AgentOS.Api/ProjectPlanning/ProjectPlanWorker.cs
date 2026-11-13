@@ -1,7 +1,9 @@
 using System.Text.Json;
+using AgentOS.Application.Planning;
 using AgentOS.Domain.Planning;
 using AgentOS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace AgentOS.Api.ProjectPlanning;
 
@@ -72,6 +74,7 @@ public sealed class ProjectPlanWorker(
     {
         var dbContext = services.GetRequiredService<AgentOSDbContext>();
         var model = services.GetRequiredService<ProjectPlanModelRunner>();
+        var pricing = services.GetRequiredService<IOptions<PlannerOptions>>().Value;
 
         var proposals = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var proposalJson = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -89,7 +92,7 @@ public sealed class ProjectPlanWorker(
                     $"Planner {analyst.Role} proposal failed: {result.ErrorCode} {result.ErrorMessage}");
             }
 
-            RecordUsage(plan, result);
+            RecordUsage(plan, result, pricing);
             await dbContext.SaveChangesAsync(cancellationToken);
             proposals[analyst.Role] = result.Content;
             proposalJson[analyst.Role] = result.Content;
@@ -116,7 +119,7 @@ public sealed class ProjectPlanWorker(
                     $"Planner {analyst.Role} critique failed: {result.ErrorCode} {result.ErrorMessage}");
             }
 
-            RecordUsage(plan, result);
+            RecordUsage(plan, result, pricing);
             await dbContext.SaveChangesAsync(cancellationToken);
             critiques[analyst.Role] = result.Content;
             critiqueJson[analyst.Role] = result.Content;
@@ -139,7 +142,7 @@ public sealed class ProjectPlanWorker(
                 $"Planner chair synthesis failed: {synthesis.ErrorCode} {synthesis.ErrorMessage}");
         }
 
-        RecordUsage(plan, synthesis);
+        RecordUsage(plan, synthesis, pricing);
 
         var finalJson = ExtractJsonObject(synthesis.Content);
         if (ProjectPlanService.ParseTasks(finalJson).Count == 0)
@@ -236,11 +239,12 @@ public sealed class ProjectPlanWorker(
              "risks": [{"risk":"...","mitigation":"..."}],
              "acceptanceMetrics": ["..."],
              "tasks": [
-               {"kind":"backend|frontend|docs|full","epic":"M1","title":"...","instruction":"..."}
+               {"taskKey":"T1","dependsOn":[],"kind":"backend|frontend|docs|full","epic":"M1","title":"...","instruction":"..."}
              ]
            }
            Requirements:
            - tasks must be small, independently mergeable, and ordered by dependency.
+           - taskKey must be unique; dependsOn may only reference earlier taskKey values.
            - use backend/frontend/docs/full exactly.
            - include no secrets and no destructive production operations.
            - do not claim facts not present in the proposals/critiques.
@@ -298,7 +302,10 @@ public sealed class ProjectPlanWorker(
         }
     }
 
-    private static void RecordUsage(ProjectPlan plan, ProjectPlanModelResult result)
+    private static void RecordUsage(
+        ProjectPlan plan,
+        ProjectPlanModelResult result,
+        PlannerOptions pricing)
     {
         var prompt = result.PromptTokens > 0
             ? result.PromptTokens
@@ -307,7 +314,12 @@ public sealed class ProjectPlanWorker(
             ? result.CompletionTokens
             : Math.Max(1, (result.Content?.Length ?? 0) / 4);
         plan.ModelCalls++;
+        plan.PromptTokens += prompt;
+        plan.CompletionTokens += completion;
         plan.TokensUsed += prompt + completion;
+        plan.EstimatedCost +=
+            (prompt / 1_000_000m) * pricing.ProjectPlanInputPricePerMillion
+            + (completion / 1_000_000m) * pricing.ProjectPlanOutputPricePerMillion;
     }
 
     private static string Truncate(string value, int max)

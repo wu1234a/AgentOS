@@ -41,6 +41,12 @@ public sealed class ProjectPlan
 
     public int TokensUsed { get; set; }
 
+    public int PromptTokens { get; set; }
+
+    public int CompletionTokens { get; set; }
+
+    public decimal EstimatedCost { get; set; }
+
     public int ModelCalls { get; set; }
 
     /// <summary>Final plan from the previous revision, retained for comparison.</summary>
