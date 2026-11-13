@@ -16,6 +16,12 @@ public sealed class BacklogItem
     /// <summary>Roadmap epic/milestone key from the originating plan.</summary>
     public string? EpicKey { get; set; }
 
+    /// <summary>Stable task key inside the originating plan.</summary>
+    public string? TaskKey { get; set; }
+
+    /// <summary>JSON array of prerequisite TaskKey values in the same plan.</summary>
+    public string? DependsOnJson { get; set; }
+
     public string Title { get; set; } = string.Empty;
 
     /// <summary>Full task payload (instruction, validation commands, delivery).</summary>

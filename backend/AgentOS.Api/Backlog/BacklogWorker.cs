@@ -141,7 +141,35 @@ public sealed class BacklogWorker(
                 continue;
             }
 
-            var itemToDispatch = group.First();
+            BacklogItem? itemToDispatch = null;
+            foreach (var candidate in group)
+            {
+                var dependency = await CheckDependenciesAsync(candidate, dbContext, cancellationToken);
+                if (dependency.State == DependencyState.Blocked)
+                {
+                    candidate.Status = "NeedsAttention";
+                    candidate.Error = dependency.Reason;
+                    candidate.UpdatedAtUtc = DateTime.UtcNow;
+                    logger.LogWarning(
+                        "Backlog item {ItemId} is blocked by dependencies: {Reason}",
+                        candidate.Id,
+                        dependency.Reason);
+                    await dbContext.SaveChangesAsync(cancellationToken);
+                    continue;
+                }
+
+                if (dependency.State == DependencyState.Ready)
+                {
+                    itemToDispatch = candidate;
+                    break;
+                }
+            }
+
+            if (itemToDispatch is null)
+            {
+                continue;
+            }
+
             JsonElement payload;
             try
             {
@@ -206,6 +234,74 @@ public sealed class BacklogWorker(
 
             await dbContext.SaveChangesAsync(cancellationToken);
         }
+    }
+
+    private enum DependencyState
+    {
+        Ready,
+        Waiting,
+        Blocked
+    }
+
+    private readonly record struct DependencyCheck(DependencyState State, string? Reason);
+
+    private static async Task<DependencyCheck> CheckDependenciesAsync(
+        BacklogItem item,
+        AgentOSDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        if (item.PlanId is null || string.IsNullOrWhiteSpace(item.DependsOnJson))
+        {
+            return new DependencyCheck(DependencyState.Ready, null);
+        }
+
+        string[] dependencies;
+        try
+        {
+            dependencies = JsonSerializer.Deserialize<string[]>(item.DependsOnJson) ?? [];
+        }
+        catch (JsonException)
+        {
+            return new DependencyCheck(
+                DependencyState.Blocked,
+                "Stored dependency metadata is invalid.");
+        }
+
+        if (dependencies.Length == 0)
+        {
+            return new DependencyCheck(DependencyState.Ready, null);
+        }
+
+        var siblings = await dbContext.BacklogItems.AsNoTracking()
+            .Where(candidate => candidate.PlanId == item.PlanId && candidate.TaskKey != null)
+            .ToListAsync(cancellationToken);
+        var byKey = siblings
+            .GroupBy(candidate => candidate.TaskKey!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+
+        foreach (var dependency in dependencies)
+        {
+            if (!byKey.TryGetValue(dependency, out var prerequisite))
+            {
+                return new DependencyCheck(
+                    DependencyState.Blocked,
+                    $"Dependency '{dependency}' does not exist in this plan.");
+            }
+
+            if (prerequisite.Status is "Failed" or "TaskFailed" or "Cancelled" or "NeedsAttention")
+            {
+                return new DependencyCheck(
+                    DependencyState.Blocked,
+                    $"Dependency '{dependency}' ended with {prerequisite.Status}.");
+            }
+
+            if (prerequisite.Status != "Completed")
+            {
+                return new DependencyCheck(DependencyState.Waiting, null);
+            }
+        }
+
+        return new DependencyCheck(DependencyState.Ready, null);
     }
 
     private static BacklogItem? BuildRepairItem(

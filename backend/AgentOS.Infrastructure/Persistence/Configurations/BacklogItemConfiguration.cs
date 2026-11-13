@@ -15,6 +15,8 @@ public sealed class BacklogItemConfiguration : IEntityTypeConfiguration<BacklogI
         builder.Property(item => item.Priority).HasMaxLength(20).IsRequired();
         builder.Property(item => item.Status).HasMaxLength(20).IsRequired();
         builder.Property(item => item.EpicKey).HasMaxLength(100);
+        builder.Property(item => item.TaskKey).HasMaxLength(80);
+        builder.Property(item => item.DependsOnJson).HasColumnType("nvarchar(max)");
         builder.Property(item => item.Error).HasMaxLength(1000);
         builder.Property(item => item.RepairAttempt).HasDefaultValue(0);
         builder.Property(item => item.CreatedAtUtc).HasColumnType("datetime2(3)");

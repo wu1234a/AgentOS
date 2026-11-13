@@ -11,6 +11,8 @@ public sealed class CreateBacklogItemRequest
     public Guid? ProjectId { get; init; }
     public Guid? PlanId { get; init; }
     public string? EpicKey { get; init; }
+    public string? TaskKey { get; init; }
+    public string[]? DependsOnKeys { get; init; }
     public string? Title { get; init; }
     public string? Instruction { get; init; }
     public string[]? ValidationCommands { get; init; }
@@ -144,6 +146,14 @@ public sealed class BacklogService(
             ProjectId = project.Id,
             PlanId = request.PlanId,
             EpicKey = string.IsNullOrWhiteSpace(request.EpicKey) ? null : request.EpicKey.Trim(),
+            TaskKey = string.IsNullOrWhiteSpace(request.TaskKey) ? null : request.TaskKey.Trim(),
+            DependsOnJson = request.DependsOnKeys is { Length: > 0 }
+                ? JsonSerializer.Serialize(request.DependsOnKeys
+                    .Where(key => !string.IsNullOrWhiteSpace(key))
+                    .Select(key => key.Trim())
+                    .Distinct()
+                    .ToArray())
+                : null,
             Title = title,
             PayloadJson = payload.GetRawText(),
             Priority = priority,

@@ -209,6 +209,9 @@ namespace AgentOS.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2(3)");
 
+                    b.Property<string>("DependsOnJson")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<DateTime?>("DispatchedAtUtc")
                         .HasColumnType("datetime2");
 
@@ -250,6 +253,10 @@ namespace AgentOS.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("TaskKey")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
 
                     b.Property<string>("Title")
                         .IsRequired()

@@ -499,6 +499,8 @@ public sealed class ProjectPlanService(
                     ProjectId = plan.ProjectId,
                     PlanId = plan.Id,
                     EpicKey = task.Epic,
+                    TaskKey = task.TaskKey,
+                    DependsOnKeys = task.DependsOn.ToArray(),
                     Title = task.Title,
                     Instruction = task.Instruction,
                     ValidationCommands = commands,
