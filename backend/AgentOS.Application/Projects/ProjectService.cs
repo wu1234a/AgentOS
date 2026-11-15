@@ -90,7 +90,7 @@ public sealed class ProjectService(
 {
     private static readonly HashSet<string> AllowedStatuses = new(StringComparer.OrdinalIgnoreCase)
     {
-        "Draft", "Active", "OnHold", "Completed", "Archived"
+        "Draft", "Active", "OnHold", "Acceptance", "Completed", "Rework", "Archived"
     };
 
     public async Task<IReadOnlyList<ProjectView>> ListAsync(CancellationToken cancellationToken)
@@ -186,7 +186,7 @@ public sealed class ProjectService(
 
         if (!AllowedStatuses.Contains(status))
         {
-            return ProjectResult.Invalid("status-invalid", "status", "Status must be Draft, Active, OnHold, Completed or Archived.");
+            return ProjectResult.Invalid("status-invalid", "status", "Status must be Draft, Active, OnHold, Acceptance, Completed, Rework or Archived.");
         }
 
         if (await repository.SlugExistsAsync(slug, cancellationToken))
@@ -285,7 +285,7 @@ public sealed class ProjectService(
             var status = request.Status.Trim();
             if (!AllowedStatuses.Contains(status))
             {
-                return ProjectResult.Invalid("status-invalid", "status", "Status must be Draft, Active, OnHold, Completed or Archived.");
+                return ProjectResult.Invalid("status-invalid", "status", "Status must be Draft, Active, OnHold, Acceptance, Completed, Rework or Archived.");
             }
 
             project.Status = status;

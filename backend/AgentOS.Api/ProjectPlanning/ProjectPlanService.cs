@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using AgentOS.Api.Backlog;
 using AgentOS.Api.ProjectDocuments;
@@ -77,7 +78,10 @@ public sealed record ProjectPlanItemProgress(
     string Title,
     string EpicKey,
     string Status,
-    IReadOnlyList<string> DependsOn);
+    IReadOnlyList<string> DependsOn,
+    string? RequiredRole,
+    string? RiskLevel,
+    string? TaskDocumentMarkdown);
 
 public sealed record ProjectPlanProgressView(
     Guid PlanId,
@@ -120,13 +124,16 @@ public sealed record ProjectPlanTask(
     string Epic,
     string Title,
     string Instruction,
-    IReadOnlyList<string> DependsOn);
+    IReadOnlyList<string> DependsOn,
+    string RequiredRole = "coder",
+    string RiskLevel = "normal");
 
 public sealed class ProjectPlanService(
     AgentOSDbContext dbContext,
     IProjectLookup projects,
     BacklogService backlog,
     ProjectDocumentService projectDocuments,
+    ProjectMilestoneService projectMilestones,
     IOptions<PlannerOptions> plannerOptions,
     TimeProvider timeProvider)
 {
@@ -401,7 +408,18 @@ public sealed class ProjectPlanService(
 
         var items = await dbContext.BacklogItems.AsNoTracking()
             .Where(item => item.PlanId == id)
-            .Select(item => new { item.Id, item.TaskKey, item.Title, item.EpicKey, item.Status, item.DependsOnJson })
+            .Select(item => new
+            {
+                item.Id,
+                item.TaskKey,
+                item.Title,
+                item.EpicKey,
+                item.Status,
+                item.DependsOnJson,
+                item.RequiredRole,
+                item.RiskLevel,
+                item.TaskDocumentMarkdown
+            })
             .ToListAsync(cancellationToken);
 
         var epics = items
@@ -424,7 +442,10 @@ public sealed class ProjectPlanService(
                 item.Title,
                 string.IsNullOrWhiteSpace(item.EpicKey) ? "unassigned" : item.EpicKey!,
                 item.Status,
-                ParseDependencyList(item.DependsOnJson)))
+                ParseDependencyList(item.DependsOnJson),
+                item.RequiredRole,
+                item.RiskLevel,
+                item.TaskDocumentMarkdown))
             .OrderBy(item => item.EpicKey)
             .ThenBy(item => item.TaskKey)
             .ToList();
@@ -555,6 +576,7 @@ public sealed class ProjectPlanService(
         try
         {
             await projectDocuments.CreateFromApprovedPlanAsync(plan, project, cancellationToken);
+            await projectMilestones.CreateFromPlanAsync(plan, project, cancellationToken);
         }
         catch (Exception exception)
         {
@@ -582,6 +604,9 @@ public sealed class ProjectPlanService(
                     EpicKey = task.Epic,
                     TaskKey = task.TaskKey,
                     DependsOnKeys = task.DependsOn.ToArray(),
+                    RequiredRole = task.RequiredRole,
+                    RiskLevel = task.RiskLevel,
+                    TaskDocumentMarkdown = BuildTaskDocument(plan, project, task),
                     Title = task.Title,
                     Instruction = task.Instruction,
                     ValidationCommands = commands,
@@ -649,6 +674,36 @@ public sealed class ProjectPlanService(
         return new ProjectPlanApprovalResult(true, ToView(plan), null, null);
     }
 
+    private static string BuildTaskDocument(
+        ProjectPlan plan,
+        AgentOS.Domain.Projects.Project project,
+        ProjectPlanTask task)
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine($"# {task.TaskKey} {task.Title}");
+        builder.AppendLine();
+        builder.AppendLine($"- 项目：{project.Name}");
+        builder.AppendLine($"- 计划：{plan.Title} v{plan.Revision}");
+        builder.AppendLine($"- Epic：{task.Epic}");
+        builder.AppendLine($"- 类型：{task.Kind}");
+        builder.AppendLine($"- RequiredRole：{task.RequiredRole}");
+        builder.AppendLine($"- RiskLevel：{task.RiskLevel}");
+        builder.AppendLine($"- 依赖：{(task.DependsOn.Count == 0 ? "无" : string.Join(", ", task.DependsOn))}");
+        builder.AppendLine();
+        builder.AppendLine("## 目标");
+        builder.AppendLine(task.Instruction);
+        builder.AppendLine();
+        builder.AppendLine("## 验收标准");
+        builder.AppendLine("- [ ] 代码/文档符合任务指令");
+        builder.AppendLine("- [ ] 构建与测试通过");
+        builder.AppendLine("- [ ] PR 引用本任务 Key");
+        builder.AppendLine("- [ ] 实现记录已更新");
+        builder.AppendLine();
+        builder.AppendLine("## 实现记录");
+        builder.AppendLine("（由 Coder 完成时补充）");
+        return builder.ToString();
+    }
+
     internal static IReadOnlyList<ProjectPlanTask> ParseTasks(string? finalPlanJson)
     {
         if (string.IsNullOrWhiteSpace(finalPlanJson))
@@ -712,11 +767,22 @@ public sealed class ProjectPlanService(
                     }
                 }
 
+                var requiredRole = item.TryGetProperty("requiredRole", out var roleElement)
+                    && roleElement.ValueKind == JsonValueKind.String
+                        ? roleElement.GetString()?.Trim() ?? "coder"
+                        : "coder";
+                var riskLevel = item.TryGetProperty("riskLevel", out var riskElement)
+                    && riskElement.ValueKind == JsonValueKind.String
+                        ? riskElement.GetString()?.Trim() ?? "normal"
+                        : "normal";
+
                 if (!AllowedKinds.Contains(kindValue)
                     || titleValue.Length is < 3 or > 200
                     || instructionValue.Length is < 10 or > 20_000
                     || epic.Length > 100
-                    || taskKey.Length is < 1 or > 40)
+                    || taskKey.Length is < 1 or > 40
+                    || requiredRole.Length is < 1 or > 40
+                    || riskLevel.Length > 20)
                 {
                     continue;
                 }
@@ -727,7 +793,9 @@ public sealed class ProjectPlanService(
                     epic,
                     titleValue,
                     instructionValue,
-                    dependsOn));
+                    dependsOn,
+                    requiredRole,
+                    riskLevel));
             }
 
             return result;

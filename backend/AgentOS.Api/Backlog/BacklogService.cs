@@ -13,6 +13,9 @@ public sealed class CreateBacklogItemRequest
     public string? EpicKey { get; init; }
     public string? TaskKey { get; init; }
     public string[]? DependsOnKeys { get; init; }
+    public string? RequiredRole { get; init; }
+    public string? RiskLevel { get; init; }
+    public string? TaskDocumentMarkdown { get; init; }
     public string? Title { get; init; }
     public string? Instruction { get; init; }
     public string[]? ValidationCommands { get; init; }
@@ -34,6 +37,10 @@ public sealed record BacklogItemView(
     Guid ProjectId,
     Guid? PlanId,
     string? EpicKey,
+    string? TaskKey,
+    string? RequiredRole,
+    string? RiskLevel,
+    string? TaskDocumentMarkdown,
     string Title,
     string Status,
     string Priority,
@@ -154,6 +161,11 @@ public sealed class BacklogService(
                     .Distinct()
                     .ToArray())
                 : null,
+            RequiredRole = string.IsNullOrWhiteSpace(request.RequiredRole) ? null : request.RequiredRole.Trim(),
+            RiskLevel = string.IsNullOrWhiteSpace(request.RiskLevel) ? null : request.RiskLevel.Trim(),
+            TaskDocumentMarkdown = string.IsNullOrWhiteSpace(request.TaskDocumentMarkdown)
+                ? null
+                : request.TaskDocumentMarkdown,
             Title = title,
             PayloadJson = payload.GetRawText(),
             Priority = priority,
@@ -207,6 +219,10 @@ public sealed class BacklogService(
             item.ProjectId,
             item.PlanId,
             item.EpicKey,
+            item.TaskKey,
+            item.RequiredRole,
+            item.RiskLevel,
+            item.TaskDocumentMarkdown,
             item.Title,
             item.Status,
             item.Priority,

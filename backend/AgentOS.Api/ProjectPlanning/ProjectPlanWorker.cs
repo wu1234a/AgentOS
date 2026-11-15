@@ -266,7 +266,7 @@ public sealed class ProjectPlanWorker(
              "risks": [{"risk":"...","mitigation":"..."}],
              "acceptanceMetrics": ["..."],
              "tasks": [
-               {"taskKey":"T1","dependsOn":[],"kind":"backend|frontend|docs|full","epic":"M1","title":"...","instruction":"..."}
+               {"taskKey":"T1","dependsOn":[],"requiredRole":"architect|coder|reviewer|security|performance|qa|writer","riskLevel":"low|normal|high","kind":"backend|frontend|docs|full","epic":"M1","title":"...","instruction":"..."}
              ]
            }
            Requirements:

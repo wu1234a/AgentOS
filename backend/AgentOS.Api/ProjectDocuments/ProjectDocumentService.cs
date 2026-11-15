@@ -127,6 +127,53 @@ public sealed class ProjectDocumentService(
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task CreateAcceptanceReportAsync(
+        Project project,
+        IReadOnlyList<ProjectMilestone> milestones,
+        string acceptedBy,
+        CancellationToken cancellationToken)
+    {
+        var version = await dbContext.ProjectDocuments
+            .Where(document => document.ProjectId == project.Id && document.DocumentType == "ACCEPTANCE-REPORT")
+            .MaxAsync(document => (int?)document.Version, cancellationToken) ?? 0;
+        version++;
+
+        var builder = new StringBuilder();
+        builder.AppendLine($"# {project.Name} 项目验收报告");
+        builder.AppendLine();
+        builder.AppendLine($"- 验收人：{acceptedBy}");
+        builder.AppendLine($"- 验收时间：{timeProvider.GetUtcNow():O}");
+        builder.AppendLine();
+        builder.AppendLine("## 目标");
+        builder.AppendLine(project.Goal ?? "（未填写）");
+        builder.AppendLine();
+        builder.AppendLine("## 里程碑");
+        foreach (var milestone in milestones)
+        {
+            builder.AppendLine($"- [x] {milestone.Key} {milestone.Goal}");
+            builder.AppendLine($"  验收人：{milestone.VerifiedBy ?? acceptedBy}");
+        }
+
+        builder.AppendLine();
+        builder.AppendLine("## 验收标准");
+        builder.AppendLine(project.AcceptanceCriteria ?? "（未填写）");
+        builder.AppendLine();
+        builder.AppendLine("## 结论");
+        builder.AppendLine("人工验收通过。");
+
+        dbContext.ProjectDocuments.Add(new ProjectDocument
+        {
+            Id = Guid.CreateVersion7(),
+            ProjectId = project.Id,
+            DocumentType = "ACCEPTANCE-REPORT",
+            Title = "项目验收报告",
+            Version = version,
+            ContentMarkdown = builder.ToString(),
+            Status = "Approved",
+            CreatedAtUtc = timeProvider.GetUtcNow().UtcDateTime
+        });
+    }
+
     private static string BuildProjectDocument(Project project)
     {
         var builder = new StringBuilder();

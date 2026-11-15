@@ -62,6 +62,7 @@ public sealed class AgentOSDbContext(DbContextOptions<AgentOSDbContext> options)
     public DbSet<ProjectPlanContribution> ProjectPlanContributions => Set<ProjectPlanContribution>();
     public DbSet<ProjectPlanRevision> ProjectPlanRevisions => Set<ProjectPlanRevision>();
     public DbSet<ProjectDocument> ProjectDocuments => Set<ProjectDocument>();
+    public DbSet<ProjectMilestone> ProjectMilestones => Set<ProjectMilestone>();
     public DbSet<CodingRun> CodingRuns => Set<CodingRun>();
     public DbSet<TaskDependency> TaskDependencies => Set<TaskDependency>();
     public DbSet<ApprovalRequest> ApprovalRequests => Set<ApprovalRequest>();

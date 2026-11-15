@@ -36,6 +36,7 @@
 - [AOS-052 生成校验与模型价格](reports/AOS-052-DELIVERY-REPORT.md)
 - [AOS-053 项目目标与项目空间](reports/AOS-053-DELIVERY-REPORT.md)
 - [AOS-054 正式项目文档](reports/AOS-054-DELIVERY-REPORT.md)
+- [AOS-055 任务文档/里程碑/验收门](reports/AOS-055-DELIVERY-REPORT.md)
 
 ## 当前结论
 

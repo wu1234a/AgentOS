@@ -1,6 +1,6 @@
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   createProject,
   listProjects,
@@ -9,6 +9,12 @@ import {
   updateProject
 } from '../api/projects'
 import { getProjectDocument, listProjectDocuments } from '../api/projectDocuments'
+import {
+  acceptProject,
+  listProjectMilestones,
+  verifyProjectMilestone
+} from '../api/projectMilestones'
+import { listBacklog } from '../api/backlog'
 
 const items = ref([])
 const loading = ref(false)
@@ -22,6 +28,14 @@ const documentDetail = ref(null)
 const documentCompareVisible = ref(false)
 const documentCompareTitle = ref('')
 const documentCompareLines = ref([])
+const milestones = ref([])
+const projectTasks = ref([])
+const taskDocVisible = ref(false)
+const taskDocDetail = ref(null)
+const accepting = ref(false)
+const allMilestonesVerified = computed(
+  () => milestones.value.length > 0 && milestones.value.every((milestone) => milestone.status === 'Verified')
+)
 const suggestVisible = ref(false)
 const suggesting = ref(false)
 
@@ -157,9 +171,60 @@ async function openDetail(row) {
   detail.value = row
   detailVisible.value = true
   try {
-    documents.value = await listProjectDocuments(row.id)
+    const [documentsData, milestonesData, backlogData] = await Promise.all([
+      listProjectDocuments(row.id),
+      listProjectMilestones(row.id),
+      listBacklog({ limit: 200 })
+    ])
+    documents.value = documentsData
+    milestones.value = milestonesData
+    projectTasks.value = (backlogData || []).filter(
+      (item) => item.projectId === row.id && (item.taskKey || item.taskDocumentMarkdown)
+    )
   } catch {
     documents.value = []
+    milestones.value = []
+    projectTasks.value = []
+  }
+}
+
+function openTaskDoc(task) {
+  if (!task.taskDocumentMarkdown) {
+    ElMessage.info('该任务没有任务文档')
+    return
+  }
+  taskDocDetail.value = task
+  taskDocVisible.value = true
+}
+
+async function verifyMilestone(milestone) {
+  try {
+    await verifyProjectMilestone(detail.value.id, milestone.id)
+    ElMessage.success(`里程碑 ${milestone.key} 已人工验证`)
+    milestones.value = await listProjectMilestones(detail.value.id)
+    detail.value = (await listProjects()).find((project) => project.id === detail.value.id) || detail.value
+    await load()
+  } catch (exception) {
+    ElMessage.error(exception.message)
+  }
+}
+
+async function acceptProjectNow() {
+  try {
+    await ElMessageBox.confirm('确认项目验收通过并关闭项目？该操作代表人工验收。', '最终验收', {
+      type: 'success'
+    })
+    accepting.value = true
+    await acceptProject(detail.value.id)
+    ElMessage.success('项目已验收完成')
+    detailVisible.value = false
+    await load()
+  } catch (exception) {
+    if (exception !== 'cancel' && exception !== 'close') {
+      ElMessage.error(exception.message || String(exception))
+    }
+  } finally {
+    accepting.value = false
   }
 }
 
@@ -426,6 +491,55 @@ onMounted(load)
         </el-descriptions>
 
         <div class="documents-head">
+          <h4>里程碑</h4>
+          <span class="muted">全部人工验证后进入最终验收</span>
+        </div>
+        <el-table :data="milestones" size="small" empty-text="暂无里程碑">
+          <el-table-column prop="key" label="里程碑" width="100" />
+          <el-table-column prop="goal" label="目标" min-width="220" />
+          <el-table-column prop="exitCriteria" label="退出条件" min-width="260" show-overflow-tooltip />
+          <el-table-column prop="status" label="状态" width="100" />
+          <el-table-column label="操作" width="110">
+            <template #default="{ row }">
+              <el-button
+                v-if="row.status !== 'Verified'"
+                link
+                type="success"
+                @click="verifyMilestone(row)"
+              >
+                验证
+              </el-button>
+              <span v-else class="muted">{{ row.verifiedBy || '已验证' }}</span>
+            </template>
+          </el-table-column>
+        </el-table>
+
+        <div class="documents-head">
+          <h4>任务文档</h4>
+          <span class="muted">由计划任务生成，Coder 执行时更新</span>
+        </div>
+        <el-table :data="projectTasks" size="small" empty-text="暂无任务文档">
+          <el-table-column prop="taskKey" label="Key" width="80" />
+          <el-table-column prop="title" label="任务" min-width="240" />
+          <el-table-column prop="requiredRole" label="角色" width="100" />
+          <el-table-column prop="riskLevel" label="风险" width="90" />
+          <el-table-column prop="status" label="状态" width="110" />
+          <el-table-column label="操作" width="100">
+            <template #default="{ row }">
+              <el-button link type="primary" @click="openTaskDoc(row)">查看</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+
+        <div v-if="allMilestonesVerified && detail.status !== 'Completed'" class="accept-box">
+          <div>
+            <b>所有里程碑已验证。</b>
+            <div class="muted">下一步是人工最终验收；点击后项目将标记为 Completed。</div>
+          </div>
+          <el-button type="success" :loading="accepting" @click="acceptProjectNow">最终验收</el-button>
+        </div>
+
+        <div class="documents-head">
           <h4>项目文档</h4>
           <span class="muted">计划批准后由系统生成</span>
         </div>
@@ -469,6 +583,10 @@ onMounted(load)
           <pre>{{ line.text }}</pre>
         </div>
       </div>
+    </el-dialog>
+
+    <el-dialog v-model="taskDocVisible" :title="taskDocDetail?.title || '任务文档'" width="76%">
+      <pre class="document-pre">{{ taskDocDetail?.taskDocumentMarkdown }}</pre>
     </el-dialog>
   </div>
 </template>
@@ -577,5 +695,17 @@ onMounted(load)
 
 .diff-same {
   background: #ffffff;
+}
+
+.accept-box {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin: 18px 0;
+  padding: 14px;
+  border: 1px solid #86efac;
+  background: #f0fdf4;
+  border-radius: 8px;
 }
 </style>

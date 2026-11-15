@@ -22,6 +22,15 @@ public sealed class BacklogItem
     /// <summary>JSON array of prerequisite TaskKey values in the same plan.</summary>
     public string? DependsOnJson { get; set; }
 
+    /// <summary>Role expected to execute this task (architect, coder, reviewer, qa...).</summary>
+    public string? RequiredRole { get; set; }
+
+    /// <summary>Risk classification used by quality gates.</summary>
+    public string? RiskLevel { get; set; }
+
+    /// <summary>Formal Markdown task document generated from the plan.</summary>
+    public string? TaskDocumentMarkdown { get; set; }
+
     public string Title { get; set; } = string.Empty;
 
     /// <summary>Full task payload (instruction, validation commands, delivery).</summary>
