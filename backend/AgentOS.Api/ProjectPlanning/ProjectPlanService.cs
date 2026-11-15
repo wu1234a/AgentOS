@@ -1,5 +1,6 @@
 using System.Text.Json;
 using AgentOS.Api.Backlog;
+using AgentOS.Api.ProjectDocuments;
 using AgentOS.Application.Planning;
 using AgentOS.Application.Projects;
 using AgentOS.Domain.Planning;
@@ -125,6 +126,7 @@ public sealed class ProjectPlanService(
     AgentOSDbContext dbContext,
     IProjectLookup projects,
     BacklogService backlog,
+    ProjectDocumentService projectDocuments,
     IOptions<PlannerOptions> plannerOptions,
     TimeProvider timeProvider)
 {
@@ -538,6 +540,29 @@ public sealed class ProjectPlanService(
                 ToView(plan),
                 "plan-delivery-missing",
                 "The plan has no valid delivery configuration.");
+        }
+
+        var project = await projects.FindByIdAsync(plan.ProjectId, cancellationToken);
+        if (project is null)
+        {
+            return new ProjectPlanApprovalResult(
+                false,
+                ToView(plan),
+                "plan-project-missing",
+                "The project no longer exists.");
+        }
+
+        try
+        {
+            await projectDocuments.CreateFromApprovedPlanAsync(plan, project, cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            return new ProjectPlanApprovalResult(
+                false,
+                ToView(plan),
+                "plan-document-generation-failed",
+                exception.Message);
         }
 
         var created = new List<string>();

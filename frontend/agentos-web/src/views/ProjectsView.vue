@@ -8,6 +8,7 @@ import {
   suggestProject,
   updateProject
 } from '../api/projects'
+import { getProjectDocument, listProjectDocuments } from '../api/projectDocuments'
 
 const items = ref([])
 const loading = ref(false)
@@ -15,6 +16,9 @@ const error = ref('')
 const createVisible = ref(false)
 const detailVisible = ref(false)
 const detail = ref(null)
+const documents = ref([])
+const documentVisible = ref(false)
+const documentDetail = ref(null)
 const suggestVisible = ref(false)
 const suggesting = ref(false)
 
@@ -146,9 +150,23 @@ async function buildSuggestion() {
   }
 }
 
-function openDetail(row) {
+async function openDetail(row) {
   detail.value = row
   detailVisible.value = true
+  try {
+    documents.value = await listProjectDocuments(row.id)
+  } catch {
+    documents.value = []
+  }
+}
+
+async function openDocument(doc) {
+  try {
+    documentDetail.value = await getProjectDocument(detail.value.id, doc.id)
+    documentVisible.value = true
+  } catch (exception) {
+    ElMessage.error(exception.message)
+  }
 }
 
 function openEdit(row) {
@@ -338,8 +356,30 @@ onMounted(load)
             <pre class="detail-pre">{{ detail.acceptanceCriteria || '—' }}</pre>
           </el-descriptions-item>
         </el-descriptions>
+
+        <div class="documents-head">
+          <h4>项目文档</h4>
+          <span class="muted">计划批准后由系统生成</span>
+        </div>
+        <el-table :data="documents" size="small" empty-text="暂无正式文档">
+          <el-table-column prop="documentType" label="类型" width="130" />
+          <el-table-column prop="title" label="文档" min-width="180" />
+          <el-table-column prop="version" label="版本" width="80">
+            <template #default="{ row }">v{{ row.version }}</template>
+          </el-table-column>
+          <el-table-column prop="status" label="状态" width="110" />
+          <el-table-column label="操作" width="90">
+            <template #default="{ row }">
+              <el-button link type="primary" @click="openDocument(row)">查看</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
       </template>
     </el-drawer>
+
+    <el-dialog v-model="documentVisible" :title="documentDetail?.title || '项目文档'" width="80%">
+      <pre class="document-pre">{{ documentDetail?.contentMarkdown }}</pre>
+    </el-dialog>
   </div>
 </template>
 
@@ -383,5 +423,29 @@ onMounted(load)
   word-break: break-word;
   font-family: inherit;
   font-size: 13px;
+}
+
+.documents-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 20px 0 10px;
+}
+
+.documents-head h4 {
+  margin: 0;
+}
+
+.document-pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 13px;
+  line-height: 1.7;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 14px;
+  max-height: 70vh;
+  overflow: auto;
 }
 </style>
