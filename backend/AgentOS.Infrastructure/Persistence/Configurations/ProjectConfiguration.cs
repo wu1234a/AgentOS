@@ -23,6 +23,15 @@ public sealed class ProjectConfiguration : IEntityTypeConfiguration<Project>
         builder.HasIndex(project => project.Slug).IsUnique();
 
         builder.Property(project => project.IsEnabled).IsRequired();
+        builder.Property(project => project.Goal).HasMaxLength(2000);
+        builder.Property(project => project.Brief).HasMaxLength(8000);
+        builder.Property(project => project.PersonalNotes).HasMaxLength(8000);
+        builder.Property(project => project.AcceptanceCriteria).HasMaxLength(8000);
+        builder.Property(project => project.Repository).HasMaxLength(200);
+        builder.Property(project => project.Status)
+            .HasMaxLength(30)
+            .HasDefaultValue("Active")
+            .IsRequired();
 
         builder.Property(project => project.CreatedAtUtc).HasColumnType("datetime2(3)");
         builder.Property(project => project.UpdatedAtUtc).HasColumnType("datetime2(3)");

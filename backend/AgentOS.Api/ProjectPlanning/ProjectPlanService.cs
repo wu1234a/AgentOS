@@ -147,7 +147,12 @@ public sealed class ProjectPlanService(
         }
 
         var title = request.Title?.Trim() ?? string.Empty;
-        var goal = request.Goal?.Trim() ?? string.Empty;
+        if (title.Length == 0)
+        {
+            title = $"{project.Name} 立项";
+        }
+
+        var goal = request.Goal?.Trim() ?? project.Goal?.Trim() ?? string.Empty;
         if (title.Length is < 3 or > 200)
         {
             return Fail("title must be between 3 and 200 characters.");
@@ -159,7 +164,7 @@ public sealed class ProjectPlanService(
         }
 
         var constraints = string.IsNullOrWhiteSpace(request.Constraints)
-            ? null
+            ? (string.IsNullOrWhiteSpace(project.Brief) ? null : project.Brief.Trim())
             : request.Constraints.Trim();
         if (constraints is { Length: > 8000 })
         {
@@ -169,7 +174,19 @@ public sealed class ProjectPlanService(
         var delivery = request.Delivery ?? new BacklogDeliveryRequest();
         if (string.IsNullOrWhiteSpace(delivery.Repository))
         {
-            return Fail("delivery.repository is required.");
+            delivery = new BacklogDeliveryRequest
+            {
+                Repository = project.Repository,
+                BaseBranch = delivery.BaseBranch,
+                Remote = delivery.Remote,
+                TokenEnvironmentVariable = delivery.TokenEnvironmentVariable,
+                RequirePullRequest = delivery.RequirePullRequest
+            };
+        }
+
+        if (string.IsNullOrWhiteSpace(delivery.Repository))
+        {
+            return Fail("delivery.repository or project.repository is required.");
         }
 
         var now = timeProvider.GetUtcNow().UtcDateTime;

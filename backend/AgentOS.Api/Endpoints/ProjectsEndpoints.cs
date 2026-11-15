@@ -11,6 +11,7 @@ public static class ProjectsEndpoints
         group.MapGet("", ListAsync);
         group.MapGet("/{id:guid}", GetAsync);
         group.MapPost("", CreateAsync);
+        group.MapPost("/suggest", Suggest);
         group.MapPatch("/{id:guid}", UpdateAsync);
         group.MapPost("/{id:guid}/enable", EnableAsync);
         group.MapPost("/{id:guid}/disable", DisableAsync);
@@ -24,6 +25,20 @@ public static class ProjectsEndpoints
     {
         var project = await service.GetAsync(id, cancellationToken);
         return project is null ? Results.NotFound() : Results.Ok(project);
+    }
+
+    private static IResult Suggest(SuggestProjectRequest request, ProjectService service)
+    {
+        var goal = request.Goal?.Trim() ?? string.Empty;
+        if (goal.Length is < 10 or > 2000)
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["goal"] = ["goal must be between 10 and 2000 characters."]
+            });
+        }
+
+        return Results.Ok(service.Suggest(request));
     }
 
     private static async Task<IResult> CreateAsync(CreateProjectRequest request, ProjectService service, CancellationToken cancellationToken)

@@ -34,6 +34,7 @@
 - [AOS-050 Backlog 依赖](reports/AOS-050-DELIVERY-REPORT.md)
 - [AOS-051 依赖图与对比](reports/AOS-051-DELIVERY-REPORT.md)
 - [AOS-052 生成校验与模型价格](reports/AOS-052-DELIVERY-REPORT.md)
+- [AOS-053 项目目标与项目空间](reports/AOS-053-DELIVERY-REPORT.md)
 
 ## 当前结论
 

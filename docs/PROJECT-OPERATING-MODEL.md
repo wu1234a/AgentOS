@@ -753,6 +753,123 @@ Reviewer/QA 必须更新：
 人工签收
 ```
 
+### 7.5 Skill 自动化
+
+当前 AgentOS 的 Skill 是纯人工创建：
+
+```text
+Skills 页面
+→ 填写 code/version/description/content
+→ 文件存储
+→ 人工启用
+→ Rule 通过 SkillCode 引用
+→ Task 注入 SkillContent
+```
+
+建议按等级引入自动化，不直接自动启用。
+
+#### Level 1：自动选择已有 Skill
+
+低风险，优先实现。
+
+```text
+Project / Epic / RequiredRole / TaskKey
+→ SkillSelector
+→ 选择 enabled 且匹配的 Skill
+→ 注入 Task
+```
+
+规则示例：
+
+```text
+3dERP 后端任务 → 3derp-backend-change
+3dERP 前端任务 → 3derp-frontend-change
+安全相关任务 → 3derp-security-review
+```
+
+#### Level 2：AI 起草 Skill，人工批准
+
+推荐做法。
+
+触发：
+
+- 项目计划批准后
+- 同类任务完成 3 次后
+- Review 反复指出同类问题后
+
+系统生成：
+
+```text
+SkillProposals
+  Code
+  Version
+  Description
+  ContentMarkdown
+  SourcePlanId
+  SourceTaskIds
+  Confidence
+  Status = Draft
+```
+
+流程：
+
+```text
+Draft
+→ 人工审阅/修改
+→ Approve
+→ 现有 SkillService 创建 version
+→ 人工启用
+```
+
+#### Level 3：自动更新 Skill
+
+中高风险。
+
+```text
+Review 发现新规范
+→ 生成新版本草案
+→ 展示 diff
+→ 人工批准
+→ 新版本生效
+```
+
+不覆盖旧版本，必须保留版本和 diff。
+
+#### Level 4：自动启用 Skill
+
+不建议。
+
+```text
+AI 生成 → 自动 enabled → 影响所有后续任务
+```
+
+一次错误 SOP 会污染一批任务。
+
+#### Skill 自动化的硬约束
+
+```text
+默认 Draft，不自动 enabled
+必须标注来源 Plan/Task
+必须去重
+必须限制内容大小
+必须扫描密钥
+必须项目级隔离
+必须人工批准
+必须保留版本和 diff
+```
+
+#### Skill 与角色协作
+
+```text
+Architect：提出 Skill 需求
+Coder：使用 Skill，反馈缺失步骤
+Reviewer：发现 Skill 与代码不一致
+QA：验证 Skill 是否可执行
+Tech Writer：维护 Skill 文档
+```
+
+Phase 3 实现 Level 1，Phase 4 实现 Level 2。
+
 ---
 
 ## 8. 当前 AgentOS 差距
@@ -786,6 +903,8 @@ Reviewer/QA 必须更新：
 ---
 
 ### Phase 1：项目目标与项目空间
+
+状态：**已实现（AOS-053，2026-11-15）**
 
 目标：让项目第一次拥有“灵魂”。
 
@@ -854,9 +973,9 @@ ACCEPTANCE.md
 
 ---
 
-### Phase 3：任务文档与角色队列
+### Phase 3：任务文档、角色队列与 Skill 选择
 
-目标：从“任务指令”升级为“任务文档 + 角色”。
+目标：从“任务指令”升级为“任务文档 + 角色 + SOP”。
 
 实现：
 
@@ -875,6 +994,7 @@ RiskLevel
 - Reviewer/Security/Performance/QA 独立角色
 - 文档回写
 - 角色队列
+- Skill 自动选择（Level 1）
 
 **验收：**
 
@@ -897,6 +1017,7 @@ RiskLevel
 - QA 验收标准核对
 - PR 必须引用 TaskKey/文档
 - 未满足验收标准不能 Done
+- SkillProposal 起草与人工批准（Level 2）
 
 **验收：**
 
