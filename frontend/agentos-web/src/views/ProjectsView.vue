@@ -19,6 +19,9 @@ const detail = ref(null)
 const documents = ref([])
 const documentVisible = ref(false)
 const documentDetail = ref(null)
+const documentCompareVisible = ref(false)
+const documentCompareTitle = ref('')
+const documentCompareLines = ref([])
 const suggestVisible = ref(false)
 const suggesting = ref(false)
 
@@ -167,6 +170,71 @@ async function openDocument(doc) {
   } catch (exception) {
     ElMessage.error(exception.message)
   }
+}
+
+function previousDocument(doc) {
+  return documents.value.find(
+    (candidate) => candidate.documentType === doc.documentType && candidate.version === doc.version - 1
+  )
+}
+
+async function compareDocument(doc) {
+  const previous = previousDocument(doc)
+  if (!previous) {
+    ElMessage.info('没有上一版本可对比')
+    return
+  }
+
+  try {
+    const [before, after] = await Promise.all([
+      getProjectDocument(detail.value.id, previous.id),
+      getProjectDocument(detail.value.id, doc.id)
+    ])
+    documentCompareTitle.value = `${doc.title} v${previous.version} → v${doc.version}`
+    documentCompareLines.value = diffLines(before.contentMarkdown, after.contentMarkdown)
+    documentCompareVisible.value = true
+  } catch (exception) {
+    ElMessage.error(exception.message)
+  }
+}
+
+function diffLines(beforeText, afterText) {
+  const before = (beforeText || '').split('\n')
+  const after = (afterText || '').split('\n')
+  if (before.length * after.length > 400000) {
+    return [
+      ...before.map((text) => ({ type: 'same', text })),
+      ...after.map((text) => ({ type: 'add', text }))
+    ]
+  }
+
+  const dp = Array.from({ length: before.length + 1 }, () => new Array(after.length + 1).fill(0))
+  for (let i = before.length - 1; i >= 0; i--) {
+    for (let j = after.length - 1; j >= 0; j--) {
+      dp[i][j] = before[i] === after[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1])
+    }
+  }
+
+  const lines = []
+  let i = 0
+  let j = 0
+  while (i < before.length && j < after.length) {
+    if (before[i] === after[j]) {
+      lines.push({ type: 'same', text: before[i] })
+      i++
+      j++
+    } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+      lines.push({ type: 'remove', text: before[i] })
+      i++
+    } else {
+      lines.push({ type: 'add', text: after[j] })
+      j++
+    }
+  }
+
+  while (i < before.length) lines.push({ type: 'remove', text: before[i++] })
+  while (j < after.length) lines.push({ type: 'add', text: after[j++] })
+  return lines
 }
 
 function openEdit(row) {
@@ -368,9 +436,17 @@ onMounted(load)
             <template #default="{ row }">v{{ row.version }}</template>
           </el-table-column>
           <el-table-column prop="status" label="状态" width="110" />
-          <el-table-column label="操作" width="90">
+          <el-table-column label="操作" width="150">
             <template #default="{ row }">
               <el-button link type="primary" @click="openDocument(row)">查看</el-button>
+              <el-button
+                v-if="previousDocument(row)"
+                link
+                type="warning"
+                @click="compareDocument(row)"
+              >
+                对比
+              </el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -379,6 +455,20 @@ onMounted(load)
 
     <el-dialog v-model="documentVisible" :title="documentDetail?.title || '项目文档'" width="80%">
       <pre class="document-pre">{{ documentDetail?.contentMarkdown }}</pre>
+    </el-dialog>
+
+    <el-dialog v-model="documentCompareVisible" :title="documentCompareTitle" width="82%">
+      <div class="diff-list">
+        <div
+          v-for="(line, index) in documentCompareLines"
+          :key="index"
+          class="diff-line"
+          :class="`diff-${line.type}`"
+        >
+          <span class="diff-sign">{{ line.type === 'add' ? '+' : line.type === 'remove' ? '-' : ' ' }}</span>
+          <pre>{{ line.text }}</pre>
+        </div>
+      </div>
     </el-dialog>
   </div>
 </template>
@@ -447,5 +537,45 @@ onMounted(load)
   padding: 14px;
   max-height: 70vh;
   overflow: auto;
+}
+
+.diff-list {
+  max-height: 70vh;
+  overflow: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.diff-line {
+  display: flex;
+  gap: 8px;
+  padding: 2px 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.diff-line pre {
+  margin: 0;
+  font-family: Consolas, monospace;
+  white-space: pre-wrap;
+}
+
+.diff-sign {
+  width: 14px;
+  flex: none;
+  color: #6b7280;
+}
+
+.diff-add {
+  background: #ecfdf5;
+}
+
+.diff-remove {
+  background: #fef2f2;
+}
+
+.diff-same {
+  background: #ffffff;
 }
 </style>

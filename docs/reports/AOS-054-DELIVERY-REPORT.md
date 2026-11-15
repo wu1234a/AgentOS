@@ -106,6 +106,8 @@ GET /api/v1/projects/{projectId}/documents/{documentId}
 - 项目文档表
 - 类型/标题/版本/状态
 - 点击查看 Markdown
+- 同类型存在上一版本时可“对比”
+- 行级 diff（新增/删除/相同）
 - 无文档时显示空状态
 
 ## 7. 验证
@@ -134,7 +136,7 @@ Playwright → 项目文档区域可见，0 page errors
 - 文档存储在数据库，不自动写入项目仓库。
 - Markdown 只做只读展示，没有编辑器。
 - BRAINSTORM 内容来自已存提案/评审，不是重新生成。
-- 文档版本对比尚未实现，仅按版本列表。
+- 文档对比是行级 LCS diff，不是语义/结构化 diff。
 - 项目归档/完成流程尚未与文档联动。
 
 ## 9. 后续
